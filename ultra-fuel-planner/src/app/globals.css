@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 14% 6%;
+    --foreground: 40 20% 90%;
+    --muted: 220 10% 14%;
+    --muted-foreground: 220 8% 55%;
+    --border: 220 10% 18%;
+    --input: 220 10% 12%;
+    --ring: 30 60% 45%;
+    --primary: 30 60% 45%;
+    --primary-foreground: 40 20% 95%;
+    --secondary: 220 10% 14%;
+    --secondary-foreground: 40 20% 90%;
+    --accent: 30 50% 30%;
+    --accent-foreground: 40 20% 90%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --card: 220 12% 8%;
+    --card-foreground: 40 20% 90%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-stone-800;
+  }
+
+  body {
+    @apply bg-stone-950 text-stone-100 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5 {
+    @apply text-stone-50 font-semibold tracking-tight;
+  }
+
+  input, textarea, select {
+    @apply bg-stone-900 border-stone-700 text-stone-100 placeholder:text-stone-500;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Elevation chart custom styles */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.04) !important;
+}
+
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+/* Terrain segment bars in chart */
+.terrain-bar-flat_runnable { fill: #4a7c59; }
+.terrain-bar-rolling { fill: #6b8f4e; }
+.terrain-bar-sustained_climb { fill: #c4773a; }
+.terrain-bar-steep_climb { fill: #c4463a; }
+.terrain-bar-runnable_descent { fill: #5b7fa6; }
+.terrain-bar-technical_descent { fill: #8b6bb1; }
+.terrain-bar-recovery { fill: #4a7c7c; }
+
+/* Print styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-break {
+    page-break-before: always;
+  }
+}
