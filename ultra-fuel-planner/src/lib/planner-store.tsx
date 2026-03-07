@@ -18,11 +18,13 @@ import type {
   PriorEffort,
   EventType,
   RacePriority,
+  FinishTimeEstimation,
 } from "@/types";
 import { DEFAULT_ASSUMPTIONS } from "@/types";
 import { loadState, saveState, defaultAthlete, defaultFuelInventory } from "./storage";
 import { segmentRoute } from "./segmentation";
 import { generatePlan } from "./fuelling-engine";
+import { estimateFinishTime } from "./calibration-engine";
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -228,12 +230,58 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    // ── Finish-time estimation ──────────────────────────────────────────
+    // When the user hasn't provided a target finish time, anchor on their
+    // prior efforts to avoid the default 6.5 min/km flat pace producing
+    // wildly optimistic estimates (e.g. 10h for an 18-hour runner).
+    let derivedFinishMinutes = state.targetFinishTimeMinutes;
+    let finishTimeEstimation: FinishTimeEstimation | undefined;
+
+    if (!derivedFinishMinutes && (state.priorEfforts?.length ?? 0) > 0) {
+      const targetDist = state.targetDistanceKm ?? route?.totalDistanceKm;
+      if (targetDist && targetDist > 0) {
+        finishTimeEstimation = estimateFinishTime(
+          state.priorEfforts ?? [],
+          targetDist,
+          route?.totalAscentM,
+          state.athlete,
+          state.racePriority,
+        );
+        derivedFinishMinutes = finishTimeEstimation.estimatedMinutes;
+      }
+    }
+
+    // ── Scale segment durations ─────────────────────────────────────────
+    // Whether the finish time is user-provided or estimated from prior
+    // efforts, scale segment durations proportionally so totalRaceMinutes
+    // in the fuelling engine matches the target/estimated time.
+    if (route && derivedFinishMinutes && route.segments.length > 0) {
+      const rawTotal = route.segments.reduce(
+        (a, s) => a + s.estimatedDurationMinutes, 0
+      );
+      if (rawTotal > 0 && Math.abs(rawTotal - derivedFinishMinutes) > 10) {
+        const scaleFactor = derivedFinishMinutes / rawTotal;
+        route = {
+          ...route,
+          segments: route.segments.map(s => ({
+            ...s,
+            estimatedDurationMinutes: Math.round(
+              s.estimatedDurationMinutes * scaleFactor
+            ),
+            estimatedPaceMinPerKm: Math.round(
+              s.estimatedPaceMinPerKm * scaleFactor * 10
+            ) / 10,
+          })),
+        };
+      }
+    }
+
     const eventPlan: EventPlan = {
       eventName: state.eventName ?? "My Race",
       eventType: state.eventType,
       racePriority: state.racePriority,
       targetDistanceKm: state.targetDistanceKm,
-      targetFinishTimeMinutes: state.targetFinishTimeMinutes,
+      targetFinishTimeMinutes: derivedFinishMinutes,
       expectedTemperatureC: state.expectedTemperatureC,
       athlete: state.athlete,
       route,
@@ -244,6 +292,13 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     };
 
     const output = generatePlan(eventPlan);
+
+    // Attach finish-time estimation metadata for the results page
+    if (finishTimeEstimation) {
+      output.finishTimeEstimation = finishTimeEstimation;
+      output.summary.finishTimeEstimation = finishTimeEstimation;
+    }
+
     dispatch({ type: "SET_PLAN_OUTPUT", output });
     saveState({ lastPlannerOutput: output });
     return output;

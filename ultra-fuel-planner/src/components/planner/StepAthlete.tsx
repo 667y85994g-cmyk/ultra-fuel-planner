@@ -470,7 +470,7 @@ export function StepAthlete({ onNext }: Props) {
 
         <div className="flex justify-end">
           <Button type="submit" size="lg">
-            Next: Upload Route
+            Next: Prior Efforts
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

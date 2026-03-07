@@ -56,20 +56,20 @@ const TERRAIN_RULES: Record<TerrainType, TerrainRule> = {
     fluidPriorityMultiplier: 1.25,
   },
   rolling: {
-    preferred: ["chew", "gel", "drink_mix"],
+    preferred: ["gel", "drink_mix", "chew"],
     avoid: [],
     rationale:
-      "Rolling terrain: mixed effort allows most fuel formats. Chews work well on the runnable sections.",
-    fuellingFormat: "Most formats work — chews, gels, drinks",
+      "Rolling terrain: mixed effort allows most fuel formats. Gels and drink mix are efficient; chews work on runnable sections.",
+    fuellingFormat: "Gels and drinks preferred, chews acceptable",
     fluidPriorityMultiplier: 1.0,
   },
   flat_runnable: {
-    preferred: ["chew", "bar", "gel", "drink_mix", "real_food"],
+    preferred: ["gel", "drink_mix", "chew", "bar", "real_food"],
     avoid: [],
     rationale:
-      "Flat and runnable: best opportunity to eat solids or chews. Take bars and real food here.",
-    timingNote: "Ideal time to eat anything that requires chewing.",
-    fuellingFormat: "Best window for solids, bars, real food",
+      "Flat and runnable: good window for all formats. Gels and drink mix are efficient; solids are also tolerable here.",
+    timingNote: "Best opportunity for solid food if needed.",
+    fuellingFormat: "All formats work — gels, drinks, solids",
     fluidPriorityMultiplier: 0.9,
   },
   technical_descent: {
@@ -90,10 +90,10 @@ const TERRAIN_RULES: Record<TerrainType, TerrainRule> = {
     fluidPriorityMultiplier: 0.9,
   },
   recovery: {
-    preferred: ["bar", "real_food", "chew", "drink_mix"],
+    preferred: ["drink_mix", "chew", "real_food", "bar"],
     avoid: [],
     rationale:
-      "Recovery section: easy effort is a good window to eat real food and restore energy stores.",
+      "Recovery section: easy effort is a good window to eat real food and add variety.",
     fuellingFormat: "Good opportunity for real food and variety",
     fluidPriorityMultiplier: 0.85,
   },
@@ -350,6 +350,8 @@ function generateSchedule(
   const caffeineLimitMg = athlete.caffeineMaxMg ?? 400;
   let entryIdx = 0;
   let cumulativeMinutes = 0;
+  let solidCarbsSoFar = 0;
+  let liquidCarbsSoFar = 0;
 
   for (const seg of segments) {
     const rule = TERRAIN_RULES[seg.terrain];
@@ -377,7 +379,8 @@ function generateSchedule(
 
       const selectedFuel = selectBestFuel(
         inventory, inventoryUsage, seg.terrain, rule, athlete,
-        raceHoursAtSegStart, totalRaceMinutes / 60, totalCaffeineMg, caffeineLimitMg
+        raceHoursAtSegStart, totalRaceMinutes / 60, totalCaffeineMg, caffeineLimitMg,
+        solidCarbsSoFar, liquidCarbsSoFar, !!nearAid,
       );
 
       if (!selectedFuel) {
@@ -391,6 +394,14 @@ function generateSchedule(
       }
 
       const quantity = calcQuantity(selectedFuel, athlete.carbTargetPerHour, intervalMins);
+
+      // Track solid vs liquid carb allocation for guardrail
+      const entryCarbs = selectedFuel.carbsPerServing * quantity;
+      if (selectedFuel.requiresChewing) {
+        solidCarbsSoFar += entryCarbs;
+      } else {
+        liquidCarbsSoFar += entryCarbs;
+      }
 
       totalCaffeineMg += selectedFuel.caffeinePerServingMg * quantity;
       const used = inventoryUsage.get(selectedFuel.id) ?? 0;
@@ -483,10 +494,16 @@ function selectBestFuel(
   raceHoursNow: number,
   totalRaceHours: number,
   totalCaffeineMg: number,
-  caffeineLimitMg: number
+  caffeineLimitMg: number,
+  solidCarbsSoFar: number,
+  liquidCarbsSoFar: number,
+  isNearAidStation: boolean,
 ): FuelItem | null {
   const isLateRace = raceHoursNow >= (athlete.preferences.noSweetAfterHour ?? Infinity) ||
     raceHoursNow >= totalRaceHours * 0.65;
+  const isUltra = totalRaceHours >= 6;
+  const isLongUltra = totalRaceHours >= 10;
+  const isHighEffort = terrain === "steep_climb" || terrain === "sustained_climb";
 
   const available = inventory.filter((item) => {
     const used = usage.get(item.id) ?? 0;
@@ -496,31 +513,80 @@ function selectBestFuel(
     if (athlete.preferences.exclusions.includes(item.productName)) return false;
     if (athlete.caffeinePreference === "none" && item.caffeinePerServingMg > 0) return false;
     if (totalCaffeineMg + item.caffeinePerServingMg > caffeineLimitMg) return false;
-    const isClimb = terrain === "steep_climb" || terrain === "sustained_climb";
-    if (isClimb && item.requiresChewing) return false;
+    if (isHighEffort && item.requiresChewing) return false;
     return true;
   });
 
   if (available.length === 0) return null;
 
+  // Solid carb ratio tracking for guardrail enforcement
+  const totalCarbsSoFar = solidCarbsSoFar + liquidCarbsSoFar;
+  const currentSolidRatio = totalCarbsSoFar > 0
+    ? solidCarbsSoFar / totalCarbsSoFar : 0;
+  // Cap: 25% solid by default, 40% if low-sweetness tolerance, 0% if noSolids
+  const solidCapRatio = athlete.preferences.noSolids ? 0
+    : athlete.preferences.lowSweetnessTolerance ? 0.40
+    : 0.25;
+
   const scored = available.map((item) => {
     let score = 0;
+    const isSolid = item.requiresChewing;
+
+    // 1. Terrain suitability (from TERRAIN_RULES preferred list)
     const prefIdx = rule.preferred.indexOf(item.type);
-    if (prefIdx === 0) score += 30;
-    else if (prefIdx === 1) score += 20;
-    else if (prefIdx > 1) score += 10;
+    if (prefIdx === 0) score += 20;
+    else if (prefIdx === 1) score += 15;
+    else if (prefIdx > 1) score += 8;
 
-    if (isLateRace) score += item.lateRaceToleranceScore * 8;
-    else score += (6 - item.sweetnessScore) * 3;
+    // 2. Race-distance format bias — for ultras, strongly favour gels/drinks
+    if (isLongUltra) {
+      score += isSolid ? -20 : 25;
+    } else if (isUltra) {
+      score += isSolid ? -10 : 15;
+    }
 
-    if (athlete.preferences.lowSweetnessTolerance && item.sweetnessScore <= 2) score += 10;
+    // 3. Effort-based scoring
+    if (isHighEffort) {
+      if (item.easyAtHighEffort) score += 15;
+      if (isSolid) score -= 15;
+    }
+
+    // 4. Late-race tolerance
+    if (isLateRace) {
+      score += item.lateRaceToleranceScore * 8;
+      if (isSolid) score -= 12;
+    } else {
+      score += (6 - item.sweetnessScore) * 2;
+    }
+
+    // 5. Sweetness fatigue management
+    if (athlete.preferences.lowSweetnessTolerance) {
+      if (item.sweetnessScore <= 2) score += 12;
+      if (isSolid) score += 8; // low-sweetness runners may prefer less-sweet solids
+    }
+    if (raceHoursNow > 6 && item.sweetnessScore >= 4) score -= 5;
+
+    // 6. Carry efficiency — dense carb sources score higher
+    if (!isSolid && item.carbsPerServing >= 25) score += 5;
+
+    // 7. Hydration contribution
+    if (item.fluidContributionMl > 0) score += 3;
+
+    // 8. User preferences
     if (athlete.preferences.drinkHeavy && item.type === "drink_mix") score += 20;
     if (athlete.preferences.gelLight && item.type === "gel") score -= 15;
 
-    const isHigh = ["steep_climb", "sustained_climb"].includes(terrain);
-    if (isHigh && item.easyAtHighEffort) score += 15;
-    if (item.carbsPerServing >= 20) score += 5;
+    // 9. Solid cap guardrail — strongly penalise solids when ratio exceeds cap
+    if (isSolid && totalCarbsSoFar > 50 && currentSolidRatio >= solidCapRatio) {
+      score -= 30;
+    }
 
+    // 10. Aid station proximity — solids more acceptable near aid stations
+    if (isNearAidStation && isSolid && !isLateRace && !isHighEffort) {
+      score += 10;
+    }
+
+    // 11. Supply management — deprioritise items running low
     const used = usage.get(item.id) ?? 0;
     const remaining = item.quantityAvailable - used;
     if (remaining <= 2) score -= 20;
@@ -632,6 +698,64 @@ function buildSummary(
   const targetCoverageRatio = athlete.carbTargetPerHour > 0 ? avgCarbsPerHour / athlete.carbTargetPerHour : 1;
   const coverageScore = Math.min(100, Math.round(targetCoverageRatio * 100));
 
+  // ── Generate fuel format notes for transparency ───────────────────────
+  const fuelFormatNotes: string[] = [];
+
+  const solidCarbs = fuelEvents.reduce((acc, e) => {
+    const item = inventory.find(f => f.id === e.fuelItemId);
+    return acc + (item?.requiresChewing ? e.carbsG : 0);
+  }, 0);
+  const solidPct = totalCarbsG > 0 ? Math.round(solidCarbs / totalCarbsG * 100) : 0;
+
+  if (totalRaceHours >= 8) {
+    if (solidPct <= 30) {
+      fuelFormatNotes.push(
+        `Gel and drink-dominant plan (${100 - solidPct}% of carbs from liquids/gels). Recommended for long ultras to minimise gut stress.`
+      );
+    } else if (solidPct <= 45) {
+      fuelFormatNotes.push(
+        `Mixed format plan: ${solidPct}% of carbs from solid foods, ${100 - solidPct}% from gels/drinks. Solids are scheduled on easier terrain.`
+      );
+    } else {
+      fuelFormatNotes.push(
+        `Solid-heavy plan (${solidPct}% from solids). For races over 8 hours, consider shifting more toward gels and drinks for better absorption.`
+      );
+    }
+  } else if (totalRaceHours >= 3) {
+    if (solidPct > 50) {
+      fuelFormatNotes.push(
+        `Mixed format with ${solidPct}% solid foods. This works well for shorter events with accessible terrain.`
+      );
+    }
+  }
+
+  // Top fuel types breakdown
+  const typeCarbTotals: Record<string, number> = {};
+  for (const e of fuelEvents) {
+    const item = inventory.find(f => f.id === e.fuelItemId);
+    if (item) {
+      typeCarbTotals[item.type] = (typeCarbTotals[item.type] ?? 0) + e.carbsG;
+    }
+  }
+  const sortedTypes = Object.entries(typeCarbTotals).sort(([, a], [, b]) => b - a);
+  if (sortedTypes.length > 0 && totalCarbsG > 0) {
+    const typeLabels: Record<string, string> = {
+      gel: "Gels", chew: "Chews", drink_mix: "Drink mix", bar: "Bars",
+      real_food: "Real food", capsule: "Capsules", other: "Other",
+    };
+    const topFormats = sortedTypes.slice(0, 3).map(([type, carbs]) => {
+      const pct = Math.round(carbs / totalCarbsG * 100);
+      return `${typeLabels[type] ?? type} (${pct}%)`;
+    }).join(", ");
+    fuelFormatNotes.push(`Carb sources: ${topFormats}.`);
+  }
+
+  if (segments.length > 0) {
+    fuelFormatNotes.push(
+      "Solids are scheduled on flat and recovery terrain where gut tolerance is highest. Gels and drinks are prioritised on climbs and in later race stages."
+    );
+  }
+
   return {
     totalRaceDurationMinutes: totalRaceMinutes,
     avgCarbsPerHour,
@@ -644,6 +768,7 @@ function buildSummary(
     carbTargetRangeGPerHour: calibration.suggestedCarbRangeGPerHour,
     workingCarbTarget: calibration.workingCarbTargetGPerHour,
     burnRateBand: calibration.burnRateBand,
+    fuelFormatNotes,
   };
 }
 

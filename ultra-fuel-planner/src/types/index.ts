@@ -67,6 +67,16 @@ export interface PlanConfidence {
   notes: string[];
 }
 
+// ─── Finish Time Estimation ─────────────────────────────────────────────────
+
+export interface FinishTimeEstimation {
+  estimatedMinutes: number;
+  rangeMinutes: [number, number]; // [optimistic, conservative]
+  confidence: ConfidenceLevel;
+  method: "prior_effort_anchor" | "pace_based" | "fallback";
+  explanation: string[];
+}
+
 // ─── Event Plan ───────────────────────────────────────────────────────────────
 
 export interface EventPlan {
@@ -261,6 +271,7 @@ export interface PlannerOutput {
   segmentRecommendations: SegmentRecommendation[];
   warnings: PlanWarning[];
   confidence: PlanConfidence;
+  finishTimeEstimation?: FinishTimeEstimation;
   generatedAt: string;
 }
 
@@ -280,6 +291,8 @@ export interface PlanSummary {
   carbTargetRangeGPerHour?: [number, number];
   workingCarbTarget?: number;
   burnRateBand?: BurnRateBand;
+  finishTimeEstimation?: FinishTimeEstimation;
+  fuelFormatNotes?: string[];
 }
 
 export interface SegmentRecommendation {

@@ -15,6 +15,7 @@ import type {
   BurnRateBand,
   ExperienceLevel,
   RacePriority,
+  FinishTimeEstimation,
 } from "@/types";
 import { estimateKcalPerHour } from "./energy-model";
 
@@ -309,6 +310,160 @@ function buildFallbackCalibration(
     ],
     priorEffortsUsed: 0,
   };
+}
+
+// ─── Finish time estimation ──────────────────────────────────────────────────
+
+/**
+ * Estimates finish time for a target event by anchoring on the most similar
+ * prior effort. Same-distance efforts are the strongest anchors. Only modest
+ * adjustments are applied for elevation, race priority, and distance scaling.
+ *
+ * When no target finish time is explicitly provided by the user, this function
+ * prevents the planner from defaulting to a generic 6.5 min/km flat pace
+ * (which produces wildly optimistic estimates for slower ultra runners).
+ */
+export function estimateFinishTime(
+  efforts: PriorEffort[],
+  targetDistanceKm: number,
+  routeAscentM: number | undefined,
+  athlete: AthleteProfile,
+  racePriority?: RacePriority,
+): FinishTimeEstimation {
+  const explanation: string[] = [];
+
+  if (efforts.length === 0) {
+    // No prior data — use conservative experience-based pace
+    const defaultPace = conservativeDefaultPace(targetDistanceKm, athlete);
+    const baseMins = Math.round(targetDistanceKm * defaultPace);
+    const eleAdj = routeAscentM ? Math.round(routeAscentM / 100 * 1.0) : 0;
+    const estimated = baseMins + eleAdj;
+    const range: [number, number] = [Math.round(estimated * 0.85), Math.round(estimated * 1.20)];
+    explanation.push("No prior effort data — using conservative pace estimate based on distance and experience level.");
+    explanation.push(`Planning time: ${formatHrsMins(estimated)} (range: ${formatHrsMins(range[0])} – ${formatHrsMins(range[1])}).`);
+    return {
+      estimatedMinutes: estimated,
+      rangeMinutes: range,
+      confidence: "low",
+      method: "fallback",
+      explanation,
+    };
+  }
+
+  // Score efforts by distance similarity to target
+  const scored = efforts.map(e => {
+    const similarity = Math.min(e.distanceKm, targetDistanceKm) /
+      Math.max(e.distanceKm, targetDistanceKm);
+    return { effort: e, similarity };
+  }).sort((a, b) => b.similarity - a.similarity);
+
+  const anchorEffort = scored[0].effort;
+  const distSimilarity = scored[0].similarity;
+
+  // Base estimate: scale from anchor pace
+  const anchorPaceMinPerKm = anchorEffort.durationMinutes / anchorEffort.distanceKm;
+  let estimatedPace = anchorPaceMinPerKm;
+
+  if (distSimilarity >= 0.80) {
+    // Close/exact distance match — use anchor pace directly
+    explanation.push(
+      `Anchored on "${anchorEffort.label}" (${anchorEffort.distanceKm}km in ${formatHrsMins(anchorEffort.durationMinutes)}) — similar distance to target.`
+    );
+  } else {
+    // Significant distance difference — apply pace scaling
+    const distRatio = targetDistanceKm / anchorEffort.distanceKm;
+    if (distRatio > 1) {
+      // Target is longer → pace will degrade
+      const extraFraction = distRatio - 1;
+      const degradation = 1 + extraFraction * 0.10;
+      estimatedPace *= degradation;
+      explanation.push(
+        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm}km) to ${targetDistanceKm}km. Pace adjusted +${Math.round((degradation - 1) * 100)}% for longer distance.`
+      );
+    } else {
+      // Target is shorter → pace slightly faster
+      const reduction = 1 - (1 - distRatio) * 0.05;
+      estimatedPace *= reduction;
+      explanation.push(
+        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm}km) to ${targetDistanceKm}km. Pace adjusted slightly for shorter distance.`
+      );
+    }
+  }
+
+  let estimatedMins = Math.round(targetDistanceKm * estimatedPace);
+
+  // Elevation adjustment — only when both route and anchor have elevation data
+  if (routeAscentM && anchorEffort.elevationGainM && anchorEffort.elevationGainM > 0) {
+    const eleRatio = routeAscentM / anchorEffort.elevationGainM;
+    if (eleRatio > 1.20) {
+      const adj = Math.min(0.20, (eleRatio - 1) * 0.15);
+      estimatedMins = Math.round(estimatedMins * (1 + adj));
+      explanation.push(
+        `Route has ${Math.round((eleRatio - 1) * 100)}% more elevation than reference — time adjusted +${Math.round(adj * 100)}%.`
+      );
+    } else if (eleRatio < 0.80) {
+      const adj = Math.min(0.10, (1 - eleRatio) * 0.10);
+      estimatedMins = Math.round(estimatedMins * (1 - adj));
+      explanation.push("Route has less elevation than reference — time reduced slightly.");
+    }
+  }
+
+  // Race priority adjustment — modest
+  if (racePriority === "a_race") {
+    estimatedMins = Math.round(estimatedMins * 0.97);
+    explanation.push("A-race effort: small pace improvement assumed (~3%).");
+  } else if (racePriority === "completion") {
+    estimatedMins = Math.round(estimatedMins * 1.05);
+    explanation.push("Completion focus: conservative pacing assumed (+5%).");
+  }
+
+  // Add 2% conservative bias — better to plan for slightly longer
+  const planningMins = Math.round(estimatedMins * 1.02);
+
+  const confidence: ConfidenceLevel = distSimilarity >= 0.80 ? "moderate" : "low";
+  const rangeFactor = confidence === "moderate" ? 0.10 : 0.15;
+  const range: [number, number] = [
+    Math.round(estimatedMins * (1 - rangeFactor)),
+    Math.round(estimatedMins * (1 + rangeFactor)),
+  ];
+
+  explanation.push(
+    `Planning time: ${formatHrsMins(planningMins)} (range: ${formatHrsMins(range[0])} – ${formatHrsMins(range[1])}).`
+  );
+
+  return {
+    estimatedMinutes: planningMins,
+    rangeMinutes: range,
+    confidence,
+    method: "prior_effort_anchor",
+    explanation,
+  };
+}
+
+/**
+ * Conservative default pace when no prior effort data is available.
+ * Returns min/km based on experience level and target distance.
+ */
+function conservativeDefaultPace(distanceKm: number, athlete: AthleteProfile): number {
+  const basePace: Record<ExperienceLevel, number> = {
+    novice: 11.0,
+    intermediate: 9.5,
+    experienced: 8.5,
+    elite: 7.0,
+  };
+  let pace = basePace[athlete.experienceLevel];
+  // Longer races → slower average pace
+  if (distanceKm > 80) pace *= 1.15;
+  else if (distanceKm > 50) pace *= 1.08;
+  return pace;
+}
+
+function formatHrsMins(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

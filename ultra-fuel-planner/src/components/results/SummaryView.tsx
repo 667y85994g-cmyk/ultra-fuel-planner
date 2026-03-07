@@ -1,10 +1,10 @@
 "use client";
 
-import type { PlannerOutput, PlanConfidence, BurnRateBand } from "@/types";
+import type { PlannerOutput, PlanConfidence, BurnRateBand, FinishTimeEstimation } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
-import { Zap, Droplets, FlaskConical, Coffee, Package, Flame, Info, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Zap, Droplets, FlaskConical, Coffee, Package, Flame, Info, ShieldCheck, ShieldAlert, Clock, MessageSquareText } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
@@ -150,8 +150,35 @@ export function SummaryView({ output }: Props) {
         </Card>
       )}
 
+      {/* Finish time estimation — shown when derived from prior efforts */}
+      {summary.finishTimeEstimation && (
+        <FinishTimeCard estimation={summary.finishTimeEstimation} />
+      )}
+
       {/* Plan confidence */}
       <ConfidenceCard confidence={confidence} />
+
+      {/* Fuel format rationale */}
+      {summary.fuelFormatNotes && summary.fuelFormatNotes.length > 0 && (
+        <Card className="border-stone-700/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4" />
+              Fuel format rationale
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5">
+              {summary.fuelFormatNotes.map((note, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
+                  <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+                  {note}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Totals */}
       <Card>
@@ -301,6 +328,65 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
             </ul>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Finish time card ─────────────────────────────────────────────────────────
+
+function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
+  const confColor = estimation.confidence === "high"
+    ? "text-green-400" : estimation.confidence === "moderate"
+    ? "text-blue-400" : "text-amber-400";
+  const confBg = estimation.confidence === "high"
+    ? "bg-green-900/30 text-green-400" : estimation.confidence === "moderate"
+    ? "bg-blue-900/30 text-blue-400" : "bg-amber-900/30 text-amber-400";
+
+  return (
+    <Card className="border-stone-700/30">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Finish time estimate
+          <span className={`text-xs px-2 py-0.5 rounded-full ${confBg}`}>
+            {estimation.confidence} confidence
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-stone-500">Planning time</p>
+            <p className={`mt-1 text-xl font-bold ${confColor}`}>
+              {formatDuration(estimation.estimatedMinutes)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-stone-500">Expected range</p>
+            <p className="mt-1 text-xl font-bold text-stone-100">
+              {formatDuration(estimation.rangeMinutes[0])} – {formatDuration(estimation.rangeMinutes[1])}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-stone-500">Method</p>
+            <p className="mt-1 text-sm font-medium text-stone-300">
+              {estimation.method === "prior_effort_anchor"
+                ? "Anchored on prior effort"
+                : estimation.method === "pace_based"
+                ? "Pace-based estimate"
+                : "Default estimate"}
+            </p>
+          </div>
+        </div>
+        <ul className="mt-3 space-y-1">
+          {estimation.explanation.map((note, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
+              <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+              {note}
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );
