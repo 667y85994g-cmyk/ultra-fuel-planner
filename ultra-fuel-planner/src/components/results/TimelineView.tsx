@@ -172,13 +172,10 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
             )}
           </div>
 
-          {/* Stats */}
+          {/* Stats — carbs only; fluid guidance lives in the summary */}
           <div className="flex-shrink-0 flex gap-2 text-xs text-stone-500">
             {entry.carbsG > 0 && (
               <span className="text-amber-600 font-medium">{entry.carbsG}g</span>
-            )}
-            {entry.fluidMl > 0 && (
-              <span className="text-blue-600">{entry.fluidMl}ml</span>
             )}
           </div>
         </div>

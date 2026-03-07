@@ -88,21 +88,46 @@ export default function PrintPage() {
           borderRadius: "8px",
         }}
       >
-        {[
-          { label: "Duration", value: formatDuration(summary.totalRaceDurationMinutes) },
-          { label: "Carbs/hr", value: `${summary.avgCarbsPerHour}g` },
-          { label: "Fluid/hr", value: `${summary.avgFluidPerHourMl}ml` },
-          { label: "Sodium/hr", value: `${summary.avgSodiumPerHourMg}mg` },
-        ].map((s) => (
-          <div key={s.label} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "18px", fontWeight: 700, color: "#92400e" }}>
-              {s.value}
-            </div>
-            <div style={{ fontSize: "10px", color: "#6b5c4c", textTransform: "uppercase" }}>
-              {s.label}
-            </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "18px", fontWeight: 700, color: "#92400e" }}>
+            {formatDuration(summary.totalRaceDurationMinutes)}
           </div>
-        ))}
+          <div style={{ fontSize: "10px", color: "#6b5c4c", textTransform: "uppercase" }}>
+            Duration
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "18px", fontWeight: 700, color: "#92400e" }}>
+            {summary.avgCarbsPerHour}g
+          </div>
+          <div style={{ fontSize: "10px", color: "#6b5c4c", textTransform: "uppercase" }}>
+            Carbs/hr
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "18px", fontWeight: 700, color: "#2563eb" }}>
+            {summary.hydrationGuidance
+              ? `${summary.hydrationGuidance.rangeMlPerHour[0]}–${summary.hydrationGuidance.rangeMlPerHour[1]} ml/hr`
+              : `~${summary.avgFluidPerHourMl}ml/hr`}
+          </div>
+          <div style={{ fontSize: "10px", color: "#6b5c4c", textTransform: "uppercase" }}>
+            Hydration
+          </div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, color: "#16a34a" }}>
+            {summary.electrolyteGuidance
+              ? summary.electrolyteGuidance.tier === "high"
+                ? "High support"
+                : summary.electrolyteGuidance.tier === "moderate"
+                ? "Moderate support"
+                : "Low support"
+              : "—"}
+          </div>
+          <div style={{ fontSize: "10px", color: "#6b5c4c", textTransform: "uppercase" }}>
+            Electrolytes
+          </div>
+        </div>
       </div>
 
       {/* Timeline */}
@@ -124,7 +149,6 @@ export default function PrintPage() {
             <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Action</th>
             <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Terrain</th>
             <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>Carbs</th>
-            <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>Fluid</th>
           </tr>
         </thead>
         <tbody>
@@ -159,14 +183,29 @@ export default function PrintPage() {
                   <td style={{ padding: "5px 8px", textAlign: "right", color: "#92400e", fontWeight: entry.carbsG > 0 ? 600 : 400 }}>
                     {entry.carbsG > 0 ? `${entry.carbsG}g` : "—"}
                   </td>
-                  <td style={{ padding: "5px 8px", textAlign: "right", color: "#2563eb" }}>
-                    {entry.fluidMl > 0 ? `${entry.fluidMl}ml` : "—"}
-                  </td>
                 </tr>
               );
             })}
         </tbody>
       </table>
+
+      {/* Hydration reminder */}
+      {summary.hydrationGuidance && (
+        <div
+          style={{
+            marginBottom: "24px",
+            padding: "10px 14px",
+            background: "#eff6ff",
+            borderRadius: "6px",
+            border: "1px solid #bfdbfe",
+            fontSize: "11px",
+            color: "#1e40af",
+          }}
+        >
+          <strong>Hydration:</strong> Aim for {summary.hydrationGuidance.rangeMlPerHour[0]}–{summary.hydrationGuidance.rangeMlPerHour[1]} ml/hr.{" "}
+          {summary.hydrationGuidance.label}. Drink regularly in small sips rather than large volumes at once.
+        </div>
+      )}
 
       {/* Carry plan */}
       {carryPlans.length > 0 && (
@@ -204,7 +243,7 @@ export default function PrintPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
                   <span style={{ color: "#2563eb", fontWeight: 700 }}>
-                    🫙 {(plan.fluidToCarryMl / 1000).toFixed(1)}L
+                    🫙 ~{Math.round(plan.fluidToCarryMl / 500) * 0.5}L
                   </span>{" "}
                   fluid
                 </div>
@@ -271,7 +310,7 @@ export default function PrintPage() {
           justifyContent: "space-between",
         }}
       >
-        <span>Ultra Fuel Planner — ultrafuelplanner.com</span>
+        <span>Ultra Fuel Planner v1.6 — ultrafuelplanner.com</span>
         <span>
           All times are estimates. Adjust based on real conditions.
         </span>

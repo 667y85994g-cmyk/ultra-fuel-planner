@@ -36,8 +36,8 @@ export function CarryView({ output }: Props) {
         <StatCard
           icon={Droplets}
           label="Max fluid to carry"
-          value={`${(Math.max(...carryPlans.map((p) => p.fluidToCarryMl)) / 1000).toFixed(1)}L`}
-          desc="Heaviest section"
+          value={`~${Math.round(Math.max(...carryPlans.map((p) => p.fluidToCarryMl)) / 500) * 0.5}L`}
+          desc="Heaviest section (approx.)"
           color="text-blue-400"
         />
         <StatCard
@@ -91,7 +91,7 @@ export function CarryView({ output }: Props) {
                   <span className="text-xs text-stone-500">Fluid to carry</span>
                 </div>
                 <p className="text-xl font-bold text-blue-400">
-                  {(plan.fluidToCarryMl / 1000).toFixed(1)}L
+                  ~{Math.round(plan.fluidToCarryMl / 500) * 0.5}L
                 </p>
                 <p className="text-xs text-stone-600 mt-0.5">
                   {plan.fluidToCarryMl >= 1500
