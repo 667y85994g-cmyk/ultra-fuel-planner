@@ -5,10 +5,10 @@ import {
   FlaskConical,
   MapPin,
   ChevronRight,
-  Clock,
   Zap,
   Activity,
   Package,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -55,9 +55,9 @@ export default function HomePage() {
             </h1>
 
             <p className="mb-8 max-w-xl text-lg leading-relaxed text-stone-400">
-              Upload your GPX, add your past run data and the fuel you plan to
-              carry. The planner builds a practical race-day fuelling plan —
-              terrain by terrain, aid station to aid station.
+              Upload your GPX file, enter your past race data, and add the fuel
+              products you&apos;ll carry. The planner builds a fuelling schedule
+              matched to your route and a carry plan between each checkpoint.
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -68,7 +68,7 @@ export default function HomePage() {
                 </Button>
               </Link>
               <span className="text-sm text-stone-500">
-                No account required. No physiology jargon. Just a practical race plan.
+                Free. No account needed. Your data stays on your device.
               </span>
             </div>
           </div>
@@ -82,70 +82,69 @@ export default function HomePage() {
             What the planner helps you figure out
           </h2>
           <p className="mb-14 text-center text-stone-400">
-            Three questions every ultra runner needs to answer before race day.
+            The planning questions that matter for a long race.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: Zap,
-                title: "How much fuel to aim for",
-                desc: "A realistic carb target based on your past runs, event length and the demands of the route.",
-                color: "text-amber-400",
-                bg: "bg-amber-900/20",
-              },
-              {
-                icon: Mountain,
-                title: "When fuelling will be hardest",
-                desc: "Climbs, technical terrain and long gaps between aid stations change what you can realistically eat and drink.",
-                color: "text-orange-400",
-                bg: "bg-orange-900/20",
-              },
-              {
-                icon: Package,
-                title: "What to actually carry",
-                desc: "Build a plan using the gels, drink mixes and food you'll have on race day. Know your carry weight between each checkpoint.",
-                color: "text-blue-400",
-                bg: "bg-blue-900/20",
-              },
-            ].map((item) => (
-              <div
-                key={item.title}
-                className="rounded-xl border border-stone-800 bg-stone-900/40 p-6"
-              >
-                <div
-                  className={`mb-4 w-fit rounded-full ${item.bg} p-3`}
-                >
-                  <item.icon className={`h-6 w-6 ${item.color}`} />
-                </div>
-                <h3 className="mb-2 text-lg font-semibold text-stone-100">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-stone-400 leading-relaxed">{item.desc}</p>
+            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-amber-900/20 p-3">
+                <Zap className="h-6 w-6 text-amber-400" />
               </div>
-            ))}
+              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+                How much to eat per hour
+              </h3>
+              <p className="text-sm text-stone-400 leading-relaxed">
+                A carb target calibrated from your past runs — not a generic
+                recommendation. Adjusted for your route and race length.
+              </p>
+            </div>
+            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-orange-900/20 p-3">
+                <Mountain className="h-6 w-6 text-orange-400" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+                Where fuelling gets difficult
+              </h3>
+              <p className="text-sm text-stone-400 leading-relaxed">
+                Steep climbs, long gaps between aid stations, and technical
+                descents change what you can eat and when. The plan works
+                around them.
+              </p>
+            </div>
+            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-blue-900/20 p-3">
+                <Package className="h-6 w-6 text-blue-400" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+                What to carry between each checkpoint
+              </h3>
+              <p className="text-sm text-stone-400 leading-relaxed">
+                A carry list for each section, using the specific gels, drink
+                mixes and food you plan to use on race day.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Race card preview */}
+      {/* See the output — race card preview */}
       <section className="border-t border-stone-800/60 py-20">
         <div className="mx-auto max-w-6xl px-6">
           <div className="grid gap-12 md:grid-cols-2 items-start">
             <div>
               <h2 className="mb-4 text-3xl font-bold text-stone-50">
-                See the race plan before you start.
+                A race plan you can actually follow.
               </h2>
               <p className="mb-6 text-stone-400 leading-relaxed">
-                The planner produces a simple race card you can print and carry
-                on the day. It tells you what to eat, when to eat it, and what
-                terrain to expect — so you can focus on running.
+                The planner produces a race card you can print and carry in
+                your vest. It breaks down what to eat, when to eat it, and
+                what to carry between each aid station.
               </p>
               <ul className="space-y-3 mb-8">
                 {[
-                  { label: "Fuelling schedule", detail: "What to eat at each point, matched to the terrain." },
-                  { label: "Carry plan", detail: "What to pack between each aid station, with approximate fluid needs." },
-                  { label: "Terrain segments", detail: "Climbs, descents and flat sections — so you know what's coming." },
-                  { label: "Hydration guidance", detail: "A practical drinking range, not a false-precision number." },
+                  { label: "Fuelling schedule", detail: "What to eat at each point, matched to the terrain you'll be on." },
+                  { label: "Carry plan", detail: "What to pack between each aid station — items, quantities and approximate fluid." },
+                  { label: "Hydration guidance", detail: "A practical drinking range, adjusted for expected conditions." },
+                  { label: "Printable race card", detail: "A simple format you can print, fold and carry on race day." },
                 ].map((item) => (
                   <li key={item.label} className="flex items-start gap-3">
                     <div className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
@@ -166,8 +165,9 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Mock race card */}
+            {/* Mock race card — realistic Lakeland 50 example */}
             <div className="rounded-xl border border-stone-700 bg-white p-5 text-stone-900 shadow-2xl shadow-black/40">
+              {/* Card header */}
               <div className="flex items-center justify-between mb-3 pb-3 border-b-2 border-amber-700">
                 <div>
                   <h3 className="text-base font-bold text-stone-900">
@@ -182,14 +182,14 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Mini summary strip */}
+              {/* Summary strip */}
               <div className="grid grid-cols-3 gap-2 mb-4 bg-amber-50 rounded-md p-3">
                 <div className="text-center">
-                  <div className="text-sm font-bold text-amber-800">14h 30m</div>
+                  <div className="text-sm font-bold text-amber-800">~14h 30m</div>
                   <div className="text-[9px] text-stone-500 uppercase">Duration</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-amber-800">65g</div>
+                  <div className="text-sm font-bold text-amber-800">60g</div>
                   <div className="text-[9px] text-stone-500 uppercase">Carbs/hr</div>
                 </div>
                 <div className="text-center">
@@ -198,50 +198,73 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Mini schedule */}
-              <div className="mb-4">
-                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-2">
-                  Fuelling schedule
+              {/* Section header */}
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                  Section 1 of 6
                 </p>
-                <div className="space-y-0 text-[11px]">
-                  {[
-                    { time: "00:40", km: "6.2", action: "1 gel (SIS Isotonic)", terrain: "Rolling", carbs: "22g", color: "text-green-700" },
-                    { time: "01:15", km: "11.0", action: "1 chew pack", terrain: "Flat", carbs: "24g", color: "text-green-700" },
-                    { time: "01:55", km: "16.8", action: "1 gel (Maurten 100)", terrain: "Climb", carbs: "25g", color: "text-orange-700" },
-                    { time: "02:30", km: "22.1", action: "Aid station: restock", terrain: "—", carbs: "—", color: "text-amber-700" },
-                    { time: "03:10", km: "27.5", action: "1 gel + drink mix", terrain: "Rolling", carbs: "42g", color: "text-green-700" },
-                  ].map((row, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded ${
-                        row.terrain === "—" ? "bg-amber-50" : i % 2 === 0 ? "bg-stone-50" : ""
-                      }`}
-                    >
-                      <span className="w-8 flex-shrink-0 font-mono text-stone-400">{row.time}</span>
-                      <span className="w-7 flex-shrink-0 text-stone-400">{row.km}</span>
-                      <span className={`flex-1 ${row.color} font-medium`}>{row.action}</span>
-                      <span className="w-10 text-right text-amber-800 font-medium">{row.carbs}</span>
-                    </div>
-                  ))}
-                  <div className="px-2 pt-1 text-[10px] text-stone-400 italic">
-                    ...continues for full race
+                <div className="flex-1 h-px bg-stone-200" />
+              </div>
+              <div className="flex items-center gap-1.5 mb-3 text-[11px]">
+                <span className="font-semibold text-stone-800">Start</span>
+                <span className="text-stone-400">→</span>
+                <span className="font-semibold text-stone-800">CP1 Howtown</span>
+                <span className="text-stone-400 ml-auto">km 0–22 · ~3h</span>
+              </div>
+
+              {/* Schedule — first section, realistic density */}
+              <div className="space-y-0 text-[11px] mb-3">
+                {[
+                  { time: "06:35", km: "5.2", action: "Gel: SIS Isotonic", terrain: "Rolling", carbs: "22g", aid: false },
+                  { time: "07:00", km: "8.5", action: "Drink: Maurten 320", terrain: "Flat", carbs: "40g", aid: false },
+                  { time: "07:25", km: "12.0", action: "Chew: Torq Energy", terrain: "Flat", carbs: "30g", aid: false },
+                  { time: "07:50", km: "14.5", action: "Gel: SIS Isotonic", terrain: "Climb", carbs: "22g", aid: false },
+                  { time: "08:15", km: "18.0", action: "Drink: Maurten 320", terrain: "Rolling", carbs: "40g", aid: false },
+                  { time: "08:40", km: "20.8", action: "Gel: SIS Caffeine", terrain: "Climb", carbs: "22g", aid: false },
+                  { time: "09:00", km: "22.0", action: "🏁 CP1 Howtown — restock", terrain: "", carbs: "", aid: true },
+                ].map((row, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded ${
+                      row.aid ? "bg-amber-50" : i % 2 === 0 ? "bg-stone-50" : ""
+                    }`}
+                  >
+                    <span className="w-9 flex-shrink-0 font-mono text-stone-400">{row.time}</span>
+                    <span className="w-7 flex-shrink-0 text-stone-400">{row.km}</span>
+                    <span className={`flex-1 font-medium ${row.aid ? "text-amber-700" : "text-stone-700"}`}>
+                      {row.action}
+                    </span>
+                    {row.terrain && (
+                      <span className="text-[9px] text-stone-400">{row.terrain}</span>
+                    )}
+                    {row.carbs && (
+                      <span className="w-8 text-right text-amber-800 font-medium">{row.carbs}</span>
+                    )}
                   </div>
-                </div>
+                ))}
               </div>
 
-              {/* Mini carry plan */}
-              <div className="bg-stone-50 rounded-md p-3">
-                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-2">
-                  Carry plan — Start to CP1
+              {/* Carry plan for section 1 */}
+              <div className="bg-stone-50 rounded-md p-3 mb-3">
+                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                  Carry — Start to CP1 Howtown
                 </p>
-                <div className="flex gap-4 text-[11px]">
+                <div className="flex gap-4 text-[11px] mb-1">
                   <span className="text-blue-700 font-medium">~1.5L fluid</span>
-                  <span className="text-amber-800 font-medium">110g carbs</span>
-                  <span className="text-stone-500">3 gels, 1 chew, 1 drink mix</span>
+                  <span className="text-amber-800 font-medium">176g carbs</span>
+                </div>
+                <div className="text-[10px] text-stone-500">
+                  2× SIS gel · 1× Caffeine gel · 1× Torq chew · Maurten 320 bottle
                 </div>
               </div>
 
-              <div className="mt-3 pt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
+              {/* Full plan note */}
+              <div className="text-center text-[10px] text-stone-400 mb-3">
+                41 fuelling events across 6 sections · full schedule and carry plan generated
+              </div>
+
+              {/* Card footer */}
+              <div className="pt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
                 <span>Ultra Fuel Planner v1.6</span>
                 <span>All times are estimates</span>
               </div>
@@ -311,34 +334,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Terrain awareness */}
+      {/* Why it's different */}
       <section className="border-t border-stone-800/60 py-20">
-        <div className="mx-auto max-w-4xl px-6">
+        <div className="mx-auto max-w-3xl px-6">
           <h2 className="mb-4 text-center text-3xl font-bold text-stone-50">
-            It knows you can&apos;t eat a bar on a 25% gradient.
+            Not a calorie calculator.
           </h2>
-          <p className="mb-10 text-center text-stone-400 leading-relaxed max-w-2xl mx-auto">
-            The planner matches fuel format to terrain. Gels on climbs. Solids
-            on flats. Simplified options when you&apos;re deep into the race.
-            No fuelling prompts on technical descents.
+          <p className="mb-10 text-center text-stone-400 leading-relaxed">
+            What makes this different from a spreadsheet or a generic fuelling guide.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-5">
             {[
-              { terrain: "Steep climb", rule: "Gels and liquids only — no chewing" },
-              { terrain: "Technical descent", rule: "Hands-free. No fuelling prompts" },
-              { terrain: "Flat and runnable", rule: "Best window for bars, chews and real food" },
-              { terrain: "Long gaps between aid", rule: "Carry plan adjusted to cover the distance" },
-              { terrain: "Late race", rule: "Simplified to your highest-tolerance options" },
-              { terrain: "Warm conditions", rule: "Hydration range increases automatically" },
+              {
+                title: "Calibrated from your past runs",
+                desc: "Enter a few prior races or long training runs. The planner uses them to set carb and fluid targets you can realistically hit — not numbers from a generic table.",
+              },
+              {
+                title: "Reads your GPX file",
+                desc: "Your elevation profile tells the planner where the climbs, descents and flat sections are. It adjusts fuel format per terrain — gels on climbs, solids on flats, nothing on technical descents.",
+              },
+              {
+                title: "Uses your actual products",
+                desc: "You enter the specific gels, drink mixes and bars you own. The plan is built around those products, not theoretical grams of carbohydrate.",
+              },
+              {
+                title: "Maps your aid stations",
+                desc: "Mark where the checkpoints are and what they offer. The planner builds a carry plan for each section and tells you what to restock.",
+              },
+              {
+                title: "Outputs a race card",
+                desc: "The result is a simple printable card — not a spreadsheet. Fold it up and carry it in your vest pocket.",
+              },
             ].map((item) => (
-              <div
-                key={item.terrain}
-                className="rounded-lg border border-stone-800 bg-stone-900/30 px-4 py-3"
-              >
-                <span className="text-sm font-medium text-stone-200">
-                  {item.terrain}
-                </span>
-                <p className="mt-0.5 text-xs text-stone-500">{item.rule}</p>
+              <div key={item.title} className="flex items-start gap-4">
+                <div className="mt-1 flex-shrink-0 rounded-full bg-amber-900/30 p-1.5">
+                  <Check className="h-3.5 w-3.5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-200">{item.title}</h3>
+                  <p className="mt-0.5 text-sm text-stone-500 leading-relaxed">{item.desc}</p>
+                </div>
               </div>
             ))}
           </div>
