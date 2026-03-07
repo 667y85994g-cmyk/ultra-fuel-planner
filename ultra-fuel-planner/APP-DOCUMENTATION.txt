@@ -1,0 +1,567 @@
+ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
+Version 1.6 | March 2026
+
+================================================================================
+1. WHAT IT IS
+================================================================================
+
+A route-aware fuelling planner for trail and ultra runners. Runs entirely in the
+browser (Next.js 15 / App Router). No backend, no database, no authentication.
+All state is persisted to localStorage.
+
+The planner takes four inputs:
+  - Prior race/run data (for calibration)
+  - A GPX route file (for terrain segmentation)
+  - A fuel inventory (gels, chews, bars, drink mix, real food)
+  - Aid station locations and supplies
+
+It produces:
+  - A terrain-aware fuelling schedule (what to eat and when)
+  - A carry plan (what to pack between each aid station)
+  - A printable race card
+  - Hydration and electrolyte guidance
+  - Confidence notes and transparency metadata
+
+
+================================================================================
+2. STACK
+================================================================================
+
+Runtime:
+  - Next.js 15.5 (App Router)
+  - React 19
+  - TypeScript 5 (strict mode)
+  - Tailwind CSS 3.4
+  - Recharts (elevation charts)
+  - Leaflet + react-leaflet (route map)
+  - Radix UI (form primitives: select, label, progress, switch, slider, tabs)
+  - Lucide React (icons)
+  - class-variance-authority + clsx + tailwind-merge (styling utilities)
+
+Build:
+  - PostCSS + Autoprefixer
+  - ESLint (Next.js config)
+  - No test framework currently
+
+Infrastructure:
+  - No database — localStorage only
+  - No auth — no accounts
+  - No server-side state — API route only used for GPX parsing fallback
+  - Deployable to Vercel (static export compatible)
+
+Node.js: installed at ~/node/bin/ (custom path, not system Node)
+Dev command: export PATH="$HOME/node/bin:$PATH" && npm run dev
+
+
+================================================================================
+3. FILE STRUCTURE
+================================================================================
+
+src/
+├── app/
+│   ├── page.tsx                    Homepage (marketing/landing page)
+│   ├── layout.tsx                  Root layout, PlannerProvider wrapper
+│   ├── globals.css                 Tailwind imports + custom styles
+│   ├── planner/
+│   │   └── page.tsx                6-step wizard (planner UI)
+│   ├── results/
+│   │   └── page.tsx                Results page (5 tabs: Summary, Timeline,
+│   │                                Segments, Carry Plan, Map)
+│   ├── print/
+│   │   └── page.tsx                Printable race card (opens in new tab)
+│   └── api/
+│       └── parse-gpx/
+│           └── route.ts            Server-side GPX parser (regex-based)
+│
+├── types/
+│   └── index.ts                    All data model interfaces (379 lines)
+│
+├── lib/
+│   ├── fuelling-engine.ts          Core planner: terrain rules, fuel selection,
+│   │                                schedule generation, carry plans (952 lines)
+│   ├── calibration-engine.ts       Prior effort calibration, finish time
+│   │                                estimation (474 lines)
+│   ├── energy-model.ts             Minetti (2002) metabolic cost model,
+│   │                                CHO fraction (126 lines)
+│   ├── segmentation.ts             Route segmentation via gradient thresholds,
+│   │                                Naismith's rule for pace (273 lines)
+│   ├── gpx-parser.ts               GPX parsing (client DOMParser + server
+│   │                                regex fallback) (258 lines)
+│   ├── planner-store.tsx           React context, useReducer state management,
+│   │                                localStorage persistence (318 lines)
+│   ├── storage.ts                  localStorage read/write, default athlete
+│   │                                profile, seed fuel inventory (114 lines)
+│   └── utils.ts                    Formatting helpers, terrain colours,
+│   │                                fuel type icons (87 lines)
+│
+├── components/
+│   ├── planner/
+│   │   ├── StepAthlete.tsx         Step 1: athlete profile + event details
+│   │   ├── StepCalibration.tsx     Step 2: prior efforts entry
+│   │   ├── StepRoute.tsx           Step 3: GPX upload + elevation preview
+│   │   ├── StepFuel.tsx            Step 4: fuel inventory management
+│   │   ├── StepAidStations.tsx     Step 5: aid station configuration
+│   │   ├── StepGenerate.tsx        Step 6: pre-generate summary + button
+│   │   ├── StepIndicator.tsx       Step progress bar component
+│   │   └── ElevationChart.tsx      Recharts elevation profile
+│   │
+│   ├── results/
+│   │   ├── SummaryView.tsx         Summary tab: metrics, calibration, guidance
+│   │   ├── TimelineView.tsx        Timeline tab: grouped-by-hour schedule
+│   │   ├── SegmentView.tsx         Segments tab: per-segment recommendations
+│   │   ├── CarryView.tsx           Carry Plan tab: section-by-section carry
+│   │   └── RouteMapView.tsx        Map tab: Leaflet map with terrain polylines
+│   │
+│   └── ui/                         Radix-based UI primitives
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── select.tsx
+│       ├── badge.tsx
+│       └── progress.tsx
+
+
+================================================================================
+4. DATA FLOW
+================================================================================
+
+User Input → PlannerStore (React Context) → generatePlan() → PlannerOutput
+
+Step by step:
+
+1. User fills in athlete profile (StepAthlete)
+   → dispatches SET_ATHLETE, SET_EVENT_META to reducer
+   → state saved to localStorage on 500ms debounce
+
+2. User adds prior efforts (StepCalibration)
+   → dispatches ADD_PRIOR_EFFORT
+   → calibrateFromPriorEfforts() runs to estimate burn rate
+
+3. User uploads GPX (StepRoute)
+   → parsed client-side (DOMParser) or server-side (API route)
+   → dispatches SET_ROUTE with ParsedRoute
+   → segmentRoute() breaks into RouteSegments by gradient
+
+4. User adds fuel inventory (StepFuel)
+   → dispatches ADD_FUEL_ITEM / UPDATE_FUEL_ITEM
+
+5. User adds aid stations (StepAidStations)
+   → dispatches ADD_AID_STATION
+
+6. User clicks Generate (StepGenerate)
+   → runPlanner() in planner-store.tsx:
+     a. Calls estimateFinishTime() if no target time set
+     b. Scales segment durations to match target/estimated finish
+     c. Builds EventPlan object
+     d. Calls generatePlan(eventPlan) in fuelling-engine.ts
+     e. Attaches finishTimeEstimation metadata
+     f. Dispatches SET_PLAN_OUTPUT
+   → Navigates to /results
+
+
+================================================================================
+5. CORE ALGORITHMS
+================================================================================
+
+5a. TERRAIN SEGMENTATION (segmentation.ts)
+─────────────────────────────────────────
+Input: ParsedRoute (elevation profile from GPX)
+Output: RouteSegment[] with terrain classification
+
+Gradient thresholds:
+  - steep_climb:         > 15%
+  - sustained_climb:     8% to 15%
+  - rolling:             3% to 8%
+  - flat_runnable:       -3% to 3%
+  - runnable_descent:    -8% to -3%
+  - technical_descent:   < -8%
+
+Pace estimation uses Naismith's rule:
+  - Base pace: 6.5 min/km on flat
+  - Climb penalty: +1.0 min/km per 100m gain
+  - Descent factor: 0.85x
+
+Segments are merged when consecutive sections share the same terrain type
+and the merged segment would be < 5km.
+
+
+5b. CALIBRATION ENGINE (calibration-engine.ts)
+──────────────────────────────────────────────
+Input: PriorEffort[] + athlete profile
+Output: CalibrationResult (burn rate, carb targets, confidence)
+
+Process:
+  1. For each prior effort, estimate kcal/hr from duration and distance
+  2. If device calories provided, use those (weighted higher)
+  3. Average across efforts, weighted by recency and distance similarity
+  4. Derive carb target: 30-50% of burn rate as carbs (CHO fraction)
+  5. Adjust for experience level (novice = lower targets)
+  6. Produce confidence level based on number and quality of efforts
+
+Finish time estimation:
+  - Finds the prior effort most similar in distance
+  - Scales to target distance using pace ratio
+  - Applies elevation adjustment (+/- for more/less ascent)
+  - Applies race priority adjustment (completion = more conservative)
+  - Confidence based on distance similarity and data quality
+
+
+5c. ENERGY MODEL (energy-model.ts)
+──────────────────────────────────
+Uses Minetti (2002) metabolic cost formula:
+  Cr = 155.4i^5 - 30.4i^4 - 43.3i^3 + 46.3i^2 + 19.5i + 3.6
+  (where i = gradient as decimal)
+
+Combined with Brooks-Mercier CHO oxidation fraction based on
+exercise intensity (VO2 fraction).
+
+Used to calculate:
+  - caloricBurnRate(gradient, paceMinPerKm, bodyweightKg) → kcal/hr
+  - fuellingIntervalMinutes(carbsPerInterval, kcalPerHour) → minutes
+    Based on ~300 kcal burned → 25g carbs as the trigger
+
+
+5d. FUELLING ENGINE (fuelling-engine.ts)
+────────────────────────────────────────
+The main plan generator. ~950 lines. Key components:
+
+TERRAIN_RULES: A lookup table mapping each TerrainType to:
+  - preferred fuel types (ordered by priority)
+  - avoided fuel types
+  - fluid multiplier (e.g., 1.2x on climbs)
+  - max items per stop
+  - notes for the runner
+
+selectBestFuel(): Multi-dimensional scoring across 11 factors:
+  - Type preference match (terrain rules)
+  - Sweetness tolerance
+  - Late-race tolerance
+  - Climb suitability
+  - Chewing difficulty on terrain
+  - Athlete preferences (noSolids, drinkHeavy, gelLight)
+  - Availability (quantity remaining)
+  - Solid/liquid ratio guardrail
+  - Caffeine budget
+  - Sweetness fatigue in late race
+  - Exclusion list filtering
+
+Schedule generation:
+  - Walks through segments chronologically
+  - Calculates caloric burn per segment (energy model)
+  - Triggers fuel events at calorie-driven intervals (~300 kcal)
+  - Selects best fuel item for each event
+  - Tracks running totals (carbs, fluid, caffeine, sodium)
+  - Inserts aid station refill events at correct distances
+  - Applies early-race / late-race phase adjustments
+
+Carry plan generation:
+  - Groups schedule entries between aid stations
+  - Sums fluid and carb needs per section
+  - Lists specific items to carry
+  - Adds practical warnings (heavy section, long gap, etc.)
+
+Hydration guidance (v1.6):
+  - Derives a practical range from athlete's fluid baseline
+  - Adjusts for temperature: warm (>=25C) widens upward, hot (>=30C) more
+  - Rounds to nearest 50ml, minimum 100ml spread
+  - Returns label + plain-English advice
+
+Electrolyte guidance (v1.6):
+  - Tier-based: low / moderate / high
+  - Based on temperature, duration, sodium target
+  - Returns tier + contextual recommendation text
+
+buildSummary():
+  - Aggregates totals (carbs, fluid, caffeine)
+  - Calculates coverage score (% of carb target met)
+  - Generates fuel format notes (solid/liquid ratio, top fuel types)
+  - Attaches hydration and electrolyte guidance
+
+
+================================================================================
+6. PLANNER WIZARD (6 STEPS)
+================================================================================
+
+Step 1: Athlete Profile (StepAthlete.tsx)
+  - Event name, type, priority, distance, finish time, start time, temperature
+  - Experience level (novice/intermediate/experienced/elite)
+  - Body weight, carb target, gut tolerance ceiling
+  - Fluid target (baseline for hydration range)
+  - Sodium target (input for electrolyte tier)
+  - Caffeine preference and max
+  - Preferences: no solids, drink-heavy, gel-light, low sweetness tolerance
+  - Avoid-sweet-after-hour setting
+
+Step 2: Calibration (StepCalibration.tsx)
+  - Add prior efforts (label, distance, duration, elevation, HR, calories)
+  - What worked / what didn't (freeform notes)
+  - Shows live calibration result preview
+
+Step 3: Route (StepRoute.tsx)
+  - GPX file upload (drag & drop)
+  - Elevation profile chart (Recharts)
+  - Route stats (distance, ascent, descent, max elevation)
+  - Option to skip (flat-course fallback)
+
+Step 4: Fuel Inventory (StepFuel.tsx)
+  - Add/edit/remove fuel items
+  - Per item: name, brand, type, carbs, sodium, fluid, caffeine, calories
+  - Serving size, sweetness score, late-race tolerance
+  - Easy-on-climbs / easy-at-high-effort flags
+  - Quantity available
+  - Pre-seeded with common products
+
+Step 5: Aid Stations (StepAidStations.tsx)
+  - Add stations at specific distances
+  - Mark what's available (water, sports drink, gels, real food)
+  - Custom items list
+  - Full refill possible flag
+  - Crew access flag
+
+Step 6: Generate (StepGenerate.tsx)
+  - Pre-generate summary (athlete targets, route overview)
+  - "Generate Plan" button
+  - Loading state while engine runs
+
+
+================================================================================
+7. RESULTS PAGE (5 TABS)
+================================================================================
+
+Tab 1: Summary (SummaryView.tsx)
+  - Carb metric card (precise, with progress bar)
+  - Caffeine metric card
+  - Hydration guidance card (range-based, temperature-aware)
+  - Electrolyte guidance card (tier-based)
+  - Energy expenditure card (burn rate, total kcal, working carb target)
+  - Finish time estimation card (when derived from prior efforts)
+  - Plan confidence card (overall confidence + calibration quality)
+  - Fuel format rationale card (solid/liquid ratio, top fuel types)
+  - Race totals card (carbs, ~fluid, caffeine, duration)
+  - Coverage score (% of carb target met)
+  - Item breakdown (quantities and carbs per product)
+
+Tab 2: Timeline (TimelineView.tsx)
+  - Schedule entries grouped by hour
+  - Each entry: time, icon, action, terrain badge, carbs
+  - Rationale text for each fuel event
+  - Aid station entries highlighted
+  - Supports absolute time-of-day display (if race start time set)
+
+Tab 3: Segments (SegmentView.tsx)
+  - Per-segment cards with terrain classification
+  - Distance, elevation change, estimated duration, effort level
+  - Recommended fuel type and rationale
+  - Fuel types to avoid on this terrain
+
+Tab 4: Carry Plan (CarryView.tsx)
+  - Overview: max fluid to carry (~rounded to 0.5L), max carbs, section count
+  - Per-section cards: from/to labels, distance, duration
+  - Fluid to carry (~rounded), carbs to carry (exact)
+  - Specific items to carry with quantities
+  - Refill instructions
+  - Warnings (heavy section, long gap, etc.)
+
+Tab 5: Map (RouteMapView.tsx)
+  - Leaflet map with OpenStreetMap tiles
+  - Route polyline colored by terrain type
+  - Fuelling point markers
+  - Aid station markers
+  - Auto-fits to route bounds
+  - Only visible when GPX uploaded
+
+
+================================================================================
+8. PRINT / RACE CARD (print/page.tsx)
+================================================================================
+
+Opens in new browser tab via window.print().
+
+Layout:
+  - Header: event name, date, distance/ascent
+  - Summary strip: duration, carbs/hr, hydration range, electrolyte tier
+  - Fuelling schedule table: time, km, action, terrain, carbs (no fluid column)
+  - Hydration reminder box (blue): range + plain-English advice
+  - Carry plan: section-by-section with ~rounded fluid, exact carbs, item list
+  - Total items needed: grid of products with quantities
+  - Footer: version, disclaimer
+
+Design principles (v1.6):
+  - No decimal precision on fluid
+  - No sodium mg/hr values
+  - Carbs remain precise (they're inventory-based)
+  - Fluid is approximate (ranges, ~ prefix)
+  - Electrolytes are contextual (tier labels)
+  - Clean enough to glance at during a race
+
+
+================================================================================
+9. STATE MANAGEMENT
+================================================================================
+
+Pattern: React Context + useReducer + localStorage
+
+PlannerStore (planner-store.tsx):
+  - PlannerState extends StoredPlannerState with UI-only fields
+  - 16 action types for all mutations
+  - Persists to localStorage on 500ms debounce (dirty flag)
+  - Loads saved state on mount
+  - runPlanner() orchestrates the full generation pipeline
+
+StoredPlannerState (persisted fields):
+  - athlete (AthleteProfile)
+  - eventName, eventType, racePriority
+  - raceStartTime
+  - expectedTemperatureC
+  - targetDistanceKm, targetFinishTimeMinutes
+  - fuelInventory (FuelItem[])
+  - aidStations (AidStation[])
+  - parsedRoute (ParsedRoute)
+  - priorEfforts (PriorEffort[])
+  - lastPlannerOutput (PlannerOutput — cached result)
+
+
+================================================================================
+10. KEY TYPE INTERFACES
+================================================================================
+
+AthleteProfile:
+  bodyweightKg, experienceLevel, carbTargetPerHour, maxCarbsPerHour,
+  fluidTargetPerHourMl, sodiumTargetPerHourMg, caffeinePreference,
+  caffeineMaxMg, preferences (AthletePreferences)
+
+PriorEffort:
+  label, distanceKm, durationMinutes, elevationGainM, avgHeartRate,
+  caloriesBurned, avgPaceMinPerKm, weather, fuellingNotes,
+  whatWorked, whatDidntWork
+
+ParsedRoute:
+  totalDistanceKm, totalAscentM, totalDescentM, points (RoutePoint[]),
+  segments (RouteSegment[]), elevationProfile, fileName
+
+RouteSegment:
+  startKm, endKm, distanceKm, ascentM, descentM, avgGradientPct,
+  terrain (TerrainType), estimatedDurationMinutes, effortLevel (1-5)
+
+FuelItem:
+  productName, brand, type (FuelType), carbsPerServing, sodiumPerServingMg,
+  fluidContributionMl, caffeinePerServingMg, caloriesPerServing,
+  sweetnessScore (1-5), lateRaceToleranceScore (1-5),
+  easyOnClimbs, easyAtHighEffort, requiresChewing, quantityAvailable
+
+FuelScheduleEntry:
+  timeMinutes, distanceKm, segmentId, terrain, action (FuelAction),
+  fuelItemId, fuelItemName, quantity, carbsG, fluidMl, sodiumMg,
+  caffeinesMg, rationale, priority, warnings
+
+CarryPlan:
+  fromKm, toKm, fromLabel, toLabel, estimatedDurationMinutes,
+  fluidToCarryMl, carbsToCarryG, itemsToCarry (CarryItem[]), warnings
+
+PlannerOutput:
+  eventPlan, summary (PlanSummary), schedule (FuelScheduleEntry[]),
+  carryPlans (CarryPlan[]), segmentRecommendations, warnings,
+  confidence (PlanConfidence), finishTimeEstimation, generatedAt
+
+PlanSummary:
+  totalRaceDurationMinutes, avgCarbsPerHour, avgFluidPerHourMl,
+  avgSodiumPerHourMg, totalCarbsG, totalFluidMl, totalSodiumMg,
+  totalCaffeinesMg, itemTotals, coverageScore,
+  estimatedTotalKcal, avgKcalPerHour, carbTargetRangeGPerHour,
+  workingCarbTarget, burnRateBand, fuelFormatNotes,
+  hydrationGuidance (HydrationGuidance), electrolyteGuidance (ElectrolyteGuidance),
+  finishTimeEstimation
+
+HydrationGuidance:
+  rangeMlPerHour [low, high], label, note, isWarmConditions
+
+ElectrolyteGuidance:
+  tier (low | moderate | high), label, note
+
+CalibrationResult:
+  estimatedKcalPerHour, kcalPerHourRange, suggestedCarbRangeGPerHour,
+  workingCarbTargetGPerHour, confidenceLevel, burnRateBand,
+  assumptionsMade, priorEffortsUsed
+
+FinishTimeEstimation:
+  estimatedMinutes, rangeMinutes [optimistic, conservative],
+  confidence, method, explanation
+
+
+================================================================================
+11. DEFAULT ASSUMPTIONS (types/index.ts)
+================================================================================
+
+PlannerAssumptions:
+  paceFlatMinPerKm:                6.5
+  paceClimbMinPerKmPer100mGain:    1.0
+  paceDescentFactor:               0.85
+  minFuelIntervalMinutes:          15
+  maxItemsPerFuelStop:             2
+  earlyRaceHours:                  2
+  lateRaceHours:                   6
+  fluidPerHourClimbBonus:          100 ml
+  sodiumPerLitreMg:                700
+
+
+================================================================================
+12. VERSION HISTORY
+================================================================================
+
+v1.0 — Initial build
+  Complete rebuild in Next.js 15. Types, calibration engine, energy model,
+  fuelling engine, storage, planner store. 6-step wizard. Terrain-aware
+  fuelling rules. Recharts elevation profile. Print page.
+
+v1.1–v1.4 — Iterative improvements
+  PostCSS/Tailwind Vercel deployment fixes. TypeScript error corrections.
+  GPX parser robustness. Route map (Leaflet). Race start time support.
+
+v1.5 — Fuel format + finish time estimation
+  Fixed step-label mismatches. Added finish-time estimation from prior
+  efforts. Reworked selectBestFuel() with 11 scoring dimensions. Added
+  solid/liquid carb ratio tracking. Fuel format rationale transparency.
+  Segment duration scaling to match estimated finish time.
+
+v1.6 — Hydration and precision cleanup
+  Replaced precise hydration outputs with practical ranges.
+  Replaced sodium mg/hr with electrolyte tiers (low/moderate/high).
+  Removed fluid column from race card schedule.
+  Rounded carry plan fluid amounts to 0.5L.
+  Added hydration reminder box to race card.
+  Updated homepage with route-aware positioning.
+  Updated StepAthlete help text for fluid/sodium inputs.
+  Added version tracker across all pages.
+
+
+================================================================================
+13. DEVELOPMENT NOTES
+================================================================================
+
+Running locally:
+  cd ultra-fuel-planner
+  export PATH="$HOME/node/bin:$PATH"
+  npm run dev
+
+Type checking:
+  npx tsc --noEmit
+
+Building:
+  npm run build
+
+Key design decisions:
+  - Rules-based engine (not AI) for trust and transparency
+  - Energy model drives fuelling intervals, not fixed timers
+  - Terrain rules are the main tuning surface (TERRAIN_RULES object)
+  - Carbs are precise (inventory-based), fluid is approximate (ranges)
+  - Electrolytes are contextual (tiers), not calculated to false precision
+  - All state in localStorage — no server round-trips
+  - Print page uses inline styles (not Tailwind) for reliable print output
+  - Leaflet loaded dynamically (SSR: false) because it requires window
+
+Architecture constraints:
+  - No database, no auth, no server state
+  - GPX parsing has two paths: client (DOMParser) and server (regex)
+  - React 19 with "use client" directives on all interactive components
+  - Tailwind v3 (not v4) due to PostCSS compatibility
