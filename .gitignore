@@ -9,3 +9,5 @@ dist
 .env.production.local
 .DS_Store
 *.log
+.claude/launch.json
+.claude/settings.local.json
