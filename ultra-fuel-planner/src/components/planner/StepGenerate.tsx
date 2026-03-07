@@ -4,7 +4,7 @@ import { usePlanner } from "@/lib/planner-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, Zap, CheckCircle, AlertTriangle, Info, Route, FlaskConical, MapPin } from "lucide-react";
+import { ChevronLeft, Zap, CheckCircle, AlertTriangle, Info, Route, FlaskConical, MapPin, Activity } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 import { DEFAULT_ASSUMPTIONS } from "@/types";
 import { segmentRoute } from "@/lib/segmentation";
@@ -38,6 +38,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
   const carbsNeeded = (athlete.carbTargetPerHour * estimatedMinutes) / 60;
   const carbCoverage = carbsNeeded > 0 ? Math.round((totalCarbs / carbsNeeded) * 100) : 100;
 
+  const priorEfforts = state.priorEfforts ?? [];
+
   const readyChecks = [
     {
       ok: !!state.eventName,
@@ -45,15 +47,21 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
       hint: "Go back to Step 1 and enter an event name.",
     },
     {
+      ok: priorEfforts.length > 0,
+      label: "Calibration data",
+      hint: "Add prior race/training data in Step 2 for personalised targets. Or skip for estimates based on bodyweight and experience.",
+      optional: true,
+    },
+    {
       ok: !!route,
       label: "GPX route",
-      hint: "Upload a GPX file in Step 2. Or skip for a time-only plan.",
+      hint: "Upload a GPX file in Step 3. Or skip for a time-only plan.",
       optional: true,
     },
     {
       ok: inventory.length > 0,
       label: "Fuel inventory",
-      hint: "Add at least one fuel item in Step 3.",
+      hint: "Add at least one fuel item in Step 4.",
     },
     {
       ok: carbCoverage >= 70 || stations.length > 0,
@@ -77,7 +85,14 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
 
       <div className="space-y-6">
         {/* Summary cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard
+            icon={Activity}
+            label="Calibration"
+            value={priorEfforts.length > 0 ? `${priorEfforts.length} effort${priorEfforts.length !== 1 ? "s" : ""}` : "No data"}
+            sub={priorEfforts.length > 0 ? "Personalised targets" : "Using defaults"}
+            ok={priorEfforts.length > 0}
+          />
           <SummaryCard
             icon={Route}
             label="Route"

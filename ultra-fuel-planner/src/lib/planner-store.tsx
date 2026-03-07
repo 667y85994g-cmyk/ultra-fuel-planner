@@ -15,6 +15,9 @@ import type {
   ParsedRoute,
   PlannerOutput,
   EventPlan,
+  PriorEffort,
+  EventType,
+  RacePriority,
 } from "@/types";
 import { DEFAULT_ASSUMPTIONS } from "@/types";
 import { loadState, saveState, defaultAthlete, defaultFuelInventory } from "./storage";
@@ -34,7 +37,7 @@ interface PlannerState extends StoredPlannerState {
 type PlannerAction =
   | { type: "SET_STEP"; step: number }
   | { type: "SET_ATHLETE"; athlete: AthleteProfile }
-  | { type: "SET_EVENT_META"; eventName: string; raceStartTime?: string; targetDistanceKm?: number; targetFinishTimeMinutes?: number }
+  | { type: "SET_EVENT_META"; eventName: string; eventType?: EventType; racePriority?: RacePriority; raceStartTime?: string; expectedTemperatureC?: number; targetDistanceKm?: number; targetFinishTimeMinutes?: number }
   | { type: "SET_ROUTE"; route: ParsedRoute }
   | { type: "CLEAR_ROUTE" }
   | { type: "SET_FUEL_INVENTORY"; items: FuelItem[] }
@@ -44,6 +47,9 @@ type PlannerAction =
   | { type: "SET_AID_STATIONS"; stations: AidStation[] }
   | { type: "ADD_AID_STATION"; station: AidStation }
   | { type: "REMOVE_AID_STATION"; id: string }
+  | { type: "SET_PRIOR_EFFORTS"; efforts: PriorEffort[] }
+  | { type: "ADD_PRIOR_EFFORT"; effort: PriorEffort }
+  | { type: "REMOVE_PRIOR_EFFORT"; id: string }
   | { type: "SET_PLAN_OUTPUT"; output: PlannerOutput }
   | { type: "SET_GENERATING"; value: boolean }
   | { type: "LOAD_SAVED"; state: StoredPlannerState }
@@ -63,7 +69,10 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
       return {
         ...state,
         eventName: action.eventName,
+        eventType: action.eventType,
+        racePriority: action.racePriority,
         raceStartTime: action.raceStartTime,
+        expectedTemperatureC: action.expectedTemperatureC,
         targetDistanceKm: action.targetDistanceKm,
         targetFinishTimeMinutes: action.targetFinishTimeMinutes,
         isDirty: true,
@@ -97,9 +106,7 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
     case "REMOVE_FUEL_ITEM":
       return {
         ...state,
-        fuelInventory: (state.fuelInventory ?? []).filter(
-          (item) => item.id !== action.id
-        ),
+        fuelInventory: (state.fuelInventory ?? []).filter((item) => item.id !== action.id),
         isDirty: true,
       };
 
@@ -116,9 +123,24 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
     case "REMOVE_AID_STATION":
       return {
         ...state,
-        aidStations: (state.aidStations ?? []).filter(
-          (s) => s.id !== action.id
-        ),
+        aidStations: (state.aidStations ?? []).filter((s) => s.id !== action.id),
+        isDirty: true,
+      };
+
+    case "SET_PRIOR_EFFORTS":
+      return { ...state, priorEfforts: action.efforts, isDirty: true };
+
+    case "ADD_PRIOR_EFFORT":
+      return {
+        ...state,
+        priorEfforts: [...(state.priorEfforts ?? []), action.effort],
+        isDirty: true,
+      };
+
+    case "REMOVE_PRIOR_EFFORT":
+      return {
+        ...state,
+        priorEfforts: (state.priorEfforts ?? []).filter((e) => e.id !== action.id),
         isDirty: true,
       };
 
@@ -147,6 +169,7 @@ const initialState: PlannerState = {
   eventName: "",
   fuelInventory: defaultFuelInventory(),
   aidStations: [],
+  priorEfforts: [],
 };
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -177,12 +200,16 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       saveState({
         athlete: state.athlete,
         eventName: state.eventName,
+        eventType: state.eventType,
+        racePriority: state.racePriority,
         raceStartTime: state.raceStartTime,
+        expectedTemperatureC: state.expectedTemperatureC,
         targetDistanceKm: state.targetDistanceKm,
         targetFinishTimeMinutes: state.targetFinishTimeMinutes,
         fuelInventory: state.fuelInventory,
         aidStations: state.aidStations,
         parsedRoute: state.parsedRoute,
+        priorEfforts: state.priorEfforts,
         lastPlannerOutput: state.lastPlannerOutput,
       });
     }, 500);
@@ -203,13 +230,17 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
 
     const eventPlan: EventPlan = {
       eventName: state.eventName ?? "My Race",
+      eventType: state.eventType,
+      racePriority: state.racePriority,
       targetDistanceKm: state.targetDistanceKm,
       targetFinishTimeMinutes: state.targetFinishTimeMinutes,
+      expectedTemperatureC: state.expectedTemperatureC,
       athlete: state.athlete,
       route,
       fuelInventory: state.fuelInventory,
       aidStations: state.aidStations ?? [],
       assumptions: DEFAULT_ASSUMPTIONS,
+      priorEfforts: state.priorEfforts ?? [],
     };
 
     const output = generatePlan(eventPlan);

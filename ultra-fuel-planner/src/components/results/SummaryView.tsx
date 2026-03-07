@@ -1,17 +1,17 @@
 "use client";
 
-import type { PlannerOutput } from "@/types";
+import type { PlannerOutput, PlanConfidence, BurnRateBand } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
-import { Zap, Droplets, FlaskConical, Coffee, Clock, Package, Flame } from "lucide-react";
+import { Zap, Droplets, FlaskConical, Coffee, Package, Flame, Info, ShieldCheck, ShieldAlert } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
 }
 
 export function SummaryView({ output }: Props) {
-  const { summary, eventPlan } = output;
+  const { summary, eventPlan, confidence } = output;
   const athlete = eventPlan.athlete;
 
   const carbPct = Math.min(
@@ -98,13 +98,13 @@ export function SummaryView({ output }: Props) {
         />
       </div>
 
-      {/* Calorie burn — shown when energy model is active */}
+      {/* Calibration & burn rate */}
       {summary.estimatedTotalKcal !== undefined && (
         <Card className="border-amber-800/30 bg-amber-950/10">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
               <Flame className="h-4 w-4" />
-              Energy expenditure (Minetti model)
+              Estimated energy expenditure
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -112,6 +112,9 @@ export function SummaryView({ output }: Props) {
               <div>
                 <p className="text-xs text-stone-500">Avg burn rate</p>
                 <p className="mt-1 text-xl font-bold text-amber-400">{summary.avgKcalPerHour} kcal/hr</p>
+                {summary.burnRateBand && (
+                  <p className="text-xs text-stone-600">{burnRateBandLabel(summary.burnRateBand)}</p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-stone-500">Total expenditure</p>
@@ -120,26 +123,35 @@ export function SummaryView({ output }: Props) {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-stone-500">CHO burn rate</p>
+                <p className="text-xs text-stone-500">Working carb target</p>
                 <p className="mt-1 text-xl font-bold text-stone-100">
-                  {summary.avgChoBurnGPerHour} g/hr
+                  {summary.workingCarbTarget ?? athlete.carbTargetPerHour} g/hr
                 </p>
-                <p className="text-xs text-stone-600">endogenous carb oxidation</p>
+                {summary.carbTargetRangeGPerHour && (
+                  <p className="text-xs text-stone-600">
+                    range: {summary.carbTargetRangeGPerHour[0]}–{summary.carbTargetRangeGPerHour[1]} g/hr
+                  </p>
+                )}
               </div>
               <div>
-                <p className="text-xs text-stone-500">Exogenous carbs</p>
+                <p className="text-xs text-stone-500">Planned carbs</p>
                 <p className="mt-1 text-xl font-bold text-stone-100">
                   {summary.avgCarbsPerHour} g/hr
                 </p>
-                <p className="text-xs text-stone-600">replacing ~{summary.avgKcalPerHour ? Math.round((summary.avgCarbsPerHour * 4.1 / summary.avgKcalPerHour) * 100) : 0}% of burn</p>
+                <p className="text-xs text-stone-600">
+                  replacing ~{summary.avgKcalPerHour ? Math.round((summary.avgCarbsPerHour * 4.1 / summary.avgKcalPerHour) * 100) : 0}% of burn
+                </p>
               </div>
             </div>
             <p className="mt-3 text-xs text-stone-600">
-              Fuelling trigger: every 300 kcal burned → 25 g exogenous carbs. Interval varies by terrain gradient and pace.
+              Estimates are based on your prior effort data and route profile. Fuelling intervals vary by terrain gradient and pace.
             </p>
           </CardContent>
         </Card>
       )}
+
+      {/* Plan confidence */}
+      <ConfidenceCard confidence={confidence} />
 
       {/* Totals */}
       <Card>
@@ -249,6 +261,59 @@ export function SummaryView({ output }: Props) {
       </Card>
     </div>
   );
+}
+
+// ─── Confidence card ─────────────────────────────────────────────────────────
+
+function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
+  const isHigh = confidence.overall === "high";
+  const isLow = confidence.overall === "low";
+  const Icon = isLow ? ShieldAlert : ShieldCheck;
+  const color = isHigh ? "text-green-400" : isLow ? "text-amber-400" : "text-blue-400";
+  const borderColor = isHigh ? "border-green-800/30" : isLow ? "border-amber-800/30" : "border-blue-800/30";
+
+  return (
+    <Card className={borderColor}>
+      <CardContent className="p-5">
+        <div className="flex items-start gap-3">
+          <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${color}`} />
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-stone-200">
+                Plan confidence: {confidence.overall}
+              </h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                isHigh ? "bg-green-900/30 text-green-400"
+                : isLow ? "bg-amber-900/30 text-amber-400"
+                : "bg-blue-900/30 text-blue-400"
+              }`}>
+                {confidence.calibrationQuality === "none" ? "No calibration data"
+                  : `${confidence.calibrationQuality} calibration`}
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {confidence.notes.map((note, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
+                  <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+                  {note}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function burnRateBandLabel(band: BurnRateBand): string {
+  switch (band) {
+    case "lower": return "lower estimate — conservative";
+    case "middle": return "mid-range estimate";
+    case "higher": return "higher estimate — aggressive";
+  }
 }
 
 function MetricCard({

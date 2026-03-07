@@ -1,16 +1,20 @@
 // ─── Core Data Models ─────────────────────────────────────────────────────────
 
+export type ExperienceLevel = "novice" | "intermediate" | "experienced" | "elite";
+export type RacePriority = "a_race" | "completion" | "training";
+export type EventType = "trail_marathon" | "ultra_50k" | "ultra_50m" | "ultra_100k" | "ultra_100m" | "mountain_ultra" | "other";
+
 export interface AthleteProfile {
   name?: string;
   bodyweightKg: number;
-  carbTargetPerHour: number;      // g/hr the athlete is trained to absorb
-  maxCarbsPerHour: number;        // upper tolerance limit
+  experienceLevel: ExperienceLevel;
+  carbTargetPerHour: number;      // g/hr — may be overridden by calibration
+  maxCarbsPerHour: number;        // upper gut tolerance limit
   fluidTargetPerHourMl: number;
   sodiumTargetPerHourMg: number;
   caffeinePreference: "none" | "limited" | "normal";
   caffeineMaxMg?: number;         // total race max
   preferences: AthletePreferences;
-  trainingMetrics?: TrainingMetrics;
 }
 
 export interface AthletePreferences {
@@ -18,42 +22,68 @@ export interface AthletePreferences {
   noSweetAfterHour?: number;      // avoid sweet products after X hours
   drinkHeavy: boolean;            // prefer liquid-based fuelling
   gelLight: boolean;              // minimise gels
+  lowSweetnessTolerance: boolean; // prefers savoury / mild flavours
   exclusions: string[];           // product names or types to exclude
 }
 
-/**
- * Athlete energy system inputs.
- * Used by the Minetti / Brooks-Mercier energy model to calculate:
- *   - Caloric burn rate per segment (kcal/hr)
- *   - CHO oxidation fraction (% calories from carbs)
- *   - Derived carb target (g/hr) and fuelling interval (minutes)
- */
-export type RaceIntensity = "easy" | "moderate" | "hard" | "race";
-export type FatAdaptation  = "low" | "medium" | "high";
+// ─── Prior Effort (Calibration Data) ─────────────────────────────────────────
 
-export interface TrainingMetrics {
-  // Primary driver: effort level → % VO₂max → CHO fraction + fuelling interval
-  raceIntensity?: RaceIntensity;
-  // Fat adaptation: LCHF / low-carb training shifts CHO/fat ratio at any intensity
-  fatAdaptation?: FatAdaptation;
-  // Optional calibration: from Garmin Connect, Polar, Whoop, etc.
-  vo2MaxEstimate?: number;                     // ml/kg/min, typically 35–80
-  // Hydration: adjusts fluid target if sweat rate > current setting
-  hydrationLossEstimateMlPerHour?: number;     // ml/hr, from wearable sweat data
+export interface PriorEffort {
+  id: string;
+  label: string;                  // "CCC 2024", "Training run 30k"
+  distanceKm: number;
+  durationMinutes: number;
+  elevationGainM: number;
+  avgHeartRate?: number;          // bpm
+  caloriesBurned?: number;        // from watch/device
+  avgPaceMinPerKm?: number;
+  weather?: string;               // "hot", "cool", "rain", etc.
+  fuellingNotes?: string;         // what they ate
+  whatWorked?: string;
+  whatDidntWork?: string;
+}
+
+// ─── Calibration Result ──────────────────────────────────────────────────────
+
+export type ConfidenceLevel = "low" | "moderate" | "high";
+export type BurnRateBand = "lower" | "middle" | "higher";
+export type CalibrationQuality = "none" | "limited" | "good" | "strong";
+
+export interface CalibrationResult {
+  estimatedKcalPerHour: number;
+  kcalPerHourRange: [number, number]; // low, high
+  suggestedCarbRangeGPerHour: [number, number]; // low, high
+  workingCarbTargetGPerHour: number;
+  confidenceLevel: ConfidenceLevel;
+  confidenceNotes: string[];
+  burnRateBand: BurnRateBand;
+  assumptionsMade: string[];
+  priorEffortsUsed: number;
+}
+
+export interface PlanConfidence {
+  overall: ConfidenceLevel;
+  calibrationQuality: CalibrationQuality;
+  notes: string[];
 }
 
 // ─── Event Plan ───────────────────────────────────────────────────────────────
 
 export interface EventPlan {
   eventName: string;
+  eventType?: EventType;
+  racePriority?: RacePriority;
   targetDistanceKm?: number;
   targetFinishTimeMinutes?: number;
   estimatedPaceMinPerKm?: number;
+  expectedTemperatureC?: number;
   athlete: AthleteProfile;
   route?: ParsedRoute;
   fuelInventory: FuelItem[];
   aidStations: AidStation[];
   assumptions: PlannerAssumptions;
+  priorEfforts: PriorEffort[];
+  calibration?: CalibrationResult;
 }
 
 // ─── Route & Segments ─────────────────────────────────────────────────────────
@@ -91,7 +121,7 @@ export interface RouteSegment {
   terrain: TerrainType;
   estimatedDurationMinutes: number;
   estimatedPaceMinPerKm: number;
-  effortLevel: 1 | 2 | 3 | 4 | 5; // 1=easy, 5=max effort
+  effortLevel: 1 | 2 | 3 | 4 | 5;
   notes?: string;
 }
 
@@ -103,7 +133,7 @@ export interface ParsedRoute {
   maxElevationM: number;
   points: RoutePoint[];
   segments: RouteSegment[];
-  elevationProfile: ElevationPoint[]; // downsampled for charting
+  elevationProfile: ElevationPoint[];
   fileName?: string;
 }
 
@@ -129,19 +159,19 @@ export interface FuelItem {
   productName: string;
   brand?: string;
   type: FuelType;
-  carbsPerServing: number;         // g
+  carbsPerServing: number;
   sodiumPerServingMg: number;
-  fluidContributionMl: number;     // if already dissolved in liquid
+  fluidContributionMl: number;
   caffeinePerServingMg: number;
   caloriesPerServing: number;
   servingSizeG?: number;
-  easyOnClimbs: boolean;           // can be consumed hands-free / no chewing
+  easyOnClimbs: boolean;
   easyAtHighEffort: boolean;
   requiresChewing: boolean;
   sweetnessScore: 1 | 2 | 3 | 4 | 5;
-  lateRaceToleranceScore: 1 | 2 | 3 | 4 | 5; // 1=poor, 5=excellent
-  quantityAvailable: number;       // total servings
-  quantityUsed?: number;           // calculated by planner
+  lateRaceToleranceScore: 1 | 2 | 3 | 4 | 5;
+  quantityAvailable: number;
+  quantityUsed?: number;
   notes?: string;
 }
 
@@ -153,6 +183,7 @@ export interface AidStation {
   distanceKm: number;
   available: AidStationSupply;
   fullRefillPossible: boolean;
+  crewAccess?: boolean;
   notes?: string;
 }
 
@@ -168,19 +199,19 @@ export interface AidStationSupply {
 
 export interface FuelScheduleEntry {
   id: string;
-  timeMinutes: number;             // minutes from race start
+  timeMinutes: number;
   distanceKm: number;
   segmentId: string;
   terrain: TerrainType;
   action: FuelAction;
   fuelItemId?: string;
   fuelItemName?: string;
-  quantity: number;                // servings
+  quantity: number;
   carbsG: number;
   fluidMl: number;
   sodiumMg: number;
   caffeinesMg: number;
-  rationale: string;               // human-readable explanation
+  rationale: string;
   priority: "required" | "recommended" | "optional";
   isNearAidStation?: boolean;
   warnings?: string[];
@@ -229,6 +260,7 @@ export interface PlannerOutput {
   carryPlans: CarryPlan[];
   segmentRecommendations: SegmentRecommendation[];
   warnings: PlanWarning[];
+  confidence: PlanConfidence;
   generatedAt: string;
 }
 
@@ -242,11 +274,12 @@ export interface PlanSummary {
   totalSodiumMg: number;
   totalCaffeinesMg: number;
   itemTotals: Record<string, { name: string; quantity: number; carbsG: number }>;
-  coverageScore: number;           // 0–100, how well inventory covers targets
-  // Energy model outputs (populated when raceIntensity is set)
-  estimatedTotalKcal?: number;     // total gross caloric expenditure
-  avgKcalPerHour?: number;         // average kcal/hr across race
-  avgChoBurnGPerHour?: number;     // average endogenous CHO burn rate (g/hr)
+  coverageScore: number;
+  estimatedTotalKcal?: number;
+  avgKcalPerHour?: number;
+  carbTargetRangeGPerHour?: [number, number];
+  workingCarbTarget?: number;
+  burnRateBand?: BurnRateBand;
 }
 
 export interface SegmentRecommendation {
@@ -257,10 +290,9 @@ export interface SegmentRecommendation {
   avoid: FuelType[];
   rationale: string;
   timingNote?: string;
-  // Energy model outputs
-  estimatedKcalPerHour?: number;        // caloric burn rate for this segment
-  choBurnGPerHour?: number;             // endogenous CHO oxidation rate
-  derivedFuelIntervalMinutes?: number;  // interval implied by 300 kcal trigger
+  estimatedKcalPerHour?: number;
+  fuellingFormat?: string;
+  derivedFuelIntervalMinutes?: number;
 }
 
 export interface PlanWarning {
@@ -274,14 +306,14 @@ export interface PlanWarning {
 
 export interface PlannerAssumptions {
   paceFlatMinPerKm: number;
-  paceClimbMinPerKmPer100mGain: number; // Naismith's rule factor
-  paceDescentFactor: number;            // multiplier vs flat
-  minFuelIntervalMinutes: number;       // minimum gap between fuelling events
-  maxItemsPerFuelStop: number;          // max different items at once
-  earlyRaceHours: number;               // "early" phase definition
-  lateRaceHours: number;                // when "late race" simplification kicks in
-  fluidPerHourClimbBonus: number;       // extra ml/hr on big climbs
-  sodiumPerLitreMg: number;             // sweat sodium assumption
+  paceClimbMinPerKmPer100mGain: number;
+  paceDescentFactor: number;
+  minFuelIntervalMinutes: number;
+  maxItemsPerFuelStop: number;
+  earlyRaceHours: number;
+  lateRaceHours: number;
+  fluidPerHourClimbBonus: number;
+  sodiumPerLitreMg: number;
 }
 
 export const DEFAULT_ASSUMPTIONS: PlannerAssumptions = {
@@ -301,11 +333,15 @@ export const DEFAULT_ASSUMPTIONS: PlannerAssumptions = {
 export interface StoredPlannerState {
   athlete?: AthleteProfile;
   eventName?: string;
-  raceStartTime?: string;        // "HH:MM" e.g. "06:30"
+  eventType?: EventType;
+  racePriority?: RacePriority;
+  raceStartTime?: string;
+  expectedTemperatureC?: number;
   targetDistanceKm?: number;
   targetFinishTimeMinutes?: number;
   fuelInventory?: FuelItem[];
   aidStations?: AidStation[];
   parsedRoute?: ParsedRoute;
+  priorEfforts?: PriorEffort[];
   lastPlannerOutput?: PlannerOutput;
 }

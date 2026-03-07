@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePlanner } from "@/lib/planner-store";
-import type { AthleteProfile, TrainingMetrics, RaceIntensity, FatAdaptation } from "@/types";
+import type { AthleteProfile, ExperienceLevel, EventType, RacePriority } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,26 +14,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronRight, ChevronDown, ChevronUp, Flame } from "lucide-react";
-import {
-  caloricBurnRate,
-  fuellingIntervalMinutes,
-  derivedCarbGPerHour,
-  INTENSITY_VO2MAX,
-  INTENSITY_LABELS,
-  INTENSITY_DESCRIPTIONS,
-} from "@/lib/energy-model";
+import { ChevronRight, Thermometer } from "lucide-react";
 
 interface Props {
   onNext: () => void;
 }
 
+// ─── Experience level metadata ───────────────────────────────────────────────
+
+const EXPERIENCE_OPTIONS: { value: ExperienceLevel; label: string; desc: string }[] = [
+  { value: "novice", label: "Novice", desc: "First or second ultra — still learning what works" },
+  { value: "intermediate", label: "Intermediate", desc: "A few ultras finished — developing a system" },
+  { value: "experienced", label: "Experienced", desc: "Many events — knows what works and what doesn't" },
+  { value: "elite", label: "Elite / High volume", desc: "High weekly hours, dialled-in fuelling" },
+];
+
+const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
+  { value: "trail_marathon", label: "Trail Marathon" },
+  { value: "ultra_50k", label: "Ultra 50K" },
+  { value: "ultra_50m", label: "Ultra 50 Miles" },
+  { value: "ultra_100k", label: "Ultra 100K" },
+  { value: "ultra_100m", label: "Ultra 100 Miles" },
+  { value: "mountain_ultra", label: "Mountain Ultra" },
+  { value: "other", label: "Other" },
+];
+
+const RACE_PRIORITY_OPTIONS: { value: RacePriority; label: string; desc: string }[] = [
+  { value: "a_race", label: "A-Race", desc: "Full race effort — this is a goal event" },
+  { value: "completion", label: "Completion", desc: "Finishing is the goal — conservative pacing" },
+  { value: "training", label: "Training run", desc: "Using this as a training effort, not racing" },
+];
+
 export function StepAthlete({ onNext }: Props) {
   const { state, dispatch } = usePlanner();
   const athlete = state.athlete!;
-  const [showEnergyModel, setShowEnergyModel] = useState(
-    !!athlete.trainingMetrics?.raceIntensity
-  );
+  const [eventType, setEventType] = useState<EventType | undefined>(state.eventType);
+  const [racePriority, setRacePriority] = useState<RacePriority | undefined>(state.racePriority);
+  const [temperature, setTemperature] = useState<number | "">(state.expectedTemperatureC ?? "");
 
   const update = (patch: Partial<AthleteProfile>) => {
     dispatch({ type: "SET_ATHLETE", athlete: { ...athlete, ...patch } });
@@ -45,19 +62,16 @@ export function StepAthlete({ onNext }: Props) {
     });
   };
 
-  const updateMetrics = (patch: Partial<TrainingMetrics>) => {
-    update({
-      trainingMetrics: { ...(athlete.trainingMetrics ?? {}), ...patch },
-    });
-  };
-
   const updateEvent = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     dispatch({
       type: "SET_EVENT_META",
       eventName: fd.get("eventName") as string,
+      eventType: eventType,
+      racePriority: racePriority,
       raceStartTime: (fd.get("raceStartTime") as string) || undefined,
+      expectedTemperatureC: temperature !== "" ? temperature : undefined,
       targetDistanceKm: fd.get("targetDistanceKm")
         ? Number(fd.get("targetDistanceKm"))
         : undefined,
@@ -73,11 +87,11 @@ export function StepAthlete({ onNext }: Props) {
     <div className="animate-slide-up">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-stone-50">
-          Tell us about your event and targets
+          Your event and athlete profile
         </h1>
         <p className="mt-2 text-stone-400">
-          These inputs set your hourly targets. They are assumptions — you can
-          adjust them later.
+          These inputs set your hourly targets. Start with conservative numbers —
+          you can adjust them after seeing the plan.
         </p>
       </div>
 
@@ -98,6 +112,50 @@ export function StepAthlete({ onNext }: Props) {
                 className="mt-1.5"
               />
             </div>
+
+            <div>
+              <Label>Event type</Label>
+              <Select
+                value={eventType}
+                onValueChange={(v) => setEventType(v as EventType)}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Race priority</Label>
+              <Select
+                value={racePriority}
+                onValueChange={(v) => setRacePriority(v as RacePriority)}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select priority..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {RACE_PRIORITY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {racePriority && (
+                <p className="mt-1 text-xs text-stone-500">
+                  {RACE_PRIORITY_OPTIONS.find((o) => o.value === racePriority)?.desc}
+                </p>
+              )}
+            </div>
+
             <div>
               <Label htmlFor="targetDistanceKm">Target distance (km)</Label>
               <Input
@@ -160,6 +218,61 @@ export function StepAthlete({ onNext }: Props) {
                 Shows real clock times in your schedule
               </p>
             </div>
+            <div>
+              <Label htmlFor="temperature">Expected temperature (°C)</Label>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Thermometer className="h-4 w-4 text-stone-500 flex-shrink-0" />
+                <Input
+                  id="temperature"
+                  type="number"
+                  min={-10}
+                  max={50}
+                  value={temperature}
+                  onChange={(e) =>
+                    setTemperature(e.target.value ? Number(e.target.value) : "")
+                  }
+                  placeholder="e.g. 25"
+                />
+              </div>
+              <p className="mt-1 text-xs text-stone-500">
+                Fluid targets increase above 25°C
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Experience level */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Experience Level</CardTitle>
+            <CardDescription>
+              Helps calibrate burn rate estimates and carb target ranges when limited
+              race data is available.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {EXPERIENCE_OPTIONS.map(({ value, label, desc }) => {
+                const selected = athlete.experienceLevel === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => update({ experienceLevel: value })}
+                    className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
+                      selected
+                        ? "border-amber-700/60 bg-amber-900/20"
+                        : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-stone-200">
+                      {label}
+                    </span>
+                    <span className="text-xs text-stone-500">{desc}</span>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
@@ -168,7 +281,8 @@ export function StepAthlete({ onNext }: Props) {
           <CardHeader>
             <CardTitle className="text-base">Athlete Inputs</CardTitle>
             <CardDescription>
-              Used to calculate hourly targets. Start with conservative numbers.
+              Your baseline targets. The planner may adjust these based on your
+              calibration data and route terrain.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -187,6 +301,24 @@ export function StepAthlete({ onNext }: Props) {
               />
             </div>
             <div>
+              <Label htmlFor="carbTarget">Carb target (g/hr)</Label>
+              <Input
+                id="carbTarget"
+                type="number"
+                min={20}
+                max={120}
+                step={5}
+                value={athlete.carbTargetPerHour}
+                onChange={(e) =>
+                  update({ carbTargetPerHour: Number(e.target.value) })
+                }
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-stone-500">
+                Your starting carb target — may be adjusted by calibration data
+              </p>
+            </div>
+            <div>
               <Label htmlFor="maxCarbs">Gut tolerance ceiling (g/hr)</Label>
               <Input
                 id="maxCarbs"
@@ -201,7 +333,7 @@ export function StepAthlete({ onNext }: Props) {
                 className="mt-1.5"
               />
               <p className="mt-1 text-xs text-stone-500">
-                Max carbs your gut can absorb — 60g single-source, 90g with glucose+fructose
+                Max your gut can absorb — 60g single-source, 90g+ with glucose+fructose
               </p>
             </div>
             <div>
@@ -304,6 +436,12 @@ export function StepAthlete({ onNext }: Props) {
               checked={athlete.preferences.gelLight}
               onChange={(v) => updatePref("gelLight", v)}
             />
+            <ToggleOption
+              label="Low sweetness tolerance"
+              description="Prefers savoury or mild flavours — avoids very sweet items"
+              checked={athlete.preferences.lowSweetnessTolerance}
+              onChange={(v) => updatePref("lowSweetnessTolerance", v)}
+            />
             <div>
               <Label htmlFor="noSweetAfter">
                 Avoid sweet foods after hour
@@ -330,145 +468,6 @@ export function StepAthlete({ onNext }: Props) {
           </CardContent>
         </Card>
 
-        {/* Energy Model Inputs — collapsible */}
-        <Card>
-          <CardHeader
-            className="cursor-pointer select-none"
-            onClick={() => setShowEnergyModel((v) => !v)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-amber-500" />
-                  Calorie &amp; Carb Calculator
-                  <span className="text-xs font-normal text-amber-600 bg-amber-900/30 px-2 py-0.5 rounded-full">Recommended</span>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Uses Minetti (2002) energy cost formula + intensity to calculate your calorie burn rate
-                  and derive optimal fuelling intervals. Every 300 kcal burned → 25 g carbs.
-                </CardDescription>
-              </div>
-              {showEnergyModel ? (
-                <ChevronUp className="h-4 w-4 text-stone-500 flex-shrink-0" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-stone-500 flex-shrink-0" />
-              )}
-            </div>
-          </CardHeader>
-
-          {showEnergyModel && (
-            <CardContent className="space-y-5">
-              {/* Race intensity */}
-              <div>
-                <Label>Race effort level <span className="text-amber-500">*</span></Label>
-                <p className="mt-0.5 mb-2 text-xs text-stone-500">
-                  Determines your % VO₂max, which sets the carbohydrate oxidation fraction and fuelling frequency.
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(["easy", "moderate", "hard", "race"] as RaceIntensity[]).map((level) => {
-                    const selected = athlete.trainingMetrics?.raceIntensity === level;
-                    return (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => updateMetrics({ raceIntensity: level })}
-                        className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
-                          selected
-                            ? "border-amber-700/60 bg-amber-900/20"
-                            : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
-                        }`}
-                      >
-                        <span className="text-sm font-medium text-stone-200">
-                          {INTENSITY_LABELS[level]}
-                        </span>
-                        <span className="text-xs text-stone-500">
-                          {INTENSITY_DESCRIPTIONS[level]}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Fat adaptation */}
-              <div>
-                <Label>Fat adaptation level</Label>
-                <p className="mt-0.5 mb-2 text-xs text-stone-500">
-                  Fat-adapted athletes oxidise more fat at any given intensity, reducing exogenous carb need.
-                </p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {([
-                    { value: "low" as FatAdaptation, label: "Low", desc: "Standard carb-based diet" },
-                    { value: "medium" as FatAdaptation, label: "Medium", desc: "Trained for fat burning" },
-                    { value: "high" as FatAdaptation, label: "High", desc: "LCHF / keto athlete" },
-                  ]).map(({ value, label, desc }) => {
-                    const selected = (athlete.trainingMetrics?.fatAdaptation ?? "low") === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => updateMetrics({ fatAdaptation: value })}
-                        className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
-                          selected
-                            ? "border-amber-700/60 bg-amber-900/20"
-                            : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
-                        }`}
-                      >
-                        <span className="text-sm font-medium text-stone-200">{label}</span>
-                        <span className="text-xs text-stone-500">{desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* VO2max + Sweat rate */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="vo2max">VO₂max estimate (ml/kg/min)</Label>
-                  <Input
-                    id="vo2max"
-                    type="number"
-                    min={25}
-                    max={90}
-                    value={athlete.trainingMetrics?.vo2MaxEstimate ?? ""}
-                    onChange={(e) =>
-                      updateMetrics({ vo2MaxEstimate: e.target.value ? Number(e.target.value) : undefined })
-                    }
-                    placeholder="e.g. 55"
-                    className="mt-1.5"
-                  />
-                  <p className="mt-1 text-xs text-stone-500">
-                    From Garmin Connect, Polar, Whoop — informational, helps you pick the right effort band.
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="sweatRate">Sweat rate (ml/hr)</Label>
-                  <Input
-                    id="sweatRate"
-                    type="number"
-                    min={200}
-                    max={2000}
-                    step={50}
-                    value={athlete.trainingMetrics?.hydrationLossEstimateMlPerHour ?? ""}
-                    onChange={(e) =>
-                      updateMetrics({ hydrationLossEstimateMlPerHour: e.target.value ? Number(e.target.value) : undefined })
-                    }
-                    placeholder="e.g. 750"
-                    className="mt-1.5"
-                  />
-                  <p className="mt-1 text-xs text-stone-500">
-                    From Garmin / Whoop sweat data. Overrides fluid target if higher.
-                  </p>
-                </div>
-              </div>
-
-              {/* Live preview */}
-              <EnergyModelPreview athlete={athlete} />
-            </CardContent>
-          )}
-        </Card>
-
         <div className="flex justify-end">
           <Button type="submit" size="lg">
             Next: Upload Route
@@ -476,60 +475,6 @@ export function StepAthlete({ onNext }: Props) {
           </Button>
         </div>
       </form>
-    </div>
-  );
-}
-
-// ─── Energy model live preview ────────────────────────────────────────────────
-
-function EnergyModelPreview({ athlete }: { athlete: AthleteProfile }) {
-  const m = athlete.trainingMetrics;
-  if (!m?.raceIntensity) {
-    return (
-      <div className="rounded-lg border border-stone-700/50 bg-stone-900/30 p-4 text-xs text-stone-500">
-        Select a race effort level above to see your estimated calorie burn rate and fuelling intervals.
-      </div>
-    );
-  }
-
-  const intensityFraction = INTENSITY_VO2MAX[m.raceIntensity];
-  // Flat estimate at 7 min/km as a preview baseline
-  const kcalFlat = caloricBurnRate(athlete.bodyweightKg, 60 / 7, 0);
-  // Climb estimate at 12 min/km, 15% grade
-  const kcalClimb = caloricBurnRate(athlete.bodyweightKg, 60 / 12, 0.15);
-  // Descent estimate at 5 min/km, -10% grade
-  const kcalDescent = caloricBurnRate(athlete.bodyweightKg, 60 / 5, -0.10);
-
-  const intervalFlat    = fuellingIntervalMinutes(kcalFlat);
-  const intervalClimb   = fuellingIntervalMinutes(kcalClimb);
-  const intervalDescent = fuellingIntervalMinutes(kcalDescent);
-
-  const carbsFlat    = Math.min(athlete.maxCarbsPerHour, derivedCarbGPerHour(kcalFlat));
-  const carbsClimb   = Math.min(athlete.maxCarbsPerHour, derivedCarbGPerHour(kcalClimb));
-  const carbsDescent = Math.min(athlete.maxCarbsPerHour, derivedCarbGPerHour(kcalDescent));
-
-  return (
-    <div className="rounded-lg border border-amber-800/30 bg-amber-950/20 p-4 space-y-3">
-      <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
-        Estimated burn rates for {athlete.bodyweightKg} kg at {m.raceIntensity} effort
-      </p>
-      <div className="grid grid-cols-3 gap-3 text-xs">
-        {[
-          { label: "Flat/rolling", kcal: kcalFlat, interval: intervalFlat, carbs: carbsFlat },
-          { label: "Climbing", kcal: kcalClimb, interval: intervalClimb, carbs: carbsClimb },
-          { label: "Descending", kcal: kcalDescent, interval: intervalDescent, carbs: carbsDescent },
-        ].map((row) => (
-          <div key={row.label} className="space-y-1.5">
-            <p className="font-medium text-stone-300">{row.label}</p>
-            <p className="text-amber-400 font-semibold">{Math.round(row.kcal)} kcal/hr</p>
-            <p className="text-stone-400">Fuel every <span className="text-stone-200 font-medium">{row.interval} min</span></p>
-            <p className="text-stone-400"><span className="text-stone-200 font-medium">{row.carbs} g</span> carbs/hr</p>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-stone-600">
-        Based on Minetti (2002) energy cost of running formula. Actual intervals calculated per-segment from your GPX route.
-      </p>
     </div>
   );
 }

@@ -1,23 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Mountain, ChevronLeft } from "lucide-react";
+import { Mountain } from "lucide-react";
 import { usePlanner } from "@/lib/planner-store";
 import { StepIndicator } from "@/components/planner/StepIndicator";
 import { StepAthlete } from "@/components/planner/StepAthlete";
+import { StepCalibration } from "@/components/planner/StepCalibration";
 import { StepRoute } from "@/components/planner/StepRoute";
 import { StepFuel } from "@/components/planner/StepFuel";
 import { StepAidStations } from "@/components/planner/StepAidStations";
 import { StepGenerate } from "@/components/planner/StepGenerate";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 const STEPS = [
   { id: 0, label: "Athlete", shortLabel: "You" },
-  { id: 1, label: "Route", shortLabel: "Route" },
-  { id: 2, label: "Fuel", shortLabel: "Fuel" },
-  { id: 3, label: "Aid Stations", shortLabel: "Aid" },
-  { id: 4, label: "Generate", shortLabel: "Plan" },
+  { id: 1, label: "Calibration", shortLabel: "Data" },
+  { id: 2, label: "Route", shortLabel: "Route" },
+  { id: 3, label: "Fuel", shortLabel: "Fuel" },
+  { id: 4, label: "Aid Stations", shortLabel: "Aid" },
+  { id: 5, label: "Generate", shortLabel: "Plan" },
 ];
 
 export default function PlannerPage() {
@@ -64,26 +65,32 @@ export default function PlannerPage() {
             <StepAthlete onNext={() => goToStep(1)} />
           )}
           {currentStep === 1 && (
-            <StepRoute
+            <StepCalibration
               onBack={() => goToStep(0)}
               onNext={() => goToStep(2)}
             />
           )}
           {currentStep === 2 && (
-            <StepFuel
+            <StepRoute
               onBack={() => goToStep(1)}
               onNext={() => goToStep(3)}
             />
           )}
           {currentStep === 3 && (
-            <StepAidStations
+            <StepFuel
               onBack={() => goToStep(2)}
               onNext={() => goToStep(4)}
             />
           )}
           {currentStep === 4 && (
-            <StepGenerate
+            <StepAidStations
               onBack={() => goToStep(3)}
+              onNext={() => goToStep(5)}
+            />
+          )}
+          {currentStep === 5 && (
+            <StepGenerate
+              onBack={() => goToStep(4)}
               onGenerate={handleGenerate}
               isGenerating={state.isGenerating}
             />

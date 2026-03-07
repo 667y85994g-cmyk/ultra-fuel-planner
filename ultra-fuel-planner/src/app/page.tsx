@@ -8,6 +8,8 @@ import {
   Clock,
   Droplets,
   Zap,
+  Activity,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -43,20 +45,20 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-24 md:py-36">
           <div className="max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-800/40 bg-amber-900/20 px-4 py-1.5 text-xs font-medium text-amber-400">
-              <Zap className="h-3 w-3" />
-              Route-aware fuelling for ultras
+              <Activity className="h-3 w-3" />
+              Personalised, route-aware fuelling
             </div>
 
             <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight text-stone-50 md:text-6xl lg:text-7xl">
-              Fuel your race.
+              Fuel the route
               <br />
-              <span className="text-amber-500">Not your anxiety.</span>
+              <span className="text-amber-500">you&apos;re actually running.</span>
             </h1>
 
             <p className="mb-8 max-w-xl text-lg leading-relaxed text-stone-400">
-              Upload your GPX route, add your fuel inventory, and get a
-              practical race-day plan that adapts to your actual terrain — not
-              generic hourly macros.
+              Enter your past race data, upload your GPX route, and get a
+              practical fuelling plan calibrated to how you actually burn energy —
+              not generic tables or guesswork.
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -81,34 +83,46 @@ export default function HomePage() {
             How it works
           </h2>
           <p className="mb-14 text-center text-stone-400">
-            Four steps from GPX to race card.
+            Your data, your route, your plan.
           </p>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
               {
-                icon: Route,
+                icon: Activity,
                 step: "01",
+                title: "Add your race data",
+                desc: "Enter past races and long runs — distance, time, elevation, calories. The planner calibrates to your personal burn rate.",
+              },
+              {
+                icon: Route,
+                step: "02",
                 title: "Upload your route",
                 desc: "Drop in a GPX file. The planner reads elevation, gradient and distance to understand what each section actually demands.",
               },
               {
                 icon: FlaskConical,
-                step: "02",
-                title: "Add your fuel",
-                desc: "Enter your gels, chews, drink mixes and real food. Each item knows whether it works on a steep climb or needs flat terrain.",
+                step: "03",
+                title: "Add your fuel & aid stations",
+                desc: "Enter your gels, chews, drink mixes and real food. Mark aid stations. It calculates what to carry between each one.",
+              },
+              {
+                icon: Target,
+                step: "04",
+                title: "Get your calibrated plan",
+                desc: "A segment-aware schedule with carb targets derived from your actual data, not assumptions. With confidence notes so you know what to trust.",
               },
               {
                 icon: MapPin,
-                step: "03",
-                title: "Mark aid stations",
-                desc: "Tell the planner where you can refill and restock. It calculates exactly what to carry between each one.",
+                step: "05",
+                title: "Know your carry plan",
+                desc: "See exactly what to pack at the start, what to restock at each aid station, and how much fluid to carry between checkpoints.",
               },
               {
                 icon: Clock,
-                step: "04",
-                title: "Get your plan",
-                desc: "A time-based, segment-aware schedule with rationale for every decision. Print it or carry it on your watch.",
+                step: "06",
+                title: "Execute on race day",
+                desc: "Print it, carry it on your watch, or reference it in the app. Real times, real distances, terrain-specific advice.",
               },
             ].map((item) => (
               <div
@@ -141,12 +155,13 @@ export default function HomePage() {
           <div className="grid gap-12 md:grid-cols-2">
             <div>
               <h2 className="mb-4 text-3xl font-bold text-stone-50">
-                The fuelling logic is terrain-aware
+                Terrain-aware. Personally calibrated.
               </h2>
               <p className="mb-6 text-stone-400 leading-relaxed">
                 Generic nutrition plans ignore the fact that you cannot chew a
-                bar on a 25% gradient. This planner maps fuel format to terrain
-                type so your schedule is actually executable on race day.
+                bar on a 25% gradient, or that your body burns more on climbs
+                than on flats. This planner maps fuel format to terrain type and
+                adjusts targets based on your own race history.
               </p>
               <ul className="space-y-3">
                 {[
@@ -154,6 +169,7 @@ export default function HomePage() {
                   { terrain: "Technical descent", rule: "No fuelling prompts. Hands-free only." },
                   { terrain: "Flat and runnable", rule: "Best window for bars, chews, real food." },
                   { terrain: "Late race", rule: "Simplified to highest-tolerance options." },
+                  { terrain: "Hot conditions", rule: "Fluid targets increase automatically." },
                 ].map((item) => (
                   <li key={item.terrain} className="flex items-start gap-3">
                     <div className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
@@ -210,7 +226,7 @@ export default function HomePage() {
             Three targets. Every hour.
           </h2>
           <p className="mb-14 text-center text-stone-400">
-            Carbs, fluid and sodium tracked across every segment of your race.
+            Carbs, fluid and sodium — calibrated from your own data and adjusted per terrain segment.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
             {[
@@ -218,7 +234,7 @@ export default function HomePage() {
                 icon: Zap,
                 label: "Carbohydrate",
                 value: "60–90g/hr",
-                desc: "Matched to your training gut capacity. Mixed carb sources for high targets.",
+                desc: "Derived from your prior efforts and route profile. Capped at your gut tolerance ceiling.",
                 color: "text-amber-400",
                 bg: "bg-amber-900/20",
               },
@@ -226,7 +242,7 @@ export default function HomePage() {
                 icon: Droplets,
                 label: "Fluid",
                 value: "500–800ml/hr",
-                desc: "Adjusted upward on climbs and hot sections. Carry plan calculated per section.",
+                desc: "Adjusted upward on climbs, in heat, and on exposed sections. Carry plan per aid station gap.",
                 color: "text-blue-400",
                 bg: "bg-blue-900/20",
               },
@@ -234,7 +250,7 @@ export default function HomePage() {
                 icon: FlaskConical,
                 label: "Sodium",
                 value: "500–1000mg/hr",
-                desc: "Based on sweat rate and fluid intake. Capsules or drink mix top-ups included.",
+                desc: "Based on your fluid intake and preferences. Capsules or drink mix top-ups included.",
                 color: "text-green-400",
                 bg: "bg-green-900/20",
               },
@@ -269,9 +285,9 @@ export default function HomePage() {
             Race day is not the time to figure out fuelling.
           </h2>
           <p className="mb-8 text-stone-400 leading-relaxed">
-            Build a practical plan now. Know your carry weights, your aid
-            station targets and your terrain-specific strategy before you toe
-            the line.
+            Build a practical plan from your own data. Know your carry weights,
+            your aid station targets and your terrain-specific strategy before
+            you toe the line.
           </p>
           <Link href="/planner">
             <Button size="lg">
