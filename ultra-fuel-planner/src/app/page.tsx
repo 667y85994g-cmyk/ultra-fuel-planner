@@ -241,16 +241,16 @@ export default function HomePage() {
               {
                 icon: Droplets,
                 label: "Fluid",
-                value: "500–800ml/hr",
-                desc: "Adjusted upward on climbs, in heat, and on exposed sections. Carry plan per aid station gap.",
+                value: "Practical range",
+                desc: "You'll get a hydration range (e.g. 450–650 ml/hr) adjusted for temperature and race length, not a false-precision number.",
                 color: "text-blue-400",
                 bg: "bg-blue-900/20",
               },
               {
                 icon: FlaskConical,
-                label: "Sodium",
-                value: "500–1000mg/hr",
-                desc: "Based on your fluid intake and preferences. Capsules or drink mix top-ups included.",
+                label: "Electrolytes",
+                value: "Guided tiers",
+                desc: "Tier-based recommendations (low / moderate / high) based on conditions, duration and your sweat profile. Plain advice, not milligrams.",
                 color: "text-green-400",
                 bg: "bg-green-900/20",
               },
@@ -305,6 +305,7 @@ export default function HomePage() {
             <Mountain className="h-4 w-4" />
             Ultra Fuel Planner — built for runners who take execution seriously.
           </div>
+          <span className="text-xs text-stone-600">v1.6</span>
         </div>
       </footer>
     </div>

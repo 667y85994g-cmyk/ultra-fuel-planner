@@ -293,6 +293,25 @@ export interface PlanSummary {
   burnRateBand?: BurnRateBand;
   finishTimeEstimation?: FinishTimeEstimation;
   fuelFormatNotes?: string[];
+  hydrationGuidance?: HydrationGuidance;
+  electrolyteGuidance?: ElectrolyteGuidance;
+}
+
+// ─── Hydration & Electrolyte Guidance ────────────────────────────────────────
+
+export interface HydrationGuidance {
+  rangeMlPerHour: [number, number]; // e.g. [450, 650]
+  label: string;                     // e.g. "Moderate conditions"
+  note: string;                      // plain-English advice
+  isWarmConditions: boolean;
+}
+
+export type ElectrolyteTier = "low" | "moderate" | "high";
+
+export interface ElectrolyteGuidance {
+  tier: ElectrolyteTier;
+  label: string;                     // e.g. "Moderate electrolyte support recommended"
+  note: string;                      // contextual advice
 }
 
 export interface SegmentRecommendation {

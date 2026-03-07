@@ -351,7 +351,7 @@ export function StepAthlete({ onNext }: Props) {
                 className="mt-1.5"
               />
               <p className="mt-1 text-xs text-stone-500">
-                500–800ml is typical; more in heat
+                Your starting point — the plan will show a practical range adjusted for conditions
               </p>
             </div>
             <div>
@@ -369,7 +369,7 @@ export function StepAthlete({ onNext }: Props) {
                 className="mt-1.5"
               />
               <p className="mt-1 text-xs text-stone-500">
-                500–1000mg typical
+                Used to guide electrolyte recommendations — the plan shows tier-based advice
               </p>
             </div>
             <div>

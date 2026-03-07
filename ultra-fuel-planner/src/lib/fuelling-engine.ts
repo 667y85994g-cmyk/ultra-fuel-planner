@@ -17,6 +17,8 @@ import type {
   PlannerAssumptions,
   PlanConfidence,
   CalibrationResult,
+  HydrationGuidance,
+  ElectrolyteGuidance,
 } from "@/types";
 import { getCumulativeTimeMinutes, terrainLabel } from "./segmentation";
 import {
@@ -222,7 +224,7 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
     segments, aidStations, schedule, fuelInventory, athlete, assumptions
   );
 
-  const summary = buildSummary(schedule, fuelInventory, totalRaceMinutes, athlete, segments, avgKcalPerHour, calibration);
+  const summary = buildSummary(schedule, fuelInventory, totalRaceMinutes, athlete, segments, avgKcalPerHour, calibration, plan.expectedTemperatureC);
 
   const confidence = buildConfidence(calibration, segments);
 
@@ -676,6 +678,7 @@ function buildSummary(
   totalRaceMinutes: number, athlete: AthleteProfile,
   segments: RouteSegment[], avgKcalPerHour: number,
   calibration: CalibrationResult,
+  expectedTemperatureC?: number,
 ): PlanSummary {
   const totalRaceHours = totalRaceMinutes / 60;
 
@@ -756,6 +759,12 @@ function buildSummary(
     );
   }
 
+  // ── Hydration guidance — practical ranges, not false precision ──────────
+  const hydrationGuidance = deriveHydrationGuidance(athlete, expectedTemperatureC, totalRaceHours);
+
+  // ── Electrolyte guidance — tier-based recommendation ──────────────────
+  const electrolyteGuidance = deriveElectrolyteGuidance(athlete, expectedTemperatureC, totalRaceHours);
+
   return {
     totalRaceDurationMinutes: totalRaceMinutes,
     avgCarbsPerHour,
@@ -769,7 +778,99 @@ function buildSummary(
     workingCarbTarget: calibration.workingCarbTargetGPerHour,
     burnRateBand: calibration.burnRateBand,
     fuelFormatNotes,
+    hydrationGuidance,
+    electrolyteGuidance,
   };
+}
+
+// ─── Hydration guidance — range-based ────────────────────────────────────────
+
+function deriveHydrationGuidance(
+  athlete: AthleteProfile,
+  temperatureC: number | undefined,
+  totalRaceHours: number,
+): HydrationGuidance {
+  const base = athlete.fluidTargetPerHourMl;
+  const temp = temperatureC ?? 15; // assume cool if not set
+  const isWarm = temp >= 25;
+  const isHot = temp >= 30;
+
+  // Build a practical range around the athlete's baseline
+  // Widen the range upward in warm/hot conditions
+  let low = Math.round(base * 0.75);
+  let high = Math.round(base * 1.25);
+
+  if (isHot) {
+    high = Math.round(base * 1.5);
+    low = Math.round(base * 0.9);
+  } else if (isWarm) {
+    high = Math.round(base * 1.35);
+    low = Math.round(base * 0.85);
+  }
+
+  // Round to nearest 50ml for readability
+  low = Math.round(low / 50) * 50;
+  high = Math.round(high / 50) * 50;
+
+  // Ensure minimum 100ml spread
+  if (high - low < 100) high = low + 100;
+
+  // Floor and ceiling
+  if (low < 200) low = 200;
+  if (high > 1500) high = 1500;
+
+  let label: string;
+  let note: string;
+  if (isHot) {
+    label = "Hot conditions — drink more";
+    note = `Temperatures above 30°C significantly increase sweat losses. Aim for the upper end of this range and drink to thirst. Consider pre-loading with electrolytes.`;
+  } else if (isWarm) {
+    label = "Warm conditions";
+    note = `Warmer weather means higher fluid needs. Drink consistently and don't wait until you feel thirsty — by then you're already behind.`;
+  } else if (totalRaceHours >= 10) {
+    label = "Long race — stay consistent";
+    note = `Over a long race, small deficits add up. Drink regularly even if you don't feel thirsty, especially in the second half.`;
+  } else {
+    label = "Moderate conditions";
+    note = `Drink to thirst and aim for regular small sips rather than large volumes at once. Adjust upward if conditions are warmer than expected.`;
+  }
+
+  return { rangeMlPerHour: [low, high], label, note, isWarmConditions: isWarm || isHot };
+}
+
+// ─── Electrolyte guidance — tier-based ───────────────────────────────────────
+
+function deriveElectrolyteGuidance(
+  athlete: AthleteProfile,
+  temperatureC: number | undefined,
+  totalRaceHours: number,
+): ElectrolyteGuidance {
+  const temp = temperatureC ?? 15;
+  const isWarm = temp >= 25;
+  const isHot = temp >= 30;
+  const isLong = totalRaceHours >= 6;
+  const isVeryLong = totalRaceHours >= 12;
+  const highSodiumTarget = athlete.sodiumTargetPerHourMg >= 800;
+
+  let tier: "low" | "moderate" | "high";
+  let label: string;
+  let note: string;
+
+  if (isHot || (isVeryLong && isWarm) || (isVeryLong && highSodiumTarget)) {
+    tier = "high";
+    label = "Strong electrolyte support recommended";
+    note = `Consider sodium capsules or high-sodium drink mix throughout. You're likely to lose significant sodium through sweat over this duration and temperature.`;
+  } else if (isWarm || isLong || highSodiumTarget) {
+    tier = "moderate";
+    label = "Moderate electrolyte support recommended";
+    note = `A drink mix with electrolytes plus occasional sodium capsules should cover your needs. Pay attention if you're a salty sweater or start cramping.`;
+  } else {
+    tier = "low";
+    label = "Basic electrolyte support is fine";
+    note = `A standard sports drink mix should provide enough sodium for this duration and conditions. No need for additional supplementation unless you know you're a heavy sweater.`;
+  }
+
+  return { tier, label, note };
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PlannerOutput, PlanConfidence, BurnRateBand, FinishTimeEstimation } from "@/types";
+import type { PlannerOutput, PlanConfidence, BurnRateBand, FinishTimeEstimation, HydrationGuidance, ElectrolyteGuidance } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
@@ -18,18 +18,6 @@ export function SummaryView({ output }: Props) {
     100,
     Math.round((summary.avgCarbsPerHour / athlete.carbTargetPerHour) * 100)
   );
-  const fluidPct = Math.min(
-    100,
-    Math.round(
-      (summary.avgFluidPerHourMl / athlete.fluidTargetPerHourMl) * 100
-    )
-  );
-  const sodiumPct = Math.min(
-    100,
-    Math.round(
-      (summary.avgSodiumPerHourMg / athlete.sodiumTargetPerHourMg) * 100
-    )
-  );
 
   return (
     <div className="space-y-6">
@@ -45,8 +33,8 @@ export function SummaryView({ output }: Props) {
         </p>
       </div>
 
-      {/* Key metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Key metrics — carbs (precise) + caffeine */}
+      <div className="grid gap-4 sm:grid-cols-2">
         <MetricCard
           icon={Zap}
           label="Avg carbs/hr"
@@ -55,24 +43,6 @@ export function SummaryView({ output }: Props) {
           pct={carbPct}
           color="text-amber-400"
           progressColor="bg-amber-600"
-        />
-        <MetricCard
-          icon={Droplets}
-          label="Avg fluid/hr"
-          value={`${summary.avgFluidPerHourMl}ml`}
-          target={`Target: ${athlete.fluidTargetPerHourMl}ml`}
-          pct={fluidPct}
-          color="text-blue-400"
-          progressColor="bg-blue-600"
-        />
-        <MetricCard
-          icon={FlaskConical}
-          label="Avg sodium/hr"
-          value={`${summary.avgSodiumPerHourMg}mg`}
-          target={`Target: ${athlete.sodiumTargetPerHourMg}mg`}
-          pct={sodiumPct}
-          color="text-green-400"
-          progressColor="bg-green-600"
         />
         <MetricCard
           icon={Coffee}
@@ -96,6 +66,16 @@ export function SummaryView({ output }: Props) {
           color="text-purple-400"
           progressColor="bg-purple-600"
         />
+      </div>
+
+      {/* Hydration & electrolyte guidance — ranges, not false precision */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {summary.hydrationGuidance && (
+          <HydrationCard guidance={summary.hydrationGuidance} />
+        )}
+        {summary.electrolyteGuidance && (
+          <ElectrolyteCard guidance={summary.electrolyteGuidance} />
+        )}
       </div>
 
       {/* Calibration & burn rate */}
@@ -189,8 +169,8 @@ export function SummaryView({ output }: Props) {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[
               { label: "Total carbs", value: `${Math.round(summary.totalCarbsG)}g` },
-              { label: "Total fluid", value: `${(summary.totalFluidMl / 1000).toFixed(1)}L` },
-              { label: "Total sodium", value: `${Math.round(summary.totalSodiumMg / 1000)}g` },
+              { label: "Planned fluid", value: `~${(summary.totalFluidMl / 1000).toFixed(1)}L` },
+              { label: "Total caffeine", value: `${summary.totalCaffeinesMg}mg` },
               { label: "Race duration", value: formatDuration(summary.totalRaceDurationMinutes) },
             ].map((item) => (
               <div key={item.label}>
@@ -387,6 +367,53 @@ function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
             </li>
           ))}
         </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Hydration guidance card ─────────────────────────────────────────────────
+
+function HydrationCard({ guidance }: { guidance: HydrationGuidance }) {
+  const borderColor = guidance.isWarmConditions ? "border-blue-800/40" : "border-stone-700/30";
+  return (
+    <Card className={borderColor}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs text-stone-500 font-medium">Hydration target</span>
+          <Droplets className="h-4 w-4 text-blue-400" />
+        </div>
+        <p className="text-2xl font-bold text-blue-400">
+          {guidance.rangeMlPerHour[0]}–{guidance.rangeMlPerHour[1]} ml/hr
+        </p>
+        <p className="text-xs text-stone-400 mt-1 font-medium">{guidance.label}</p>
+        <p className="text-xs text-stone-500 mt-2 leading-relaxed">{guidance.note}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Electrolyte guidance card ──────────────────────────────────────────────
+
+function ElectrolyteCard({ guidance }: { guidance: ElectrolyteGuidance }) {
+  const tierColor = guidance.tier === "high"
+    ? "text-amber-400" : guidance.tier === "moderate"
+    ? "text-green-400" : "text-stone-300";
+  const tierBg = guidance.tier === "high"
+    ? "bg-amber-900/20 border-amber-800/40"
+    : guidance.tier === "moderate"
+    ? "bg-green-900/10 border-green-800/30"
+    : "border-stone-700/30";
+
+  return (
+    <Card className={tierBg}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs text-stone-500 font-medium">Electrolytes</span>
+          <FlaskConical className="h-4 w-4 text-green-400" />
+        </div>
+        <p className={`text-sm font-bold ${tierColor}`}>{guidance.label}</p>
+        <p className="text-xs text-stone-500 mt-2 leading-relaxed">{guidance.note}</p>
       </CardContent>
     </Card>
   );
