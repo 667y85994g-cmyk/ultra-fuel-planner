@@ -1,12 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-const SRC = "/Users/bencarrington/Library/Mobile Documents/com~apple~CloudDocs/Nutrition Plan web code/ultra-fuel-planner/src";
-
 module.exports = {
   darkMode: ["class"],
   content: [
-    `${SRC}/pages/**/*.{js,ts,jsx,tsx,mdx}`,
-    `${SRC}/components/**/*.{js,ts,jsx,tsx,mdx}`,
-    `${SRC}/app/**/*.{js,ts,jsx,tsx,mdx}`,
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
