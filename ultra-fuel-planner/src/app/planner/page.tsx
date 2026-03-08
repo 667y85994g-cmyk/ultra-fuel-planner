@@ -11,6 +11,7 @@ import { StepFuel } from "@/components/planner/StepFuel";
 import { StepAidStations } from "@/components/planner/StepAidStations";
 import { StepGenerate } from "@/components/planner/StepGenerate";
 import Link from "next/link";
+import { LegalFooter } from "@/components/LegalFooter";
 
 const STEPS = [
   { id: 0, label: "Athlete", shortLabel: "You" },
@@ -41,7 +42,7 @@ export default function PlannerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-950">
+    <div className="min-h-screen bg-stone-950 flex flex-col">
       {/* Top nav */}
       <nav className="sticky top-0 z-50 border-b border-stone-800/60 bg-stone-950/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
@@ -60,7 +61,7 @@ export default function PlannerPage() {
       </nav>
 
       {/* Step content */}
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="flex-1 mx-auto w-full max-w-5xl px-6 py-10">
         <div className="animate-fade-in">
           {currentStep === 0 && (
             <StepAthlete onNext={() => goToStep(1)} />
@@ -98,6 +99,8 @@ export default function PlannerPage() {
           )}
         </div>
       </main>
+
+      <LegalFooter compact />
     </div>
   );
 }

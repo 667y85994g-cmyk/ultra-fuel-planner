@@ -12,6 +12,7 @@ import { TimelineView } from "@/components/results/TimelineView";
 import { SegmentView } from "@/components/results/SegmentView";
 import { CarryView } from "@/components/results/CarryView";
 import { cn } from "@/lib/utils";
+import { LegalFooter } from "@/components/LegalFooter";
 
 const RouteMapView = dynamic(
   () => import("@/components/results/RouteMapView").then((m) => ({ default: m.RouteMapView })),
@@ -54,7 +55,7 @@ export default function ResultsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-950">
+    <div className="min-h-screen bg-stone-950 flex flex-col">
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-stone-800/60 bg-stone-950/90 backdrop-blur-sm no-print">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -142,6 +143,10 @@ export default function ResultsPage() {
           {activeTab === "map" && <RouteMapView output={output} />}
         </div>
       </main>
+
+      <div className="no-print">
+        <LegalFooter compact />
+      </div>
     </div>
   );
 }

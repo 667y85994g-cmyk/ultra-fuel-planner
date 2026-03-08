@@ -11,6 +11,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export default function HomePage() {
   return (
@@ -401,16 +402,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-stone-800/60 py-8">
-        <div className="mx-auto max-w-6xl px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-stone-500 text-sm">
-            <Mountain className="h-4 w-4" />
-            Ultra Fuel Planner — route-aware fuelling for trail and ultra runners.
-          </div>
-          <span className="text-xs text-stone-600">v1.6</span>
-        </div>
-      </footer>
+      <LegalFooter />
     </div>
   );
 }
