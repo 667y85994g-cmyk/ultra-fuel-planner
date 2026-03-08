@@ -68,7 +68,7 @@ export default function HomePage() {
                 </Button>
               </Link>
               <span className="text-sm text-stone-500">
-                Free. No account needed. Your data stays on your device.
+                Free. No account needed.
               </span>
             </div>
           </div>

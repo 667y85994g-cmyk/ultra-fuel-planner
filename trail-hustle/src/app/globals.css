@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --th-black: #0C0C0C;
+  --th-white: #F5F2EC;
+  --sandstone: #C4A87A;
+  --burnt-ochre: #B5531C;
+  --clay-red: #9C3628;
+  --forest-green: #2B5426;
+  --sun-yellow: #D4A020;
+  --ocean-slate: #4A6878;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--th-white);
+    color: var(--th-black);
+    font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Cal Sans", system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  /* The "Window" device — a bordered frame holding messaging */
+  .th-window {
+    @apply border border-current inline-block px-5 py-3;
+  }
+
+  .th-window-lg {
+    @apply border-2 border-current inline-block px-8 py-5;
+  }
+
+  /* Section label — spaced caps */
+  .th-label {
+    @apply text-xs font-body tracking-widest uppercase opacity-60;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  /* Topography line rule */
+  .th-rule {
+    @apply w-12 border-t-2 border-current;
+  }
+
+  /* Primary CTA */
+  .th-btn-primary {
+    @apply inline-flex items-center gap-3 bg-th-black text-th-white px-7 py-4 text-sm tracking-widest uppercase hover:bg-burnt-ochre transition-colors duration-300;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .th-btn-ghost {
+    @apply inline-flex items-center gap-3 border border-current px-7 py-4 text-sm tracking-widest uppercase hover:bg-th-black hover:text-th-white transition-colors duration-300;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .th-btn-ghost-light {
+    @apply inline-flex items-center gap-3 border border-th-white text-th-white px-7 py-4 text-sm tracking-widest uppercase hover:bg-th-white hover:text-th-black transition-colors duration-300;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Cal Sans fallback — use a similar geometric sans if Google Fonts unavailable */
+@supports not (font-family: "Cal Sans") {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    font-weight: 600;
+  }
+}
