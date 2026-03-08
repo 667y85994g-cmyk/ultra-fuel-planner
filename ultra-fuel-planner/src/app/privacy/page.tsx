@@ -120,7 +120,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-stone-200 mb-3">Contact</h2>
             <p>
               For privacy questions, contact:{" "}
-              <span className="text-stone-300">[contact email]</span>
+              <a href="mailto:ben@trailhustle.com" className="text-stone-300 hover:text-stone-100 transition-colors">ben@trailhustle.com</a>
             </p>
           </section>
 
