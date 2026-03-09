@@ -44,7 +44,7 @@ export default function HomePage() {
       </nav>
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-24">
+      <section className="relative overflow-hidden">
         {/* Topographic background texture */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04]"
