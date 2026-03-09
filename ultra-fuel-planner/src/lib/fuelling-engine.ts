@@ -166,10 +166,17 @@ function deriveTargets(
     });
   }
 
+  // Two separate messages: carb target (Layer 2) and kcal context (Layer 3 execution info).
+  // Burn rate does not determine the carb target — it informs fuelling timing only.
   warnings.push({
     type: "info",
     code: "CARB_TARGET_SET",
-    message: `Working carb target: ${carbTarget}g/hr (recommended range: ${calibration.suggestedCarbRangeGPerHour[0]}\u2013${calibration.suggestedCarbRangeGPerHour[1]}g/hr). Estimated burn rate: ~${avgKcalPerHour} kcal/hr.`,
+    message: `Working carb target: ${carbTarget}g/hr (recommended range: ${calibration.suggestedCarbRangeGPerHour[0]}\u2013${calibration.suggestedCarbRangeGPerHour[1]}g/hr). Based on estimated race duration and experience level.`,
+  });
+  warnings.push({
+    type: "info",
+    code: "KCAL_CONTEXT",
+    message: `Estimated caloric burn: ~${avgKcalPerHour} kcal/hr (route-adjusted). This informs fuelling timing but does not determine your carb target.`,
   });
 
   if (carbTarget >= plan.athlete.maxCarbsPerHour && carbTarget < calibration.workingCarbTargetGPerHour) {

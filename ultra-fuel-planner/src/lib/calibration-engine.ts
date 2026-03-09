@@ -18,6 +18,7 @@ import type {
   FinishTimeEstimation,
 } from "@/types";
 import { estimateKcalPerHour } from "./energy-model";
+import { recommendCarbTarget } from "./carb-target-engine";
 
 // ─── Main calibration function ───────────────────────────────────────────────
 
@@ -107,14 +108,21 @@ export function calibrateFromPriorEfforts(
   const kcalLow = Math.round(weightedKcalPerHour * 0.85);
   const kcalHigh = Math.round(weightedKcalPerHour * 1.15);
 
-  // Step 5: Derive carb target range from burn rate and event characteristics
-  const { carbLow, carbHigh, workingTarget } = deriveCarbTargetRange(
-    weightedKcalPerHour,
-    athlete,
+  // Step 5: Derive carb target from race duration and athlete context.
+  // Note: burn rate (kcal/hr) informs WHEN to fuel (execution timing) but
+  // does NOT determine HOW MUCH to target per hour. See carb-target-engine.ts.
+  const carbRec = recommendCarbTarget(
+    athlete.experienceLevel,
     targetDurationMinutes,
     racePriority,
-    assumptionsMade,
+    athlete.maxCarbsPerHour,
   );
+  const carbLow = carbRec.recommendedRangeGPerHour[0];
+  const carbHigh = carbRec.recommendedRangeGPerHour[1];
+  const workingTarget = carbRec.workingTargetGPerHour;
+  if (carbRec.rationale.notes.length > 0) {
+    assumptionsMade.push(...carbRec.rationale.notes);
+  }
 
   // Step 6: Assess confidence
   const confidenceLevel = assessConfidence(
@@ -143,78 +151,6 @@ export function calibrateFromPriorEfforts(
     assumptionsMade,
     priorEffortsUsed: efforts.length,
   };
-}
-
-// ─── Carb target derivation ──────────────────────────────────────────────────
-
-/**
- * Derives a recommended carb intake range based on:
- *   - Estimated burn rate → baseline carb need
- *   - Event duration → longer events need sustainable intake
- *   - Gut tolerance → hard cap
- *   - Experience level → more experienced = higher confidence in aggressive targets
- *   - Race priority → A-race may warrant pushing closer to ceiling
- */
-function deriveCarbTargetRange(
-  kcalPerHour: number,
-  athlete: AthleteProfile,
-  targetDurationMinutes?: number,
-  racePriority?: RacePriority,
-  assumptions?: string[],
-): { carbLow: number; carbHigh: number; workingTarget: number } {
-  const targetHours = (targetDurationMinutes ?? 360) / 60; // default 6h
-
-  // Baseline: every 300 kcal burned → ~25g exogenous carbs
-  // This gives carbsPerHour = kcalPerHour / 12
-  const baselineCarbs = kcalPerHour / 12;
-
-  // Duration adjustment:
-  //   <3h: can be more aggressive (higher % replacement)
-  //   3-8h: standard ultra range
-  //   8h+: may need to reduce rate for gut sustainability
-  let durationFactor: number;
-  if (targetHours < 3) {
-    durationFactor = 1.15; // shorter events: higher replacement rate sustainable
-  } else if (targetHours <= 8) {
-    durationFactor = 1.0;
-  } else if (targetHours <= 16) {
-    durationFactor = 0.92; // very long: slightly conservative for gut
-    assumptions?.push("Event >8 hours: carb target adjusted slightly for sustained gut tolerance.");
-  } else {
-    durationFactor = 0.85;
-    assumptions?.push("Event >16 hours: conservative carb target for gut sustainability.");
-  }
-
-  // Experience factor
-  const expBonus = experienceMultiplier(athlete.experienceLevel);
-
-  // Range
-  const mid = Math.round(baselineCarbs * durationFactor * expBonus);
-  const carbLow = Math.max(30, Math.round(mid * 0.80));
-  const carbHigh = Math.min(athlete.maxCarbsPerHour, Math.round(mid * 1.20));
-
-  // Working target: midpoint, capped at gut tolerance
-  let workingTarget = Math.round(mid);
-  if (racePriority === "a_race" && athlete.experienceLevel !== "novice") {
-    // Push toward upper range for A-races
-    workingTarget = Math.round(mid * 1.08);
-    assumptions?.push("A-race: working carb target pushed toward upper range.");
-  } else if (racePriority === "completion") {
-    // Stay conservative
-    workingTarget = Math.round(mid * 0.92);
-  }
-  workingTarget = Math.max(30, Math.min(athlete.maxCarbsPerHour, workingTarget));
-
-  return { carbLow, carbHigh, workingTarget };
-}
-
-function experienceMultiplier(level: ExperienceLevel): number {
-  switch (level) {
-    case "elite": return 1.10;
-    case "experienced": return 1.05;
-    case "intermediate": return 1.0;
-    case "novice": return 0.90;
-  }
 }
 
 // ─── Confidence assessment ───────────────────────────────────────────────────
@@ -282,13 +218,15 @@ function buildFallbackCalibration(
   const factor = factorByExperience[athlete.experienceLevel];
   const kcalPerHour = Math.round(factor * athlete.bodyweightKg);
 
-  const { carbLow, carbHigh, workingTarget } = deriveCarbTargetRange(
-    kcalPerHour,
-    athlete,
+  const carbRec = recommendCarbTarget(
+    athlete.experienceLevel,
     targetDurationMinutes,
     racePriority,
-    [],
+    athlete.maxCarbsPerHour,
   );
+  const carbLow = carbRec.recommendedRangeGPerHour[0];
+  const carbHigh = carbRec.recommendedRangeGPerHour[1];
+  const workingTarget = carbRec.workingTargetGPerHour;
 
   return {
     estimatedKcalPerHour: kcalPerHour,

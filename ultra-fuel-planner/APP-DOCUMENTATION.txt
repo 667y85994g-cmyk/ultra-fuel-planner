@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 1.6 | March 2026
+Version 1.8 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -78,11 +78,13 @@ src/
 │
 ├── lib/
 │   ├── fuelling-engine.ts          Core planner: terrain rules, fuel selection,
-│   │                                schedule generation, carry plans (952 lines)
+│   │                                schedule generation, carry plans (~960 lines)
+│   ├── carb-target-engine.ts       Layer 2: duration-band carb target engine
+│   │                                (does NOT use caloric burn rate)
 │   ├── calibration-engine.ts       Prior effort calibration, finish time
-│   │                                estimation (474 lines)
+│   │                                estimation (~400 lines)
 │   ├── energy-model.ts             Minetti (2002) metabolic cost model,
-│   │                                CHO fraction (126 lines)
+│   │                                Layer 3 execution timing only (~145 lines)
 │   ├── segmentation.ts             Route segmentation via gradient thresholds,
 │   │                                Naismith's rule for pace (273 lines)
 │   ├── gpx-parser.ts               GPX parsing (client DOMParser + server
@@ -186,7 +188,34 @@ Segments are merged when consecutive sections share the same terrain type
 and the merged segment would be < 5km.
 
 
-5b. CALIBRATION ENGINE (calibration-engine.ts)
+5b. CARB TARGET ENGINE (carb-target-engine.ts) — Layer 2
+─────────────────────────────────────────────────────────
+Input: experienceLevel, durationMinutes, racePriority, maxCarbsPerHour
+Output: CarbTargetRecommendation (range, working target, rationale)
+
+Core principle: carbohydrate intake targets are determined by RACE DURATION
+and RUNNER CONTEXT. They are NOT derived from calories burned.
+
+Why not calories? Caloric expenditure rises with event duration (more fat
+oxidation at low intensity). But exogenous carb absorption capacity (~60-90g/hr)
+does not increase and may decrease with gut fatigue. Deriving carbs from
+kcalPerHour / 12 would push long-race athletes above gut tolerance.
+
+Duration bands (g/hr range):
+  <3 hours:   55-80 g/hr
+  3-6 hours:  48-70 g/hr
+  6-10 hours: 42-62 g/hr
+  10-16 hours: 36-55 g/hr
+  16+ hours:  30-50 g/hr
+
+Experience adjustments (g/hr delta to band midpoint):
+  elite: +5, experienced: +3, intermediate: 0, novice: -5
+
+Race priority shifts: a_race +3g/hr, completion -2g/hr (within band only)
+Gut tolerance ceiling is applied as a hard cap after all adjustments.
+
+
+5c. CALIBRATION ENGINE (calibration-engine.ts)
 ──────────────────────────────────────────────
 Input: PriorEffort[] + athlete profile
 Output: CalibrationResult (burn rate, carb targets, confidence)
@@ -195,8 +224,9 @@ Process:
   1. For each prior effort, estimate kcal/hr from duration and distance
   2. If device calories provided, use those (weighted higher)
   3. Average across efforts, weighted by recency and distance similarity
-  4. Derive carb target: 30-50% of burn rate as carbs (CHO fraction)
-  5. Adjust for experience level (novice = lower targets)
+  4. Adjust burn rate for race priority (A-race +10%, completion -5%)
+  5. Derive carb target via carb-target-engine (duration-band approach)
+     NOTE: burn rate does NOT drive carb targets — it informs timing only
   6. Produce confidence level based on number and quality of efforts
 
 Finish time estimation:
@@ -207,22 +237,26 @@ Finish time estimation:
   - Confidence based on distance similarity and data quality
 
 
-5c. ENERGY MODEL (energy-model.ts)
-──────────────────────────────────
+5d. ENERGY MODEL (energy-model.ts) — Layer 3 execution timing only
+───────────────────────────────────────────────────────────────────
 Uses Minetti (2002) metabolic cost formula:
   Cr = 155.4i^5 - 30.4i^4 - 43.3i^3 + 46.3i^2 + 19.5i + 3.6
   (where i = gradient as decimal)
 
-Combined with Brooks-Mercier CHO oxidation fraction based on
-exercise intensity (VO2 fraction).
-
 Used to calculate:
   - caloricBurnRate(gradient, paceMinPerKm, bodyweightKg) → kcal/hr
-  - fuellingIntervalMinutes(carbsPerInterval, kcalPerHour) → minutes
-    Based on ~300 kcal burned → 25g carbs as the trigger
+  - fuellingIntervalMinutes(kcalPerHour) → minutes between fuel events
+    Based on ~300 kcal burned → 25g carbs as the timing trigger
+
+IMPORTANT: fuellingIntervalMinutes() determines WHEN to eat, not how much
+to target per hour. The carb quantity per event is driven by the athlete's
+carbTargetPerHour (set by Layer 2 / carb-target-engine.ts), not by burn rate.
+
+derivedCarbGPerHour() is DEPRECATED — not used in the active pipeline.
+Use recommendCarbTarget() from carb-target-engine.ts instead.
 
 
-5d. FUELLING ENGINE (fuelling-engine.ts)
+5e. FUELLING ENGINE (fuelling-engine.ts)
 ────────────────────────────────────────
 The main plan generator. ~950 lines. Key components:
 
@@ -330,17 +364,26 @@ Step 6: Generate (StepGenerate.tsx)
 ================================================================================
 
 Tab 1: Summary (SummaryView.tsx)
-  - Carb metric card (precise, with progress bar)
-  - Caffeine metric card
-  - Hydration guidance card (range-based, temperature-aware)
-  - Electrolyte guidance card (tier-based)
-  - Energy expenditure card (burn rate, total kcal, working carb target)
-  - Finish time estimation card (when derived from prior efforts)
-  - Plan confidence card (overall confidence + calibration quality)
-  - Fuel format rationale card (solid/liquid ratio, top fuel types)
-  - Race totals card (carbs, ~fluid, caffeine, duration)
-  - Coverage score (% of carb target met)
-  - Item breakdown (quantities and carbs per product)
+  Output follows a deliberate top-to-bottom reading order:
+  1. Race overview — event name + estimated race duration
+  2. Your fuelling plan — recommended carb range, working target, planned avg,
+       plain-English "why" explanation, energy expenditure context (small)
+  3. Hydration · Electrolytes · Caffeine — three compact cards
+  4. Finish time estimation card (when derived from prior efforts)
+  5. On the route — practical fuel format notes (solid/liquid ratio, terrain hints)
+  6. Plan reliability card (overall confidence + how personalised the plan is)
+  7. Race totals — total carbs, fluid, caffeine, race duration
+  8. Fuel inventory match — coverage score + plain-English guidance
+  9. What you're using — per-product quantities and carb contributions
+
+  Language principles:
+  - "Recommended range" and "Working target" are primary; no burn-rate-derived
+    carb numbers shown as targets
+  - "Plan reliability" replaces "Plan confidence" for plain-English framing
+  - "On the route" replaces "Fuel format rationale"
+  - "Fuel inventory match" replaces "Inventory coverage"
+  - Energy expenditure shown only as a contextual footnote, not a headline metric
+  - All section labels avoid scientific precision framing
 
 Tab 2: Timeline (TimelineView.tsx)
   - Schedule entries grouped by hour
@@ -534,6 +577,47 @@ v1.6 — Hydration and precision cleanup
   Updated StepAthlete help text for fluid/sodium inputs.
   Added version tracker across all pages.
 
+v1.8 — Input model & output clarity refactor
+  Input model (StepAthlete):
+    Three-layer input model — guided selectors for most runners, advanced
+    numeric toggle for experienced athletes.
+    New module: src/lib/guided-profile.ts
+    Three guided selectors: experience level (first ultra / few ultras /
+      very experienced), fuelling level (light / moderate / high / not sure),
+      expected conditions (cool / moderate / hot / not sure).
+    "Use my own fuelling targets" toggle reveals numeric carb, fluid, sodium,
+      caffeine, and temperature inputs.
+    GuidedProfile type added to types/index.ts and StoredPlannerState.
+    applyGuidedProfile() resolves guided choices to AthleteProfile values
+      inside runPlanner() — algorithm files never receive raw guided types.
+  Output (SummaryView):
+    Restructured results summary into a clear top-to-bottom reading order.
+    Recommended carb range + working target now shown as primary headline numbers.
+    Energy expenditure demoted to a small contextual footnote.
+    Plain-English "why this target" explanation added.
+    "Plan confidence" → "Plan reliability"; calibration quality labels humanised.
+    "Fuel format rationale" → "On the route".
+    "Inventory coverage" → "Fuel inventory match".
+    "Item breakdown" → "What you're using".
+    Caffeine extracted to its own compact card alongside hydration/electrolytes.
+    MetricCard and burnRateBandLabel helpers removed.
+  Version bump: all v1.6 references updated to v1.8 across the codebase.
+
+v1.7 — Algorithm architecture refactor
+  Separated carbohydrate targeting from caloric burn estimation.
+  New module: carb-target-engine.ts (Layer 2) — duration-band approach.
+  Carb targets are now set by race duration + experience level, not kcal/hr.
+  deriveCarbTargetRange() removed from calibration-engine.ts; replaced with
+    recommendCarbTarget() call from the new carb-target-engine module.
+  fuelling-engine.ts: CARB_TARGET_SET and KCAL_CONTEXT are now separate
+    warning messages — burn rate no longer conflated with carb recommendation.
+  energy-model.ts: derivedCarbGPerHour() deprecated (retained for reference).
+  New types: CarbTargetRecommendation, CarbTargetRationale,
+    ExecutionAdjustmentNotes, PostRaceFeedback (Layer 4 learning hooks).
+  Beta notice added to homepage and planner.
+  Rate limiting (20 req/min per IP) added via Edge middleware.
+  GPX file size limit enforced client-side (5MB) and server-side.
+
 
 ================================================================================
 13. DEVELOPMENT NOTES
@@ -552,7 +636,9 @@ Building:
 
 Key design decisions:
   - Rules-based engine (not AI) for trust and transparency
-  - Energy model drives fuelling intervals, not fixed timers
+  - Four-layer architecture: Finish Time → Carb Target → Route Execution → Learning
+  - Carb targets are duration-band driven (carb-target-engine.ts), NOT calorie-derived
+  - Energy model drives fuelling INTERVALS (when to eat), not carb targets (how much)
   - Terrain rules are the main tuning surface (TERRAIN_RULES object)
   - Carbs are precise (inventory-based), fluid is approximate (ranges)
   - Electrolytes are contextual (tiers), not calculated to false precision

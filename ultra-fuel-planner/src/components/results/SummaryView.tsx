@@ -1,10 +1,9 @@
 "use client";
 
-import type { PlannerOutput, PlanConfidence, BurnRateBand, FinishTimeEstimation, HydrationGuidance, ElectrolyteGuidance } from "@/types";
+import type { PlannerOutput, PlanConfidence, FinishTimeEstimation, HydrationGuidance, ElectrolyteGuidance } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
-import { Zap, Droplets, FlaskConical, Coffee, Package, Flame, Info, ShieldCheck, ShieldAlert, Clock, MessageSquareText } from "lucide-react";
+import { Droplets, FlaskConical, Coffee, Package, Info, ShieldCheck, ShieldAlert, Clock, MapPin } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
@@ -14,144 +13,109 @@ export function SummaryView({ output }: Props) {
   const { summary, eventPlan, confidence } = output;
   const athlete = eventPlan.athlete;
 
-  const carbPct = Math.min(
-    100,
-    Math.round((summary.avgCarbsPerHour / athlete.carbTargetPerHour) * 100)
-  );
+  const carbRange = summary.carbTargetRangeGPerHour;
+  const workingTarget = summary.workingCarbTarget ?? athlete.carbTargetPerHour;
 
   return (
     <div className="space-y-6">
+
+      {/* ── Race overview ──────────────────────────────────────────────────── */}
       <div>
         <h2 className="text-xl font-bold text-stone-50">
-          {eventPlan.eventName || "Race"} — Fuelling Summary
+          {eventPlan.eventName || "Race"} — Race Plan
         </h2>
         <p className="mt-1 text-sm text-stone-400">
           Estimated race duration:{" "}
           <span className="font-medium text-stone-200">
             {formatDuration(summary.totalRaceDurationMinutes)}
           </span>
+          {summary.finishTimeEstimation && (
+            <span className="ml-2 text-xs text-stone-600">
+              estimated from your prior efforts
+            </span>
+          )}
         </p>
       </div>
 
-      {/* Key metrics — carbs (precise) + caffeine */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <MetricCard
-          icon={Zap}
-          label="Avg carbs/hr"
-          value={`${summary.avgCarbsPerHour}g`}
-          target={`Target: ${athlete.carbTargetPerHour}g`}
-          pct={carbPct}
-          color="text-amber-400"
-          progressColor="bg-amber-600"
-        />
-        <MetricCard
-          icon={Coffee}
-          label="Total caffeine"
-          value={`${summary.totalCaffeinesMg}mg`}
-          target={
-            athlete.caffeineMaxMg
-              ? `Limit: ${athlete.caffeineMaxMg}mg`
-              : "No limit set"
-          }
-          pct={
-            athlete.caffeineMaxMg
-              ? Math.min(
-                  100,
-                  Math.round(
-                    (summary.totalCaffeinesMg / athlete.caffeineMaxMg) * 100
-                  )
-                )
-              : null
-          }
-          color="text-purple-400"
-          progressColor="bg-purple-600"
-        />
-      </div>
+      {/* ── Your fuelling plan ─────────────────────────────────────────────── */}
+      <Card className="border-amber-800/30 bg-amber-950/10">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm text-amber-400">Your fuelling plan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className={`grid grid-cols-1 gap-6 ${carbRange ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {carbRange && (
+              <div>
+                <p className="text-xs text-stone-500">Recommended range</p>
+                <p className="mt-1 text-2xl font-bold text-amber-400">
+                  {carbRange[0]}–{carbRange[1]}{" "}
+                  <span className="text-base font-normal text-stone-400">g/hr</span>
+                </p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-stone-500">Working target</p>
+              <p className="mt-1 text-2xl font-bold text-stone-100">
+                {workingTarget}{" "}
+                <span className="text-base font-normal text-stone-400">g/hr</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-stone-500">Planned average</p>
+              <p className="mt-1 text-2xl font-bold text-stone-300">
+                {summary.avgCarbsPerHour}{" "}
+                <span className="text-base font-normal text-stone-500">g/hr</span>
+              </p>
+            </div>
+          </div>
 
-      {/* Hydration & electrolyte guidance — ranges, not false precision */}
-      <div className="grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 pt-4 border-t border-stone-800">
+            <p className="text-xs text-stone-500 leading-relaxed">
+              Based on your {experienceLabel(athlete.experienceLevel)} experience and an estimated{" "}
+              {Math.round(summary.totalRaceDurationMinutes / 60)}-hour race.
+              {eventPlan.racePriority === "a_race" && " Adjusted up slightly — this is your A race."}
+              {eventPlan.racePriority === "completion" && " Adjusted down slightly — completion-focused approach."}
+            </p>
+            {summary.estimatedTotalKcal !== undefined && (
+              <p className="mt-1.5 text-xs text-stone-600">
+                Estimated energy expenditure: ~{summary.avgKcalPerHour?.toLocaleString()} kcal/hr
+                {" · "}~{summary.estimatedTotalKcal.toLocaleString()} kcal total
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Hydration · Electrolytes · Caffeine ────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-3">
         {summary.hydrationGuidance && (
           <HydrationCard guidance={summary.hydrationGuidance} />
         )}
         {summary.electrolyteGuidance && (
           <ElectrolyteCard guidance={summary.electrolyteGuidance} />
         )}
+        <CaffeineCard totalMg={summary.totalCaffeinesMg} limitMg={athlete.caffeineMaxMg} />
       </div>
 
-      {/* Calibration & burn rate */}
-      {summary.estimatedTotalKcal !== undefined && (
-        <Card className="border-amber-800/30 bg-amber-950/10">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
-              <Flame className="h-4 w-4" />
-              Estimated energy expenditure
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div>
-                <p className="text-xs text-stone-500">Avg burn rate</p>
-                <p className="mt-1 text-xl font-bold text-amber-400">{summary.avgKcalPerHour} kcal/hr</p>
-                {summary.burnRateBand && (
-                  <p className="text-xs text-stone-600">{burnRateBandLabel(summary.burnRateBand)}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-stone-500">Total expenditure</p>
-                <p className="mt-1 text-xl font-bold text-amber-400">
-                  {summary.estimatedTotalKcal.toLocaleString()} kcal
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-stone-500">Working carb target</p>
-                <p className="mt-1 text-xl font-bold text-stone-100">
-                  {summary.workingCarbTarget ?? athlete.carbTargetPerHour} g/hr
-                </p>
-                {summary.carbTargetRangeGPerHour && (
-                  <p className="text-xs text-stone-600">
-                    range: {summary.carbTargetRangeGPerHour[0]}–{summary.carbTargetRangeGPerHour[1]} g/hr
-                  </p>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-stone-500">Planned carbs</p>
-                <p className="mt-1 text-xl font-bold text-stone-100">
-                  {summary.avgCarbsPerHour} g/hr
-                </p>
-                <p className="text-xs text-stone-600">
-                  replacing ~{summary.avgKcalPerHour ? Math.round((summary.avgCarbsPerHour * 4.1 / summary.avgKcalPerHour) * 100) : 0}% of burn
-                </p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-stone-600">
-              Estimates are based on your prior effort data and route profile. Fuelling intervals vary by terrain gradient and pace.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Finish time estimation — shown when derived from prior efforts */}
+      {/* ── Finish time (when derived from prior efforts) ───────────────────── */}
       {summary.finishTimeEstimation && (
         <FinishTimeCard estimation={summary.finishTimeEstimation} />
       )}
 
-      {/* Plan confidence */}
-      <ConfidenceCard confidence={confidence} />
-
-      {/* Fuel format rationale */}
+      {/* ── On the route ───────────────────────────────────────────────────── */}
       {summary.fuelFormatNotes && summary.fuelFormatNotes.length > 0 && (
         <Card className="border-stone-700/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
-              <MessageSquareText className="h-4 w-4" />
-              Fuel format rationale
+              <MapPin className="h-4 w-4" />
+              On the route
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {summary.fuelFormatNotes.map((note, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
-                  <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+                <li key={i} className="flex items-start gap-2 text-xs text-stone-400 leading-relaxed">
+                  <span className="text-stone-600 flex-shrink-0 mt-0.5">•</span>
                   {note}
                 </li>
               ))}
@@ -160,7 +124,10 @@ export function SummaryView({ output }: Props) {
         </Card>
       )}
 
-      {/* Totals */}
+      {/* ── Plan reliability ────────────────────────────────────────────────── */}
+      <ConfidenceCard confidence={confidence} />
+
+      {/* ── Race totals ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm text-stone-300">Race totals</CardTitle>
@@ -168,7 +135,7 @@ export function SummaryView({ output }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[
-              { label: "Total carbs", value: `${Math.round(summary.totalCarbsG)}g` },
+              { label: "Total carbs",   value: `${Math.round(summary.totalCarbsG)}g` },
               { label: "Planned fluid", value: `~${(summary.totalFluidMl / 1000).toFixed(1)}L` },
               { label: "Total caffeine", value: `${summary.totalCaffeinesMg}mg` },
               { label: "Race duration", value: formatDuration(summary.totalRaceDurationMinutes) },
@@ -182,16 +149,14 @@ export function SummaryView({ output }: Props) {
         </CardContent>
       </Card>
 
-      {/* Coverage score */}
+      {/* ── Fuel inventory match ────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-semibold text-stone-200">
-                Inventory coverage
-              </h3>
+              <h3 className="text-sm font-semibold text-stone-200">Fuel inventory match</h3>
               <p className="text-xs text-stone-500">
-                How well your fuel inventory covers your carb targets
+                How well your packed fuel covers the plan
               </p>
             </div>
             <span
@@ -206,23 +171,34 @@ export function SummaryView({ output }: Props) {
               {summary.coverageScore}%
             </span>
           </div>
-          <Progress value={summary.coverageScore} className="h-2" />
+          <div className="h-2 w-full rounded-full bg-stone-800">
+            <div
+              className={`h-full rounded-full transition-all ${
+                summary.coverageScore >= 90
+                  ? "bg-green-600"
+                  : summary.coverageScore >= 70
+                  ? "bg-amber-600"
+                  : "bg-red-600"
+              }`}
+              style={{ width: `${summary.coverageScore}%` }}
+            />
+          </div>
           <p className="mt-2 text-xs text-stone-500">
             {summary.coverageScore >= 90
-              ? "Good — inventory should cover your race."
+              ? "Your inventory should cover the full race."
               : summary.coverageScore >= 70
-              ? "Acceptable — account for aid station resupply."
-              : "Low — add more inventory or plan for significant aid station reliance."}
+              ? "You may need to top up at aid stations."
+              : "Plan to rely heavily on aid stations, or add more fuel to your inventory."}
           </p>
         </CardContent>
       </Card>
 
-      {/* Item breakdown */}
+      {/* ── What you're using ───────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
             <Package className="h-4 w-4" />
-            Item breakdown
+            What you're using
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -240,9 +216,7 @@ export function SummaryView({ output }: Props) {
                       {fuelItem ? fuelTypeIcon(fuelItem.type) : "📦"}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-200 truncate">
-                        {item.name}
-                      </p>
+                      <p className="text-sm font-medium text-stone-200 truncate">{item.name}</p>
                       <p className="text-xs text-stone-500">
                         {item.quantity} serving{item.quantity !== 1 ? "s" : ""} ·{" "}
                         {Math.round(item.carbsG)}g carbs
@@ -270,32 +244,51 @@ export function SummaryView({ output }: Props) {
   );
 }
 
-// ─── Confidence card ─────────────────────────────────────────────────────────
+// ─── Experience label ─────────────────────────────────────────────────────────
+
+function experienceLabel(level: string): string {
+  switch (level) {
+    case "novice":       return "beginner ultra";
+    case "intermediate": return "intermediate";
+    case "experienced":  return "experienced ultra";
+    case "elite":        return "elite";
+    default:             return level;
+  }
+}
+
+// ─── Confidence card ──────────────────────────────────────────────────────────
 
 function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
   const isHigh = confidence.overall === "high";
-  const isLow = confidence.overall === "low";
-  const Icon = isLow ? ShieldAlert : ShieldCheck;
-  const color = isHigh ? "text-green-400" : isLow ? "text-amber-400" : "text-blue-400";
-  const borderColor = isHigh ? "border-green-800/30" : isLow ? "border-amber-800/30" : "border-blue-800/30";
+  const isLow  = confidence.overall === "low";
+  const Icon   = isLow ? ShieldAlert : ShieldCheck;
+  const color  = isHigh ? "text-green-400" : isLow ? "text-amber-400" : "text-blue-400";
+  const border = isHigh ? "border-green-800/30" : isLow ? "border-amber-800/30" : "border-blue-800/30";
+
+  const calibrationLabel =
+    confidence.calibrationQuality === "none"    ? "Using general guidelines"
+    : confidence.calibrationQuality === "limited" ? "Partially personalised"
+    : confidence.calibrationQuality === "good"    ? "Personalised from your efforts"
+    : "Well personalised";
 
   return (
-    <Card className={borderColor}>
+    <Card className={border}>
       <CardContent className="p-5">
         <div className="flex items-start gap-3">
           <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${color}`} />
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center flex-wrap gap-2 mb-2">
               <h3 className="text-sm font-semibold text-stone-200">
-                Plan confidence: {confidence.overall}
+                Plan reliability: {confidence.overall}
               </h3>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                isHigh ? "bg-green-900/30 text-green-400"
-                : isLow ? "bg-amber-900/30 text-amber-400"
-                : "bg-blue-900/30 text-blue-400"
-              }`}>
-                {confidence.calibrationQuality === "none" ? "No calibration data"
-                  : `${confidence.calibrationQuality} calibration`}
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full ${
+                  isHigh ? "bg-green-900/30 text-green-400"
+                  : isLow ? "bg-amber-900/30 text-amber-400"
+                  : "bg-blue-900/30 text-blue-400"
+                }`}
+              >
+                {calibrationLabel}
               </span>
             </div>
             <ul className="space-y-1">
@@ -316,12 +309,18 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
 // ─── Finish time card ─────────────────────────────────────────────────────────
 
 function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
-  const confColor = estimation.confidence === "high"
-    ? "text-green-400" : estimation.confidence === "moderate"
-    ? "text-blue-400" : "text-amber-400";
-  const confBg = estimation.confidence === "high"
-    ? "bg-green-900/30 text-green-400" : estimation.confidence === "moderate"
-    ? "bg-blue-900/30 text-blue-400" : "bg-amber-900/30 text-amber-400";
+  const confColor =
+    estimation.confidence === "high"     ? "text-green-400"
+    : estimation.confidence === "moderate" ? "text-blue-400"
+    : "text-amber-400";
+  const confBg =
+    estimation.confidence === "high"     ? "bg-green-900/30 text-green-400"
+    : estimation.confidence === "moderate" ? "bg-blue-900/30 text-blue-400"
+    : "bg-amber-900/30 text-amber-400";
+  const methodLabel =
+    estimation.method === "prior_effort_anchor" ? "Based on your prior efforts"
+    : estimation.method === "pace_based"         ? "Pace-based estimate"
+    : "General estimate";
 
   return (
     <Card className="border-stone-700/30">
@@ -343,20 +342,14 @@ function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
             </p>
           </div>
           <div>
-            <p className="text-xs text-stone-500">Expected range</p>
+            <p className="text-xs text-stone-500">Likely range</p>
             <p className="mt-1 text-xl font-bold text-stone-100">
               {formatDuration(estimation.rangeMinutes[0])} – {formatDuration(estimation.rangeMinutes[1])}
             </p>
           </div>
           <div>
-            <p className="text-xs text-stone-500">Method</p>
-            <p className="mt-1 text-sm font-medium text-stone-300">
-              {estimation.method === "prior_effort_anchor"
-                ? "Anchored on prior effort"
-                : estimation.method === "pace_based"
-                ? "Pace-based estimate"
-                : "Default estimate"}
-            </p>
+            <p className="text-xs text-stone-500">How we estimated</p>
+            <p className="mt-1 text-sm font-medium text-stone-300">{methodLabel}</p>
           </div>
         </div>
         <ul className="mt-3 space-y-1">
@@ -372,19 +365,19 @@ function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
   );
 }
 
-// ─── Hydration guidance card ─────────────────────────────────────────────────
+// ─── Hydration guidance card ──────────────────────────────────────────────────
 
 function HydrationCard({ guidance }: { guidance: HydrationGuidance }) {
-  const borderColor = guidance.isWarmConditions ? "border-blue-800/40" : "border-stone-700/30";
   return (
-    <Card className={borderColor}>
+    <Card className={guidance.isWarmConditions ? "border-blue-800/40" : "border-stone-700/30"}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-stone-500 font-medium">Hydration target</span>
+          <span className="text-xs text-stone-500 font-medium">Hydration</span>
           <Droplets className="h-4 w-4 text-blue-400" />
         </div>
         <p className="text-2xl font-bold text-blue-400">
-          {guidance.rangeMlPerHour[0]}–{guidance.rangeMlPerHour[1]} ml/hr
+          {guidance.rangeMlPerHour[0]}–{guidance.rangeMlPerHour[1]}{" "}
+          <span className="text-base font-normal text-stone-400">ml/hr</span>
         </p>
         <p className="text-xs text-stone-400 mt-1 font-medium">{guidance.label}</p>
         <p className="text-xs text-stone-500 mt-2 leading-relaxed">{guidance.note}</p>
@@ -393,16 +386,16 @@ function HydrationCard({ guidance }: { guidance: HydrationGuidance }) {
   );
 }
 
-// ─── Electrolyte guidance card ──────────────────────────────────────────────
+// ─── Electrolyte guidance card ────────────────────────────────────────────────
 
 function ElectrolyteCard({ guidance }: { guidance: ElectrolyteGuidance }) {
-  const tierColor = guidance.tier === "high"
-    ? "text-amber-400" : guidance.tier === "moderate"
-    ? "text-green-400" : "text-stone-300";
-  const tierBg = guidance.tier === "high"
-    ? "bg-amber-900/20 border-amber-800/40"
-    : guidance.tier === "moderate"
-    ? "bg-green-900/10 border-green-800/30"
+  const tierColor =
+    guidance.tier === "high"     ? "text-amber-400"
+    : guidance.tier === "moderate" ? "text-green-400"
+    : "text-stone-300";
+  const tierBg =
+    guidance.tier === "high"     ? "bg-amber-900/20 border-amber-800/40"
+    : guidance.tier === "moderate" ? "bg-green-900/10 border-green-800/30"
     : "border-stone-700/30";
 
   return (
@@ -419,51 +412,33 @@ function ElectrolyteCard({ guidance }: { guidance: ElectrolyteGuidance }) {
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Caffeine card ────────────────────────────────────────────────────────────
 
-function burnRateBandLabel(band: BurnRateBand): string {
-  switch (band) {
-    case "lower": return "lower estimate — conservative";
-    case "middle": return "mid-range estimate";
-    case "higher": return "higher estimate — aggressive";
-  }
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  target,
-  pct,
-  color,
-  progressColor,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  target: string;
-  pct: number | null;
-  color: string;
-  progressColor: string;
-}) {
+function CaffeineCard({ totalMg, limitMg }: { totalMg: number; limitMg?: number }) {
+  const pct = limitMg ? Math.min(100, Math.round((totalMg / limitMg) * 100)) : null;
   return (
-    <Card>
+    <Card className="border-stone-700/30">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-stone-500 font-medium">{label}</span>
-          <Icon className={`h-4 w-4 ${color}`} />
+          <span className="text-xs text-stone-500 font-medium">Caffeine</span>
+          <Coffee className="h-4 w-4 text-purple-400" />
         </div>
-        <p className={`text-2xl font-bold ${color}`}>{value}</p>
-        <p className="text-xs text-stone-500 mt-1">{target}</p>
+        <p className="text-2xl font-bold text-purple-400">
+          {totalMg}
+          <span className="text-base font-normal text-stone-400"> mg</span>
+        </p>
+        <p className="text-xs text-stone-500 mt-1">
+          {limitMg ? `Limit: ${limitMg}mg` : "No limit set"}
+        </p>
         {pct !== null && (
           <div className="mt-3">
             <div className="h-1.5 w-full rounded-full bg-stone-800">
               <div
-                className={`h-full rounded-full ${progressColor} transition-all`}
+                className="h-full rounded-full bg-purple-600 transition-all"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="text-xs text-stone-600 mt-1">{pct}% of target</p>
+            <p className="text-xs text-stone-600 mt-1">{pct}% of limit</p>
           </div>
         )}
       </CardContent>

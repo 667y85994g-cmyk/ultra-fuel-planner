@@ -1,12 +1,32 @@
 /**
- * Internal energy expenditure model for gradient-adjusted effort estimation.
+ * Energy expenditure model — Layer 3 (Route Execution Engine).
  *
- * These functions power the personalised burn rate calculations behind the
- * scenes. The user-facing product describes itself as "route-aware" and
- * "personalised" — not as a calorie oracle or academic model.
+ * ── Role in the planning architecture ───────────────────────────────────────
  *
- * The gradient cost polynomial is well-established in exercise physiology
- * and captures the asymmetric energy cost of uphill vs downhill movement.
+ * This module is Layer 3: it determines WHEN to fuel and at what PACE to
+ * plan the route, not how many grams of carbohydrate to target per hour.
+ *
+ * Layer 2 (carb-target-engine.ts) owns the carbohydrate intake target.
+ * Layer 3 (this module + fuelling-engine.ts) uses the caloric burn rate
+ * only to calculate fuelling INTERVAL — how many minutes between fuel events.
+ *
+ *   fuellingIntervalMinutes(kcalPerHour) → every N minutes eat ~25g carbs
+ *   calcQuantity(item, carbTarget, intervalMins) → units of each item to take
+ *
+ * The interval spacing is calorie-driven (makes physical sense: harder effort
+ * → shorter interval → same hourly carb target delivered more frequently).
+ * But the quantity at each stop is driven by the duration-band carb target
+ * from Layer 2, not by the caloric burn rate directly.
+ *
+ * ── What this module does NOT do ────────────────────────────────────────────
+ *
+ * derivedCarbGPerHour() is a legacy helper that converts burn rate directly
+ * to a carb recommendation. It is NOT used in the active planning pipeline
+ * and is DEPRECATED — use recommendCarbTarget() from carb-target-engine.ts.
+ *
+ * The gradient cost polynomial (Minetti 2002 Cr formula) is well-established
+ * in exercise physiology and accurately captures the asymmetric energy cost
+ * of uphill vs downhill movement.
  */
 
 // ─── Gradient-adjusted energy cost ───────────────────────────────────────────
@@ -117,8 +137,13 @@ export function fuellingIntervalMinutes(kcalPerHour: number): number {
 }
 
 /**
- * Effective exogenous carb delivery rate (g/hr) implied by the burn rate.
- * Clamped to [30, 90].
+ * @deprecated Do not use in new code. Carbohydrate intake targets are
+ * determined by race duration and athlete context, not by caloric burn rate.
+ * Use recommendCarbTarget() from carb-target-engine.ts instead.
+ *
+ * Converts a caloric burn rate to a naive carb delivery rate.
+ * This function is retained only for reference — it is not called by
+ * the active planning pipeline.
  */
 export function derivedCarbGPerHour(kcalPerHour: number): number {
   const raw = (CARBS_PER_FUEL_EVENT_G / FUEL_TRIGGER_KCAL) * kcalPerHour;

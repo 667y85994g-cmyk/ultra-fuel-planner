@@ -19,12 +19,14 @@ import type {
   EventType,
   RacePriority,
   FinishTimeEstimation,
+  GuidedProfile,
 } from "@/types";
 import { DEFAULT_ASSUMPTIONS } from "@/types";
 import { loadState, saveState, defaultAthlete, defaultFuelInventory } from "./storage";
 import { segmentRoute } from "./segmentation";
 import { generatePlan } from "./fuelling-engine";
 import { estimateFinishTime } from "./calibration-engine";
+import { DEFAULT_GUIDED_PROFILE, applyGuidedProfile, guidedTemperature } from "./guided-profile";
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -39,6 +41,7 @@ interface PlannerState extends StoredPlannerState {
 type PlannerAction =
   | { type: "SET_STEP"; step: number }
   | { type: "SET_ATHLETE"; athlete: AthleteProfile }
+  | { type: "SET_GUIDED_PROFILE"; profile: GuidedProfile }
   | { type: "SET_EVENT_META"; eventName: string; eventType?: EventType; racePriority?: RacePriority; raceStartTime?: string; expectedTemperatureC?: number; targetDistanceKm?: number; targetFinishTimeMinutes?: number }
   | { type: "SET_ROUTE"; route: ParsedRoute }
   | { type: "CLEAR_ROUTE" }
@@ -66,6 +69,9 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
 
     case "SET_ATHLETE":
       return { ...state, athlete: action.athlete, isDirty: true };
+
+    case "SET_GUIDED_PROFILE":
+      return { ...state, guidedProfile: action.profile, isDirty: true };
 
     case "SET_EVENT_META":
       return {
@@ -168,6 +174,7 @@ const initialState: PlannerState = {
   isGenerating: false,
   isDirty: false,
   athlete: defaultAthlete(),
+  guidedProfile: DEFAULT_GUIDED_PROFILE,
   eventName: "",
   fuelInventory: defaultFuelInventory(),
   aidStations: [],
@@ -201,6 +208,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => {
       saveState({
         athlete: state.athlete,
+        guidedProfile: state.guidedProfile,
         eventName: state.eventName,
         eventType: state.eventType,
         racePriority: state.racePriority,
@@ -220,6 +228,16 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
 
   const runPlanner = (): PlannerOutput | null => {
     if (!state.athlete || !state.fuelInventory) return null;
+
+    // ── Resolve guided profile → athlete overrides ──────────────────────
+    // When the runner used guided mode, map their plain-language choices
+    // (fuelling level, experience, conditions) to numeric algorithm inputs.
+    // Advanced mode leaves the stored athlete profile unchanged.
+    const profile = state.guidedProfile ?? DEFAULT_GUIDED_PROFILE;
+    const resolvedAthlete = applyGuidedProfile(state.athlete, profile);
+    const resolvedTemperature = profile.useAdvancedInputs
+      ? state.expectedTemperatureC
+      : guidedTemperature(profile.expectedConditions) ?? state.expectedTemperatureC;
 
     // Re-segment route if needed
     let route = state.parsedRoute;
@@ -244,7 +262,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
           state.priorEfforts ?? [],
           targetDist,
           route?.totalAscentM,
-          state.athlete,
+          resolvedAthlete,
           state.racePriority,
         );
         derivedFinishMinutes = finishTimeEstimation.estimatedMinutes;
@@ -282,8 +300,8 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       racePriority: state.racePriority,
       targetDistanceKm: state.targetDistanceKm,
       targetFinishTimeMinutes: derivedFinishMinutes,
-      expectedTemperatureC: state.expectedTemperatureC,
-      athlete: state.athlete,
+      expectedTemperatureC: resolvedTemperature,
+      athlete: resolvedAthlete,
       route,
       fuelInventory: state.fuelInventory,
       aidStations: state.aidStations ?? [],

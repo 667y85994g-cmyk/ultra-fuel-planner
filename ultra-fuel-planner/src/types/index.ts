@@ -2,6 +2,23 @@
 
 export type ExperienceLevel = "novice" | "intermediate" | "experienced" | "elite";
 export type RacePriority = "a_race" | "completion" | "training";
+
+// ─── Guided Input Model ───────────────────────────────────────────────────────
+//
+// Three guided selectors replace raw numeric fields for runners who don't know
+// their exact fuelling targets. Advanced users can toggle to direct numeric entry.
+// See src/lib/guided-profile.ts for the mappings to algorithm variables.
+
+export type FuellingLevel = "light" | "moderate" | "high" | "not_sure";
+export type ExpectedConditions = "cool" | "moderate" | "hot" | "not_sure";
+export type GuidedExperienceLevel = "first_ultra" | "few_ultras" | "very_experienced";
+
+export interface GuidedProfile {
+  fuellingLevel: FuellingLevel;
+  guidedExperience: GuidedExperienceLevel;
+  expectedConditions: ExpectedConditions;
+  useAdvancedInputs: boolean;
+}
 export type EventType = "trail_marathon" | "ultra_50k" | "ultra_50m" | "ultra_100k" | "ultra_100m" | "mountain_ultra" | "other";
 
 export interface AthleteProfile {
@@ -41,6 +58,49 @@ export interface PriorEffort {
   fuellingNotes?: string;         // what they ate
   whatWorked?: string;
   whatDidntWork?: string;
+}
+
+// ─── Carb Target Engine — Layer 2 ────────────────────────────────────────────
+//
+// Carbohydrate targets are determined by RACE DURATION and RUNNER CONTEXT,
+// never by calories burned. See src/lib/carb-target-engine.ts.
+
+export interface CarbTargetRationale {
+  primaryDriver: "race_duration";
+  durationBandLabel: string;        // e.g. "6–10 hour event"
+  experienceAdjustment: number;     // signed g/hr delta applied
+  racePriorityAdjustment: number;   // signed g/hr delta applied
+  gutToleranceCap?: number;         // set if gut ceiling was hit
+  notes: string[];
+}
+
+export interface CarbTargetRecommendation {
+  recommendedRangeGPerHour: [number, number]; // [low, high]
+  workingTargetGPerHour: number;              // single working value
+  rationale: CarbTargetRationale;
+}
+
+// ─── Layer 4 — Learning Architecture Hooks ───────────────────────────────────
+//
+// These types support future post-race feedback and plan refinement.
+// Not yet used in the active planner — reserved for v2+ learning features.
+
+export interface ExecutionAdjustmentNotes {
+  targetedCarbGPerHour: number;
+  actualCarbGPerHour?: number;        // filled post-race
+  gutFeelingDuring?: 1 | 2 | 3 | 4 | 5; // 1 = poor, 5 = great
+  adjustmentsMade?: string[];         // e.g. "reduced in late race"
+}
+
+export interface PostRaceFeedback {
+  effortId: string;                   // links to a PriorEffort
+  perceivedEffort?: 1 | 2 | 3 | 4 | 5;
+  gutIssues?: boolean;
+  gutIssueDetails?: string;
+  fuellingWentToTarget?: boolean;
+  carbsWereAdequate?: boolean;
+  fluidWasAdequate?: boolean;
+  whatWouldChangeNextTime?: string;
 }
 
 // ─── Calibration Result ──────────────────────────────────────────────────────
@@ -364,6 +424,7 @@ export const DEFAULT_ASSUMPTIONS: PlannerAssumptions = {
 
 export interface StoredPlannerState {
   athlete?: AthleteProfile;
+  guidedProfile?: GuidedProfile;
   eventName?: string;
   eventType?: EventType;
   racePriority?: RacePriority;
