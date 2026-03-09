@@ -42,6 +42,11 @@ export function StepRoute({ onBack, onNext }: Props) {
         return;
       }
 
+      if (file.size > 5 * 1024 * 1024) {
+        setError("GPX file is too large (max 5MB). Try exporting a simplified version from your device.");
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 

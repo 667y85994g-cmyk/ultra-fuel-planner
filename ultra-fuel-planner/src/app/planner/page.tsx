@@ -60,6 +60,18 @@ export default function PlannerPage() {
         </div>
       </nav>
 
+      {/* Beta notice */}
+      <div className="border-b border-amber-800/20 bg-amber-900/10">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-6 py-2">
+          <span className="flex-shrink-0 rounded bg-amber-800/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+            Beta
+          </span>
+          <p className="text-xs text-stone-400">
+            Currently in beta. Plans should be tested in training before race day.
+          </p>
+        </div>
+      </div>
+
       {/* Step content */}
       <main className="flex-1 mx-auto w-full max-w-5xl px-6 py-10">
         <div className="animate-fade-in">

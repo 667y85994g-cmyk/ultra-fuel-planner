@@ -18,9 +18,9 @@ export async function POST(req: NextRequest) {
 
     const text = await file.text();
 
-    if (text.length > 10 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json(
-        { error: "GPX file too large (max 10MB)." },
+        { error: "GPX file too large (max 5MB)." },
         { status: 400 }
       );
     }

@@ -16,8 +16,20 @@ import { LegalFooter } from "@/components/LegalFooter";
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100">
+      {/* Beta notice — sits above the sticky nav, scrolls away */}
+      <div className="border-b border-amber-800/20 bg-amber-900/10">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-2.5">
+          <span className="flex-shrink-0 rounded bg-amber-800/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+            Beta
+          </span>
+          <p className="text-xs text-stone-400">
+            Ultra Fuel Planner is currently in beta. Plans should be tested in training before race day.
+          </p>
+        </div>
+      </div>
+
       {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-stone-800/60 bg-stone-950/80 backdrop-blur-sm">
+      <nav className="sticky top-0 z-50 w-full border-b border-stone-800/60 bg-stone-950/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <Mountain className="h-5 w-5 text-amber-500" />
