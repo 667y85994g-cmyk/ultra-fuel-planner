@@ -619,6 +619,57 @@ v1.7 — Algorithm architecture refactor
   GPX file size limit enforced client-side (5MB) and server-side.
 
 
+v2.0 — Execution engine rewrite: cadence-driven schedule generation
+  Core problem fixed: the previous engine derived fuelling TIMING from burn rate
+  (fuellingIntervalMinutes(kcalPerHour)), causing implausible schedules where a
+  single 22g gel was expected to cover 60–75 minutes.
+
+  New architecture (fuelling-engine.ts):
+    Layer A — Section structure first.
+      Sections are built from aid stations when present. If no aid stations are
+      defined, sections are INFERRED every ~120 minutes (90–150 min range).
+      This ensures carry plans always reflect checkpoint-to-checkpoint sections
+      rather than one undifferentiated Start→Finish block.
+    Layer B — Cadence engine (deriveCadenceMinutes).
+      Base cadence is now determined by race duration class:
+        < 6h:   22 min — short race, frequent small top-ups
+        6–12h:  27 min — medium ultra rhythm
+        12–20h: 32 min — longer race, gut needs rest between events
+        20h+:   37 min — very long, slower pace, more real-food variety
+      Cadence is a TARGET interval; event count is scaled by carb need.
+    Layer C — Per-event carb allocation.
+      eventCarbTarget = workingCarbTargetPerHour × (cadenceMins / 60)
+      Discrete event size clamped to 12–40g. This prevents single gels covering
+      unrealistic time gaps and ensures the schedule delivers the stated g/hr.
+    Layer D — Continuous vs discrete fuel split.
+      drink_mix is treated as a section-level continuous carb source.
+      A single "add to bottle" entry is scheduled at section start; its carb
+      contribution is subtracted from the discrete target for that section.
+      Gels, chews, bars, and real food are discrete timestamped events.
+    Layer E — Section-level carb delivery.
+      sectionTargetCarbs = workingCarbTargetPerHour × sectionHours.
+      Discrete events fill the gap: discreteTarget = sectionTarget − drinkMixCarbs.
+      Events are distributed to target ~20g each, never below 12g.
+    Layer F — Terrain-aware execution adjustments.
+      Technical descents: discrete events suppressed (drink from bottle only).
+      Steep/sustained climbs: no chewing items; gels and drink mix only.
+    Layer G — Inventory blending.
+      drink_mix selected separately from discrete items (best available by carb
+      density). Discrete fuel selection uses the existing 11-factor scoring system.
+    Layer H — Post-generation validation.
+      Section carb delivery checked: warn if <70% or >145% of target.
+      Fuel gaps >45 min flagged when no drink mix provides continuous coverage.
+      Inventory exhaustion checked after all sections processed.
+
+  New exported function: deriveCadenceMinutes(totalRaceHours): number.
+  New helpers: buildSections, inferSections, generateCadenceSlots,
+    findBestAvailableDrinkMix, computeDrinkMixServings, checkFuelGaps,
+    getTimeAtKm, getKmAtTime, findSegmentAtTime.
+  Removed: fuellingIntervalMinutes import (no longer drives schedule timing).
+  Carry plans: generateCarryPlans now always uses section structure; drink_mix
+    items listed first (in-bottle), then discrete items.
+  Version bump: all v1.8 references updated to v2.0 across the codebase.
+
 ================================================================================
 13. DEVELOPMENT NOTES
 ================================================================================

@@ -310,7 +310,7 @@ export default function PrintPage() {
           justifyContent: "space-between",
         }}
       >
-        <span>Ultra Fuel Planner v1.8 — ultrafuelplanner.com</span>
+        <span>Ultra Fuel Planner v2.0 — ultrafuelplanner.com</span>
         <span>
           All times are estimates. Adjust based on real conditions.
         </span>
