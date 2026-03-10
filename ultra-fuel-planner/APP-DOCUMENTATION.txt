@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.12 | March 2026
+Version 2.13 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -201,12 +201,18 @@ oxidation at low intensity). But exogenous carb absorption capacity (~60-90g/hr)
 does not increase and may decrease with gut fatigue. Deriving carbs from
 kcalPerHour / 12 would push long-race athletes above gut tolerance.
 
-Duration bands (g/hr range):
-  <3 hours:   55-80 g/hr
-  3-6 hours:  48-70 g/hr
-  6-10 hours: 42-62 g/hr
-  10-16 hours: 36-55 g/hr
-  16+ hours:  30-50 g/hr
+Duration bands (g/hr range) — 6-band structure (updated v2.13):
+  <6 hours:    55–90 g/hr
+  6–10 hours:  50–80 g/hr
+  10–16 hours: 45–70 g/hr
+  16–24 hours: 40–65 g/hr   ← key band for 100km / shorter 100-mile runners
+  24–36 hours: 35–60 g/hr
+  36+ hours:   30–55 g/hr
+
+Ranges shift down gradually — no sudden drop at a single threshold.
+The previous single "16+ hours: 30–50 g/hr" band was replaced by three bands
+(16–24h, 24–36h, 36h+) to avoid over-conservative targets for the common
+14–20 hour race category.
 
 Experience adjustments (g/hr delta to band midpoint):
   elite: +5, experienced: +3, intermediate: 0, novice: -5
@@ -1652,6 +1658,43 @@ v2.12 — Drink Mix Delivery Fix + Stock Warning Migration
     - Drink mix only scheduled in sections long enough to absorb a full serving
     - No stock/exhaustion warnings for items in planning mode (qty = 999)
     - Old localStorage items auto-migrated to 999 on next page load
+
+
+v2.13 — Carb Target Engine: Duration Band Correction
+
+  Problem: the previous carb target engine had a single "16+ hours: 30–50 g/hr"
+  band that covered all events longer than 16 hours. This was too conservative
+  for the common 100km / shorter 100-mile category (typically 14–20 hours),
+  producing working targets of ~38g/hr for intermediate runners — inconsistent
+  with real-world ultra fuelling practice and contradictory vs the calibration
+  preview figures shown earlier in the planner.
+
+  Fix: replaced 5-band structure with a 6-band structure in carb-target-engine.ts.
+
+  Old bands:          New bands:
+  <3h:   55–80        <6h:    55–90
+  3–6h:  48–70        6–10h:  50–80
+  6–10h: 42–62        10–16h: 45–70
+  10–16h: 36–55       16–24h: 40–65   ← new (key fix)
+  16h+:  30–50        24–36h: 35–60   ← new
+                      36h+:   30–55   ← new (was 16h+ at 30–50)
+
+  Key design principles:
+    - Ranges shift down gradually with duration; no sudden drop at one threshold
+    - The 16–24h band (40–65g/hr) targets 100km and shorter 100-mile runners
+    - The 24–36h and 36h+ bands are appropriate for full 100-mile / multi-day events
+    - All downstream systems (schedule generation, drink mix allocation, etc.) are
+      unaffected — they consume the selected working target, not the band boundaries
+
+  Expected output for reference test case (18h intermediate completion-focused runner):
+    Recommended range: 40–65 g/hr
+    Working target:    ~51 g/hr   (band mid 52.5 + priority adj −2, rounded)
+
+  CHANGED: src/lib/carb-target-engine.ts — DURATION_BANDS constant + per-band comments
+
+  UNCHANGED: calibration engine, fuelling engine, schedule generation, drink mix
+    allocation, terrain rules, product scoring, carry plan, aid station logic,
+    race strategy layer, UI, all display components.
 
 
 ================================================================================

@@ -46,22 +46,42 @@ import type {
 /**
  * Evidence-informed carb intake bands by race duration.
  *
- * Short events (<3h): higher carb replacement rate is sustainable — gut
- *   can handle up to 80g/hr and intestinal transit time is not a concern.
+ * Six bands cover the full range of endurance events. Key design principles:
  *
- * Medium events (3–10h): range narrows somewhat; 60–70g/hr is a well-
- *   established sweet spot for trained ultra runners.
+ *   - Ranges shift down gradually as duration increases — there is no sudden
+ *     drop at a single threshold.
+ *   - Ultra-distance trail running differs from road events: intensity is
+ *     lower, fat oxidation contributes more, terrain disrupts fuelling cadence,
+ *     and GI tolerance is the practical ceiling. Practical ranges therefore sit
+ *     below road endurance literature figures.
+ *   - Bands are intentionally wide (25–35g/hr). Individual variation is large.
+ *     The working target is positioned within the band by experience, race
+ *     priority and gut tolerance ceiling — not fixed at the midpoint.
  *
- * Long events (10–16h): gut stress accumulates. Reducing the working target
- *   to ~45–55g/hr lowers GI risk without meaningfully compromising energy
- *   delivery — fat oxidation covers the gap.
+ * Under 6 hours (55–90g/hr):
+ *   Short high-intensity events. Gut handles up to 90g/hr with dual-source
+ *   fuelling; transit time is not a concern.
  *
- * Very long events (16h+): gut tolerability is the limiting factor.
- *   Targets of 30–50g/hr are realistic for most athletes; experienced
- *   runners with trained guts can push slightly higher.
+ * 6–10 hours (50–80g/hr):
+ *   Classic ultra/mountain marathon range. Mixed intensity allows consistent
+ *   fuelling; most trained runners can sustain 60–70g/hr comfortably.
  *
- * These ranges are intentionally wide: individual variation is large.
- * The working target is set within the band based on experience and priority.
+ * 10–16 hours (45–70g/hr):
+ *   Longer mountain ultras (~50–100km depending on terrain). GI stress begins
+ *   to accumulate in the second half. The upper end requires a trained gut.
+ *
+ * 16–24 hours (40–65g/hr):
+ *   Typical 100km and shorter 100-mile runners. Fat oxidation covers a larger
+ *   fraction of energy — pushing above 65g/hr gives diminishing returns and
+ *   increases GI risk. 45–55g/hr is achievable for most intermediates.
+ *
+ * 24–36 hours (35–60g/hr):
+ *   Long 100-mile and 200km events. Gut tolerability is the primary constraint.
+ *   Solid food windows become important for variety and palatability.
+ *
+ * 36+ hours (30–55g/hr):
+ *   Extreme-duration multi-day events. Conservative targets protect GI function.
+ *   Experienced runners with very strong gut training can push toward 55g/hr.
  */
 interface DurationBand {
   maxHours: number;
@@ -71,11 +91,12 @@ interface DurationBand {
 }
 
 const DURATION_BANDS: DurationBand[] = [
-  { maxHours: 3,        label: "Under 3 hours",    baseLow: 55, baseHigh: 80 },
-  { maxHours: 6,        label: "3–6 hour event",   baseLow: 48, baseHigh: 70 },
-  { maxHours: 10,       label: "6–10 hour event",  baseLow: 42, baseHigh: 62 },
-  { maxHours: 16,       label: "10–16 hour event", baseLow: 36, baseHigh: 55 },
-  { maxHours: Infinity, label: "16+ hour event",   baseLow: 30, baseHigh: 50 },
+  { maxHours: 6,        label: "Under 6 hours",    baseLow: 55, baseHigh: 90 },
+  { maxHours: 10,       label: "6–10 hour event",  baseLow: 50, baseHigh: 80 },
+  { maxHours: 16,       label: "10–16 hour event", baseLow: 45, baseHigh: 70 },
+  { maxHours: 24,       label: "16–24 hour event", baseLow: 40, baseHigh: 65 },
+  { maxHours: 36,       label: "24–36 hour event", baseLow: 35, baseHigh: 60 },
+  { maxHours: Infinity, label: "36+ hour event",   baseLow: 30, baseHigh: 55 },
 ];
 
 // ─── Experience adjustments ───────────────────────────────────────────────────

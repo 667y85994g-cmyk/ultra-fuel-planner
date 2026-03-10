@@ -814,7 +814,7 @@ function computeStrategyDrinkMixServings(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.12 — drink mix delivery fix):
+// Architecture (v2.13 — carb target engine band correction):
 //
 // TWO LAYER MODEL:
 //   Layer A — Discrete events: fill the carb gap not covered by drink mix.
