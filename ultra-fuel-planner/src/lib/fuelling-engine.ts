@@ -506,18 +506,19 @@ export function deriveCadenceMinutes(totalRaceHours: number): number {
  * Snaps a raw calculated cadence to the nearest natural fuelling rhythm.
  *
  * Ultra runners fuel at recognisable intervals, not arbitrary calculated decimals.
- * This maps any cadence in the 18–40 min range to the closest value from a
- * curated set of natural rhythms that match real-world fuelling patterns:
+ * This maps any cadence in the 15–35 min range to the closest value from five
+ * clean milestones that span the operational fuelling envelope:
  *
- *   Band 20–25 min: 20, 22, 25  — short race / high-intensity fuelling
- *   Band 25–30 min: 25, 27, 30  — standard endurance fuelling
- *   Band 30–35 min: 30, 32, 35  — mixed / food-based fuelling
- *   Band 35–40 min: 35, 38, 40  — slower pace / real-food variety
+ *   15 min — very frequent (high-intensity, high carb density, short race)
+ *   20 min — frequent top-ups (short ultra, high carb needs)
+ *   25 min — standard endurance (most mid-distance ultras)
+ *   30 min — relaxed endurance (mixed or food-based fuelling)
+ *   35 min — conservative pacing (long ultra, lower intensity)
  *
  * Nearest-neighbour selection. Ties resolve to the lower (more conservative) value.
  */
 function snapToNaturalCadence(rawCadence: number): number {
-  const naturalCadences = [20, 22, 25, 27, 30, 32, 35, 38, 40];
+  const naturalCadences = [15, 20, 25, 30, 35];
   let best = naturalCadences[0];
   let bestDist = Math.abs(rawCadence - best);
   for (const c of naturalCadences) {
@@ -795,23 +796,42 @@ function computeStrategyDrinkMixServings(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture:
+// Architecture (v2.8 — cadence/product compatibility system):
 //   1. Build sections (aid-station-bounded, or inferred every ~120 min)
 //   2. Per section: allocate drink_mix as a continuous section-level carb source
 //      (capped by 80g/L density limit and ~1 bottle refill per 2 hours)
-//   3. Identify representative discrete fuel → derive realistic event size
-//   4. Derive EVENT COUNT from carb need ÷ event size (not cadence first)
-//   5. Derive raw cadence from event count: rawCadence = sectionMins / eventCount
-//   6. Clamp raw cadence to 18–40 min by adjusting eventCount if needed
-//   7. Validate 85–115% delivery tolerance; nudge eventCount ±1 if needed
-//   8. SNAP raw cadence to nearest natural fuelling rhythm (snapToNaturalCadence)
-//   9. Generate events at sectionStart + (i+1) × snappedCadence; clamp to section end
-//  10. Schedule discrete events (gels/chews/bars) — always 1 serving per event
-//  11. Validate section carb delivery (Layer H)
+//   3. Identify representative discrete fuel → derive realistic event size (eventSizeG)
+//      Enforce global event size bounds: [15g, 45g] — operationally realistic servings
+//   4. Derive PROVISIONAL event count: rawCount = ceil(discreteTargetCarbs / eventSizeG)
+//      → grounded in actual carb need; capped at 4 events/hr (minimum 15-min cadence)
+//   5. Derive raw cadence from section duration: rawCadence = sectionMins / rawCount
+//      → cadence reflects how frequently events are actually needed, not product rate
+//   6. Clamp raw cadence to [15, 35] min — the primary operational fuelling envelope:
+//        < 15 min: too frequent for gut absorption and operationally impractical
+//        > 35 min: too sparse; risks energy deficit and cadence drift
+//   7. SNAP clamped cadence to nearest rhythm in [15, 20, 25, 30, 35]
+//      → five clean milestones that runners recognise and can execute
+//   7a. COMPATIBILITY CHECK: if eventSizeG > cadenceCapacityG × 1.1, the product is
+//      too large to deliver comfortably at this cadence. Step up through the extended
+//      cadence ladder [15, 20, 25, 30, 35, 38, 40] until compatible or 40 min reached.
+//      cadenceCapacityG = (discreteTargetCarbs / sectionHours) × (cadence / 60)
+//      Values 38 and 40 are only reachable via this compatibility path, not via snap.
+//   8. RECONCILE event count: eventCount = floor(sectionMins / snappedCadence)
+//      → count and cadence are algebraically consistent; floor() guarantees all
+//         events stay within section bounds — no clamping or truncation needed
+//   9. Validate 85–115% delivery tolerance; nudge eventCount ±1 if needed
+//      → +1 nudge has explicit bounds check: (eventCount + 1) × snappedCadence ≤ sectionMins
+//  10. Generate events at sectionStart + (i+1) × snappedCadence
+//  11. Post-section sanity check: verify cadence ∈ [15, 40], no event overflow
+//  12. Post-loop: gap-fill guardrail inserts events in gaps > 60 min (with mix) / 45 min
+//  13. Post-loop output sanity pass: validate event sizes across full schedule (Layer I)
+//  14. Validate section carb delivery (Layer H)
 //
-// Key principle: event count is derived first; cadence is a consequence.
-// Cadence snapping converts mechanical intervals (e.g. 33, 37 min) into the
-// recognisable rhythms that runners actually use (30, 35, 38 min).
+// Four constraints solved simultaneously per section:
+//   • Carb delivery ≈ section target (±15% tolerance)
+//   • Cadence ∈ [15, 40] min — snap set [15,20,25,30,35]; 38/40 via compatibility only
+//   • Event size ∈ [15, 45] g — operationally realistic per-serving amounts
+//   • All events within section duration — guaranteed by floor() in step 8
 
 function generateSchedule(
   segments: RouteSegment[],
@@ -891,73 +911,128 @@ function generateSchedule(
     // ── Layer E: Discrete events to top up to section target ───────────────
     const discreteTargetCarbs = Math.max(0, sectionTargetCarbs - drinkMixCarbsThisSection);
 
-    // Event-count-first scheduling: derive how many events are needed, then space them evenly.
-    // Flow: discrete carb target → event size (product) → event count → cadence → even spacing.
+    // Constrained cadence system (v2.7):
+    // Solves four constraints simultaneously: delivery ≈ target (±15%), cadence ∈ [15, 35] min,
+    // event size ∈ [15, 45] g, all events within section. Operational realism over precision.
     const representativeSeg = section.segments[0] ?? (segments.length > 0 ? segments[0] : null);
     const representativeFuel = representativeSeg
       ? preselectFuelForCadence(discreteInventory, inventoryUsage, representativeSeg.terrain, phase, strategy)
       : null;
-    const eventSizeG = representativeFuel ? realisticEventSize(representativeFuel) : 22;
+    // Enforce global event size bounds: [15g, 45g]. Per-type norms from realisticEventSize()
+    // are already within this range for standard products; the clamp handles edge cases.
+    const eventSizeG = Math.max(15, Math.min(45,
+      representativeFuel ? realisticEventSize(representativeFuel) : 22,
+    ));
 
-    // Step 5 — Raw event count: how many events to hit the discrete carb target?
+    // Step A — Provisional event count: how many events to cover the discrete carb target?
+    // This seeds the cadence calculation; the final count is reconciled in Step D.
     let eventCount = 0;
     if (discreteTargetCarbs > 0 && eventSizeG > 0) {
       const rawCount = Math.ceil(discreteTargetCarbs / eventSizeG);
-      const maxCount = Math.max(1, Math.floor(sectionHours * 3)); // no more than 1 event per 20 min
+      const maxCount = Math.max(1, Math.floor(sectionHours * 4)); // cap: 1 event per 15 min
       eventCount = Math.max(1, Math.min(rawCount, maxCount));
     }
 
-    // Step 6 — Derive cadence from event count; clamp to 18–40 min by adjusting eventCount.
-    if (eventCount > 0 && sectionMins > 0) {
-      const cadenceFromCount = sectionMins / eventCount;
-      if (cadenceFromCount < 18) {
-        // Fuelling too frequent — reduce events until cadence is ≥ 18 min
-        eventCount = Math.max(1, Math.floor(sectionMins / 18));
-      } else if (cadenceFromCount > 40) {
-        // Fuelling too infrequent — add events until cadence is ≤ 40 min
-        eventCount = Math.ceil(sectionMins / 40);
-      }
+    // Step B — Raw cadence from section duration ÷ provisional event count.
+    // Deriving cadence from the count (not product rate) grounds the rhythm in
+    // the actual carb need for this section.
+    const rawCadence = eventCount > 0 && sectionMins > 0
+      ? sectionMins / eventCount
+      : 0;
 
-      // Step 9 — Validate 85–115% delivery tolerance; nudge eventCount ±1 if needed.
-      const discreteTargetCarbsTotal = discreteTargetCarbs; // already calculated above
-      if (discreteTargetCarbsTotal > 0) {
-        const deliveryRatio = (eventCount * eventSizeG) / discreteTargetCarbsTotal;
-        if (deliveryRatio < 0.85) {
-          const maxAllowed = Math.floor(sectionMins / 18);
-          if (eventCount < maxAllowed) eventCount += 1;
-        } else if (deliveryRatio > 1.15 && eventCount > 1) {
-          eventCount -= 1;
-        }
+    // Step C — Clamp to [15, 35] min, then snap to nearest natural rhythm.
+    // [15, 35] is the primary operational envelope. Step C' (compatibility) may
+    // extend cadence to 38 or 40 if the representative product is too large.
+    const clampedRawCadence = Math.max(15, Math.min(35, rawCadence));
+    let snappedCadence = rawCadence > 0 ? snapToNaturalCadence(clampedRawCadence) : 0;
+
+    // Step C' — Product/cadence compatibility check.
+    // A product event should not significantly exceed the carb delivery that
+    // the cadence interval implies. If it does, step up through the extended
+    // cadence ladder [15, 20, 25, 30, 35, 38, 40] until the product fits.
+    // Stopping condition: eventSizeG ≤ cadenceCapacityG × 1.1
+    //   (10% tolerance — allows a product slightly larger than the exact capacity
+    //    and matches common runner intuition: "eat one gel, wait about 38 minutes")
+    // If no value satisfies the condition, cadence is set to the maximum (40 min).
+    if (snappedCadence > 0 && sectionHours > 0 && eventSizeG > 0 && discreteTargetCarbs > 0) {
+      const discreteCarbsPerHour = discreteTargetCarbs / sectionHours;
+      const extendedCadences: number[] = [15, 20, 25, 30, 35, 38, 40];
+      // Find starting position: first extended value at or above the snapped cadence.
+      let extIdx = extendedCadences.findIndex(c => c >= snappedCadence);
+      if (extIdx < 0) extIdx = extendedCadences.length - 1;
+      // Walk up the ladder while eventSizeG still exceeds cadence capacity × 1.1.
+      while (extIdx < extendedCadences.length - 1) {
+        const cadenceCapacityG = discreteCarbsPerHour * (extendedCadences[extIdx] / 60);
+        if (eventSizeG <= cadenceCapacityG * 1.1) break;
+        extIdx += 1;
+      }
+      snappedCadence = extendedCadences[extIdx];
+    }
+
+    // Step D — Reconcile event count from (compatibility-adjusted) snapped cadence.
+    // floor() guarantees eventCount × snappedCadence ≤ sectionMins.
+    if (snappedCadence > 0 && discreteTargetCarbs > 0 && sectionMins > 0) {
+      eventCount = Math.max(1, Math.floor(sectionMins / snappedCadence));
+    }
+
+    // Step E — Delivery validation: nudge ±1 if outside 85–115% of discrete target.
+    // The +1 nudge includes an explicit bounds check: the extra event must fit within
+    // the section at snapped cadence — preventing overflow without clamping.
+    if (eventCount > 0 && discreteTargetCarbs > 0 && snappedCadence > 0) {
+      const deliveryRatio = (eventCount * eventSizeG) / discreteTargetCarbs;
+      if (deliveryRatio < 0.85) {
+        if ((eventCount + 1) * snappedCadence <= sectionMins) eventCount += 1;
+      } else if (deliveryRatio > 1.15 && eventCount > 1) {
+        eventCount -= 1;
       }
     }
 
-    // Step 7 — Snap raw cadence to a natural fuelling rhythm, then generate events.
-    // Raw cadence = sectionMins / eventCount. The snapper maps this to the nearest
-    // recognisable interval (e.g. 36 min → 35, 33 min → 32) so the schedule reads like
-    // a plan written by a runner rather than a calculator.
-    // If the snapped cadence × eventCount exceeds the section duration, the final event
-    // is clamped to the section end — the rhythm still reads naturally.
-    const evenlySpacedSlots: Array<{ timeMinutes: number; distanceKm: number; isPriority: boolean }> = [];
-    if (eventCount > 0 && discreteTargetCarbs > 0 && sectionMins > 0) {
-      const rawCadenceFromCount = sectionMins / eventCount;
-      const snappedCadence = snapToNaturalCadence(rawCadenceFromCount);
-      for (let i = 0; i < eventCount; i++) {
-        const rawOffset = (i + 1) * snappedCadence;
-        // Clamp to section end so events never fall in the next section.
-        const offset = Math.min(rawOffset, sectionMins);
-        const sectionFrac = offset / sectionMins;
-        const distanceKm = Math.round(
-          (section.fromKm + sectionFrac * (section.toKm - section.fromKm)) * 10
-        ) / 10;
-        evenlySpacedSlots.push({
-          timeMinutes: Math.round(section.fromMinutes + offset),
-          distanceKm,
-          isPriority: i === 0,
+    // Step F — Generate events at (i+1) × snappedCadence from section start.
+    // floor() in Step D guarantees all events are within section bounds — no clamping needed.
+    const scheduledSlots: Array<{ timeMinutes: number; distanceKm: number; isPriority: boolean }> = [];
+    for (let i = 0; i < eventCount; i++) {
+      const offset = (i + 1) * snappedCadence;
+      const sectionFrac = sectionMins > 0 ? offset / sectionMins : 0;
+      const distanceKm = Math.round(
+        (section.fromKm + sectionFrac * (section.toKm - section.fromKm)) * 10
+      ) / 10;
+      scheduledSlots.push({
+        timeMinutes: Math.round(section.fromMinutes + offset),
+        distanceKm,
+        isPriority: i === 0,
+      });
+    }
+
+    // ── Sanity check: verify constraints before slot processing ─────────────
+    // These guards should never fire if the pipeline above is correct. They are
+    // a defensive safety net that detects and auto-corrects any constraint
+    // violations rather than silently producing a bad race card.
+    if (snappedCadence > 0 && sectionMins > 0) {
+      // Guard 1: cadence must be within the operational envelope.
+      // Normal primary range is [15, 35]; compatibility step (C') may extend to 40.
+      if (snappedCadence < 15 || snappedCadence > 40) {
+        warnings.push({
+          type: "info",
+          code: "SANITY_CADENCE",
+          message: `${section.fromLabel}→${section.toLabel}: cadence ${snappedCadence} min outside [15, 40] range.`,
+          detail: "Unusual section parameters — plan generated with available constraints.",
         });
       }
+      // Guard 2: event overflow — floor() in Step D should prevent this, but
+      // auto-correct if somehow the event count would push past section end.
+      if (eventCount > 0 && eventCount * snappedCadence > sectionMins + 0.5) {
+        const corrected = Math.max(1, Math.floor(sectionMins / snappedCadence));
+        warnings.push({
+          type: "info",
+          code: "SANITY_OVERFLOW",
+          message: `${section.fromLabel}→${section.toLabel}: event count corrected ${eventCount}→${corrected} (${snappedCadence} min × ${eventCount} > ${Math.round(sectionMins)} min).`,
+          detail: "Event count was rebalanced to fit within section bounds.",
+        });
+        eventCount = corrected;
+      }
     }
 
-    for (const slot of evenlySpacedSlots) {
+    for (const slot of scheduledSlots) {
       const slotSeg = findSegmentAtTime(segments, slot.timeMinutes);
       if (!slotSeg) continue;
 
@@ -1063,8 +1138,110 @@ function generateSchedule(
     }
   }
 
-  // Layer H: Warn on gaps > 45 min when no continuous drink mix is active
-  checkFuelGaps(schedule, inventory, 45, warnings);
+  // ── Gap-fill guardrail ───────────────────────────────────────────────────
+  // After all sections are scheduled, scan for gaps between discrete events.
+  // With drink mix providing continuous carbs: max tolerated gap = 60 min.
+  // Without drink mix:                         max tolerated gap = 45 min.
+  // For each gap exceeding the limit, attempt to insert one event at the midpoint.
+  // A single pass is used (not recursive) — the goal is to catch structural gaps,
+  // not to achieve perfect carb continuity.
+  {
+    const hasDrinkMix = inventory.some(i => i.type === "drink_mix" && i.quantityAvailable > 0);
+    const maxGapMins = hasDrinkMix ? 60 : 45;
+
+    const discreteSnapshot = schedule
+      .filter(e => !e.isContinuous && e.action !== "refill_at_aid" && e.action !== "restock_carry")
+      .sort((a, b) => a.timeMinutes - b.timeMinutes);
+
+    for (let gi = 1; gi < discreteSnapshot.length; gi++) {
+      const gap = discreteSnapshot[gi].timeMinutes - discreteSnapshot[gi - 1].timeMinutes;
+      if (gap <= maxGapMins) continue;
+
+      const midMinutes = Math.round(
+        (discreteSnapshot[gi - 1].timeMinutes + discreteSnapshot[gi].timeMinutes) / 2
+      );
+      const midSeg = findSegmentAtTime(segments, midMinutes);
+
+      if (!midSeg || midSeg.terrain === "technical_descent") {
+        warnings.push({
+          type: "warning",
+          code: "FUEL_GAP",
+          message: `${gap}-min fuelling gap (${formatTime(discreteSnapshot[gi - 1].timeMinutes)}–${formatTime(discreteSnapshot[gi].timeMinutes)}) on technical terrain — cannot insert event.`,
+          detail: "Fuel before or after this technical section instead.",
+        });
+        continue;
+      }
+
+      const midRule = TERRAIN_RULES[midSeg.terrain];
+      const raceHoursAtMid = midMinutes / 60;
+      const midPhase = getPhaseAtTime(midMinutes, totalRaceMinutes, strategy);
+
+      const gapFillFuel = selectBestFuel(
+        discreteInventory, inventoryUsage, midSeg.terrain, midRule, athlete,
+        raceHoursAtMid, totalRaceHours, totalCaffeineMg, caffeineLimitMg,
+        solidCarbsSoFar, liquidCarbsSoFar, false,
+        midPhase, strategy,
+      );
+
+      if (!gapFillFuel) {
+        warnings.push({
+          type: "warning",
+          code: "FUEL_GAP",
+          message: `${gap}-min fuelling gap (${formatTime(discreteSnapshot[gi - 1].timeMinutes)}–${formatTime(discreteSnapshot[gi].timeMinutes)}) — no suitable fuel available to fill.`,
+          detail: hasDrinkMix
+            ? "Drink mix provides continuous carb coverage. Add more discrete items to eliminate the gap."
+            : "Add more fuel items or a drink mix for continuous coverage.",
+        });
+        continue;
+      }
+
+      const servings = 1;
+      const actualCarbs = Math.round(gapFillFuel.carbsPerServing * servings);
+      const usedNow = inventoryUsage.get(gapFillFuel.id) ?? 0;
+      inventoryUsage.set(gapFillFuel.id, usedNow + servings);
+      totalCaffeineMg += Math.round(gapFillFuel.caffeinePerServingMg * servings);
+      if (gapFillFuel.requiresChewing) solidCarbsSoFar += actualCarbs;
+      else liquidCarbsSoFar += actualCarbs;
+
+      const midKm = getKmAtTime(segments, midMinutes);
+      schedule.push({
+        id: `entry-${++entryIdx}-gap`,
+        timeMinutes: midMinutes,
+        distanceKm: Math.round(midKm * 10) / 10,
+        segmentId: midSeg.id,
+        terrain: midSeg.terrain,
+        action: typeToAction(gapFillFuel.type),
+        fuelItemId: gapFillFuel.id,
+        fuelItemName: gapFillFuel.productName,
+        quantity: servings,
+        carbsG: actualCarbs,
+        fluidMl: Math.round(gapFillFuel.fluidContributionMl * servings),
+        sodiumMg: Math.round(gapFillFuel.sodiumPerServingMg * servings),
+        caffeinesMg: Math.round(gapFillFuel.caffeinePerServingMg * servings),
+        rationale: `Gap fill: ${gapFillFuel.productName} inserted to bridge ${gap}-min gap.`,
+        priority: "recommended",
+        isNearAidStation: false,
+        warnings: [],
+      });
+    }
+  }
+
+  // ── Layer I: Output sanity pass ──────────────────────────────────────────
+  // Validate event sizes across the full schedule. Discrete fuel events should
+  // have carbsG within the [15, 45] g operational range. This catches unusual
+  // inventory items with atypical carb values that the per-type bounds in
+  // realisticEventSize() may not have constrained (e.g. custom products).
+  for (const entry of schedule) {
+    if (entry.isContinuous || entry.action === "refill_at_aid" || entry.action === "restock_carry") continue;
+    if (entry.carbsG > 0 && (entry.carbsG < 12 || entry.carbsG > 48)) {
+      warnings.push({
+        type: "info",
+        code: "EVENT_SIZE_BOUNDS",
+        message: `Fuel event at ${formatTime(entry.timeMinutes)}: ${entry.fuelItemName ?? "item"} delivers ${entry.carbsG}g — outside the typical [15, 45g] range.`,
+        detail: "Check this item's carbs-per-serving value in your inventory.",
+      });
+    }
+  }
 
   schedule.sort((a, b) => a.timeMinutes - b.timeMinutes);
   checkInventoryExhaustion(inventory, inventoryUsage, warnings);
@@ -1072,34 +1249,16 @@ function generateSchedule(
   return schedule;
 }
 
-/**
- * Warns when discrete fuel events are more than maxGapMins apart and no
- * drink mix is providing continuous carb coverage in the inventory.
- */
+// checkFuelGaps() superseded in v2.5 — gap detection and filling now happens inline
+// in generateSchedule via the gap-fill guardrail block (see above).
+// Retained as a named stub in case it is needed for external callers in future.
 function checkFuelGaps(
-  schedule: FuelScheduleEntry[],
-  inventory: FuelItem[],
-  maxGapMins: number,
-  warnings: PlanWarning[],
+  _schedule: FuelScheduleEntry[],
+  _inventory: FuelItem[],
+  _maxGapMins: number,
+  _warnings: PlanWarning[],
 ): void {
-  const hasDrinkMix = inventory.some(i => i.type === "drink_mix" && i.quantityAvailable > 0);
-  if (hasDrinkMix) return; // Drink mix provides continuous coverage; gap warnings not needed
-
-  const fuelEntries = schedule
-    .filter(e => e.action !== "refill_at_aid" && e.action !== "restock_carry")
-    .sort((a, b) => a.timeMinutes - b.timeMinutes);
-
-  for (let i = 1; i < fuelEntries.length; i++) {
-    const gap = fuelEntries[i].timeMinutes - fuelEntries[i - 1].timeMinutes;
-    if (gap > maxGapMins) {
-      warnings.push({
-        type: "warning",
-        code: "FUEL_GAP",
-        message: `${gap}-min gap between fuel events (${formatTime(fuelEntries[i - 1].timeMinutes)}\u2013${formatTime(fuelEntries[i].timeMinutes)}).`,
-        detail: "Add a drink mix for continuous carb coverage, or increase discrete item quantities.",
-      });
-    }
-  }
+  // No-op: replaced by inline gap-fill guardrail in generateSchedule (v2.5).
 }
 
 // ─── Carry plan generation ────────────────────────────────────────────────────

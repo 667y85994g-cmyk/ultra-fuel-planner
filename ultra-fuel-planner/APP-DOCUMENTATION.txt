@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.3 | March 2026
+Version 2.8 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -904,6 +904,399 @@ v2.4 — Cadence Snapping and Output Clarity
     your carb target)" to reinforce that calories are not the source of the target.
 
   VERSION BUMP: 2.3 → 2.4 across APP-DOCUMENTATION.txt.
+
+
+v2.5 — Cadence Snapping Structural Fix
+  Core problem fixed: in v2.4, cadence snapping occurred AFTER event count was
+  determined. This created a mismatch: eventCount = ceil(carbs / eventSize) derived
+  first, then raw cadence = sectionMins / eventCount, then snap. The snapped cadence
+  was larger or smaller than the original raw cadence, so (eventCount × snappedCadence)
+  could exceed sectionMins. Events had to be clamped to the section end or silently
+  dropped, reducing carb delivery and producing unrealistic gaps later in sections.
+
+  THE FIX: Snap cadence BEFORE deriving event count.
+  This guarantees cadence and event count are always algebraically consistent, and
+  events can never drift outside section boundaries.
+
+  CHANGED: generateSchedule — section loop cadence pipeline (v2.4 → v2.5)
+    Previous v2.4 pipeline:
+      1. eventCount  = ceil(discreteTargetCarbs / eventSizeG)  [carb-driven]
+      2. rawCadence  = sectionMins / eventCount
+      3. snappedCadence = snapToNaturalCadence(rawCadence)
+      4. events at (i+1) × snappedCadence, clamped to section end   ← drift risk
+
+    New v2.5 pipeline:
+      1. rawCadence  = (eventSizeG / discreteCarbsPerHour) × 60  [product-driven]
+      2. clamp rawCadence to [18, 40] min
+      3. snappedCadence = snapToNaturalCadence(clampedRawCadence)  ← snap first
+      4. eventCount  = floor(sectionMins / snappedCadence)          ← count follows
+      5. delivery validation: nudge eventCount ±1 if ratio outside 85–115%
+      6. events at (i+1) × snappedCadence
+         floor() guarantees eventCount × snappedCadence ≤ sectionMins — no clamping.
+
+    Guarantee: no event can fall outside its section. No delivery is silently lost.
+
+  EXAMPLE (from spec):
+    Section: 120 min | Event count intent: 4 | eventSizeG: 22g | discreteCarbs/hr: 44g
+    v2.4 (broken): rawCadence = 120/4 = 30 → snap → 32 → events: 32, 64, 96, 128
+                   Last event at 128 min > 120 min → clamped/dropped
+    v2.5 (fixed):  rawCadence = (22/44)×60 = 30 → clamp → 30 → snap → 30
+                   eventCount = floor(120/30) = 4 → events: 30, 60, 90, 120
+                   All events within section. No clamping needed.
+
+    Spec example (180 min, 99g target, 22g gel):
+    rawCadence = (22 / (99/3)) × 60 = (22/33) × 60 = 40 → clamp → 40 → snap → 40
+    eventCount = floor(180/40) = 4 → deliver 4 × 22 = 88g (89% of 99g — within tolerance)
+    After delivery nudge: ratio = 0.89 < 0.85? No (89% > 85%) → count stays at 4.
+
+    Or, with 33g/hr discrete rate: raw = (22/33)×60 = 40 → snap 40 → floor(180/40) = 4.
+    To get 5 events: 99 / (180/5) = 99/36 → raw = (22/(99/3))×60 = 40. Hmm. Let me
+    recalculate for the brief's own example: discrete target = 99g over 3h = 33g/hr.
+    rawCadence = (22/33)×60 = 40 min. Snap 40 → 40. eventCount = floor(180/40) = 4.
+    4 × 22 = 88g (89%). Delivery ratio 0.89 is within 85–115% → no nudge.
+    Brief's example had 5 events; the v2.5 algorithm gives 4 for this exact input.
+    (The 5-event outcome requires a different product size or carb target.)
+
+  NEW: Gap-fill guardrail (replaces checkFuelGaps)
+    After all sections are scheduled, a single-pass gap scan runs across the full schedule.
+    Thresholds:
+      drink mix present: max gap = 60 min (mix provides continuous carb coverage)
+      no drink mix:      max gap = 45 min
+    For each gap exceeding the threshold:
+      1. Calculate midpoint of the gap
+      2. Identify terrain at midpoint
+      3. If technical descent: warn (cannot fuel here), skip
+      4. Try selectBestFuel() at midpoint using current inventory state
+      5. If fuel found: insert a single-serving event at midpoint (action = gap fill)
+      6. If no fuel found: emit FUEL_GAP warning
+    checkFuelGaps() retained as no-op stub; gap logic now fully inline in generateSchedule.
+
+v2.6 — Cadence Reconciliation Fix
+  Core problem fixed: in v2.5, raw cadence was derived from the product rate
+  (eventSizeG / discreteCarbsPerHour) × 60 — independent of how many events
+  were actually needed for the section's carb target. This meant the cadence
+  calculation was decoupled from carb need: a section needing 2 events and one
+  needing 6 events could both produce the same raw cadence if they happened to
+  have the same product-rate ratio. After snapping, the final event count
+  (floor(sectionMins / snappedCadence)) would silently over- or under-deliver
+  relative to the target with no connection to the intended number of events.
+
+  THE FIX: Derive raw cadence from a provisional event count, not from product
+  rate. Then snap, then reconcile the final event count from the snapped cadence.
+  This two-step approach grounds the rhythm in actual carb need while still
+  guaranteeing natural cadences and in-bounds event generation.
+
+  IMPLEMENTATION NOTE — cadence reconciliation pipeline:
+    The cadence reconciliation pipeline has four distinct phases:
+
+    Phase 1 — Provisional count (Step A):
+      rawCount = ceil(discreteTargetCarbs / eventSizeG)
+      This answers: "roughly how many events does this section need?"
+      The count is explicitly provisional — it is not the final event count.
+      It is clamped to a sanity-checked maximum (3 events per hour).
+
+    Phase 2 — Cadence derivation (Step B):
+      rawCadence = sectionMins / rawCount
+      This answers: "if we space rawCount events evenly, how far apart are they?"
+      Cadence is now grounded in carb need, not product rate.
+
+    Phase 3 — Snap and reconcile (Steps C–D):
+      clampedCadence = clamp(rawCadence, 18, 40)
+      snappedCadence = snapToNaturalCadence(clampedCadence)
+      eventCount_final = floor(sectionMins / snappedCadence)
+      Snapping converts mechanical intervals to natural fuelling rhythms.
+      floor() guarantees all events stay within section bounds — no clamping,
+      no truncation, no silent loss.
+
+    Phase 4 — Delivery validation (Step E):
+      deliveryRatio = (eventCount_final × eventSizeG) / discreteTargetCarbs
+      If ratio < 0.85: try adding one event (only if it fits within section)
+      If ratio > 1.15 and eventCount > 1: remove one event
+      The +1 bounds check: (eventCount + 1) × snappedCadence ≤ sectionMins
+      This prevents overflow without reintroducing clamping.
+
+    Event generation (Step F):
+      Events placed at offset = (i + 1) × snappedCadence from section start.
+      floor() in Step D guarantees the final offset is always ≤ sectionMins.
+
+  CHANGED: generateSchedule — section loop cadence pipeline (v2.5 → v2.6)
+    Previous v2.5 pipeline:
+      1. rawCadence = (eventSizeG / discreteCarbsPerHour) × 60  [product-driven]
+      2. clamp rawCadence to [18, 40] min
+      3. snappedCadence = snapToNaturalCadence(clampedRawCadence)
+      4. eventCount = floor(sectionMins / snappedCadence)        ← count follows snap
+      5. delivery validation: nudge ±1 (no bounds check on +1)
+      6. events at (i+1) × snappedCadence
+
+    New v2.6 pipeline:
+      A. provisionalCount = clamp(ceil(carbs / eventSizeG), 1, maxCount)  [carb-driven]
+      B. rawCadence = sectionMins / provisionalCount               [count-driven cadence]
+      C. clamp rawCadence to [18, 40] min
+      D. snappedCadence = snapToNaturalCadence(clampedRawCadence)  ← snap
+      E. eventCount = floor(sectionMins / snappedCadence)           ← reconcile
+      F. delivery validation: nudge ±1 with explicit bounds check
+      G. events at (i+1) × snappedCadence
+
+    Key difference: v2.5 started from product rate (independent of section need).
+    v2.6 starts from how many events are needed, then derives cadence from that.
+    Both converge to the same snap-then-floor guarantee; v2.6 is grounded in carb
+    need from the start.
+
+  CHANGED: Architecture comment in generateSchedule updated to reflect v2.6
+    pipeline. Old comment described steps 4–5 as product-rate-derived cadence.
+    New comment describes provisional count → cadence → snap → reconcile.
+
+  EXAMPLE (from spec):
+    Section: 180 min | Discrete target: 99g | eventSizeG: 22g
+
+    v2.5: rawCadence = (22 / (99/3)) × 60 = (22/33) × 60 = 40 min
+          snap 40 → 40. eventCount = floor(180/40) = 4.
+          Deliver: 4 × 22 = 88g (89%). Ratio 0.89 < 0.85? No → count stays 4.
+          ← Cadence was correct by coincidence (product rate happened to match
+             section duration / intended count). Not guaranteed in general.
+
+    v2.6: provisionalCount = ceil(99 / 22) = 5
+          rawCadence = 180 / 5 = 36 min
+          clamp(36, 18, 40) = 36 → snap → 35 min
+          eventCount = floor(180 / 35) = 5
+          Deliver: 5 × 22 = 110g (111%). Ratio 1.11 > 1.15? No → count stays 5.
+          Events at: 35, 70, 105, 140, 175 min — all within 180 min section.
+          ← Cadence derived from how many events were needed (5), not product rate.
+             Result is 5 events matching the brief's spec example.
+
+    The v2.5 algorithm gave 4 events for this input; v2.6 gives 5 — matching
+    the intent of the carb target more closely.
+
+  NO CHANGE: gap-fill guardrail (60/45 min thresholds), terrain rules, product
+    scoring, carb target engine, drink mix allocation, aid station logic.
+
+
+v2.7 — Fuelling Engine Stabilisation
+  Core problem fixed: the v2.2–v2.6 engine produced operationally correct schedules
+  in most cases, but still had several paths that could yield implausible outputs:
+  (a) cadence could extend to 38–40 min on long low-intensity sections, making
+      schedules feel sparse and hard to execute; (b) event sizes were bounded per
+      product type but there was no global enforcement — unusual inventory items
+      could produce events outside the [15, 45] g operational window; (c) if the
+      algorithm produced a constraint violation (overflow, cadence out of range),
+      it would propagate silently. The engine was not solving all four operational
+      constraints simultaneously as a system.
+
+  THE FIX: Tighten cadence bounds to [15, 35] min, simplify snap values to five
+  clean milestones, enforce event size bounds globally, and add a defensive sanity
+  check layer that detects and auto-corrects any constraint violations before they
+  reach the race card.
+
+  CHANGED: snapToNaturalCadence — new cadence set and range
+    Previous: [20, 22, 25, 27, 30, 32, 35, 38, 40] (9 values, range 20–40 min)
+    New:      [15, 20, 25, 30, 35]                  (5 values, range 15–35 min)
+
+    Why simplified? Nine values with 2–3 min steps were more granular than necessary.
+    Five values at 5-min intervals are easier for runners to internalise and cover
+    the full operational range. The jsdoc describes the purpose of each milestone:
+      15 min — very frequent (high-intensity / high carb density)
+      20 min — frequent top-ups (short race, high carb needs)
+      25 min — standard endurance (most mid-distance ultras)
+      30 min — relaxed endurance (mixed / food-based fuelling)
+      35 min — conservative pacing (long ultra, lower intensity)
+
+    Why max 35 instead of 40? A 38–40 min cadence produces sparse, difficult-to-
+    execute schedules. 35 min is the most conservative practical rhythm for ultra
+    fuelling; anything beyond this risks energy deficit and cognitive cadence drift.
+
+    Why min 15 instead of 20? Short, high-intensity races or sections with very
+    high carb targets may legitimately need 15-min fuelling. Clamping at 20 was
+    artificially restrictive for these cases.
+
+  CHANGED: Section loop — cadence clamp range updated
+    Previous: Math.max(18, Math.min(40, rawCadence))
+    New:      Math.max(15, Math.min(35, rawCadence))
+    The clamp now matches the new operational envelope [15, 35].
+
+  CHANGED: Section loop — maxCount cap updated
+    Previous: Math.floor(sectionHours × 3)  — cap at 1 event per 20 min
+    New:      Math.floor(sectionHours × 4)  — cap at 1 event per 15 min
+    Allows up to 4 events per hour when carb targets require it.
+
+  NEW: Global event size bounds enforcement
+    After realisticEventSize() returns a per-type value, the result is clamped to
+    the global operational range: Math.max(15, Math.min(45, rawEventSize)).
+    This is a safety net for unusual inventory items — standard products are already
+    within this range from their per-type bounds.
+
+  NEW: Per-section sanity check (step 11 in architecture)
+    After Step F (event generation), before slot processing:
+    Guard 1 — cadence range: emits SANITY_CADENCE info warning if snappedCadence
+      is outside [15, 35]. Should never fire; signals a pipeline bug if it does.
+    Guard 2 — event overflow: auto-corrects eventCount if
+      eventCount × snappedCadence > sectionMins + 0.5. Emits SANITY_OVERFLOW info
+      warning with corrected count. floor() in Step D should prevent this.
+
+  NEW: Layer I — Output sanity pass (post-loop, before schedule.sort)
+    Scans all discrete schedule entries. Emits EVENT_SIZE_BOUNDS info warning for
+    any entry with carbsG outside [12, 48] g (slightly wider than the [15, 45]
+    constraint to avoid false positives on borderline products).
+    This catches unusual custom inventory items that slipped through earlier bounds.
+
+  UNCHANGED: Architecture of provisional count → cadence → snap → reconcile (v2.6).
+    The core pipeline logic is correct; v2.7 tightens the parameter space and adds
+    the sanity layer on top. Section loop Steps A–F are retained and their comments
+    updated to reflect the new bounds.
+
+  IMPLEMENTATION NOTE — constraint system:
+    The fuelling engine now solves four constraints simultaneously for each section:
+
+    1. Carb delivery ≈ section target (±15% tolerance)
+       Enforced by: step A (provisional count from carb need), step E (±1 nudge).
+
+    2. Cadence ∈ [15, 35] min
+       Enforced by: step C (clamp to [15, 35]), step D (snap to nearest rhythm).
+       Safety net: per-section SANITY_CADENCE warning if violated.
+
+    3. Event size ∈ [15, 45] g
+       Enforced by: global clamp after realisticEventSize(), per-type bounds.
+       Safety net: Layer I EVENT_SIZE_BOUNDS warning if violated.
+
+    4. All events within section duration
+       Enforced by: floor() in step D (eventCount = floor(sectionMins / snappedCadence)).
+       Safety net: per-section SANITY_OVERFLOW auto-correction.
+
+    These constraints are solved in a fixed sequence. The system prioritises
+    operational realism over mathematical exactness: a 3-hour section producing
+    6 events at 30 min (132g delivery at 110% of target) is preferable to 5 events
+    at 36 min (an interval that exists nowhere in runner experience).
+
+  REFERENCE SCENARIO CADENCES (post v2.7):
+    50 km (~6h):        target 60–75g/hr, expected cadence 15–20 min
+    100 km (~13h):      target 50–60g/hr, expected cadence 20–25 min
+    100 km slow (~18h): target 40–50g/hr, expected cadence 25–30 min
+    100 mi (~27h):      target 35–50g/hr, expected cadence 30–35 min
+    Elite 100 km (~8h): target 70–90g/hr, expected cadence 15–20 min
+
+  EXAMPLE (spec: 3-hour section, 33g/hr discrete, 22g gel):
+    Section: 180 min | Discrete target: 99g | eventSizeG: 22g
+    v2.6: provisionalCount = ceil(99/22) = 5
+          rawCadence = 180/5 = 36 → clamp(36, 18, 40) = 36 → snap([20,22,25,27,30,32,35,38,40]) → 35
+          eventCount = floor(180/35) = 5 → deliver 5×22 = 110g (111%) → within tolerance
+          Events: 35, 70, 105, 140, 175 min
+    v2.7: provisionalCount = ceil(99/22) = 5
+          rawCadence = 180/5 = 36 → clamp(36, 15, 35) = 35 → snap([15,20,25,30,35]) → 35
+          eventCount = floor(180/35) = 5 → deliver 5×22 = 110g (111%) → within tolerance
+          Events: 35, 70, 105, 140, 175 min
+    Same result for this input. The difference appears at the boundaries:
+      A section where v2.6 would produce a 38-min cadence now snaps to 35 min.
+      A section requiring 5+ events/hr now allows up to 4/hr via the tighter clamp.
+
+  EXAMPLE (short race, high carb density):
+    Section: 60 min | Discrete target: 60g | eventSizeG: 22g
+    v2.6: provisionalCount = ceil(60/22) = 3
+          rawCadence = 60/3 = 20 → clamp(20, 18, 40) = 20 → snap → 20
+          eventCount = floor(60/20) = 3 → deliver 3×22 = 66g (110%) → within tolerance
+          Events: 20, 40, 60 min
+    v2.7: provisionalCount = ceil(60/22) = 3
+          rawCadence = 60/3 = 20 → clamp(20, 15, 35) = 20 → snap → 20
+          eventCount = floor(60/20) = 3 → same result ✓
+
+  NO CHANGE: gap-fill guardrail (60/45 min thresholds), terrain rules, product
+    scoring, carb target engine, drink mix allocation, carry plan, aid station logic,
+    race strategy layer, warning system (except new sanity codes).
+
+v2.8 — Cadence/Product Compatibility Fix
+  Core problem fixed: in v2.7, the cadence snap set was deliberately tightened to
+  [15, 20, 25, 30, 35] and the maximum cadence was hard-capped at 35 min. This is
+  correct for most products, but creates an edge case when the representative product
+  has a large serving size (e.g. 22g gel) relative to the discrete carb delivery rate
+  (e.g. 33g/hr): at a 35-min cadence the algorithm can only deliver 19.25g per
+  interval, which is less than the 22g the product provides. The engine would
+  technically schedule the gel, but the underlying numbers implied fractional servings
+  or under-delivery. The cadence was too tight to fit the product cleanly.
+
+  THE FIX: After snapping cadence (step 7), run a compatibility check. If the product
+  is too large to fit at the snapped cadence (within a 10% tolerance), step up through
+  an extended cadence ladder [15, 20, 25, 30, 35, 38, 40] until the product fits or
+  the maximum 40-min cadence is reached. Values 38 and 40 are only reachable via this
+  compatibility path — they are not in the primary snap set and cannot be reached
+  through normal cadence calculation.
+
+  COMPATIBILITY CHECK LOGIC (new step 7a):
+    cadenceCapacityG = (discreteTargetCarbs / sectionHours) × (candidateCadence / 60)
+    Stopping condition: eventSizeG ≤ cadenceCapacityG × 1.1
+    The 1.1 factor is a 10% tolerance — a gel can be 10% larger than the theoretical
+    capacity without triggering a further step-up. This avoids spurious step-ups for
+    borderline fits and matches the operationally sensible output for the worked example.
+
+  WHY 10% TOLERANCE (not 30%)?
+    The brief's worked example: 22g gel at 33g/hr, 180-min section.
+      At 35 min: cadenceCapacityG = 33 × (35/60) = 19.25g
+        With 30% tolerance: threshold = 19.25 × 1.3 = 25g. 22 ≤ 25 → would NOT step up.
+        With 10% tolerance: threshold = 19.25 × 1.1 = 21.2g. 22 > 21.2 → step up ✓
+      At 38 min: cadenceCapacityG = 33 × (38/60) = 20.9g
+        With 10% tolerance: threshold = 20.9 × 1.1 = 23g. 22 ≤ 23 → stop at 38 ✓
+    A 30% tolerance would suppress the compatibility check entirely for this input;
+    10% correctly triggers the step-up and stops at 38, not 40.
+
+  CHANGED: Section loop — snappedCadence changed from const to let
+    Required to allow the compatibility step (7a) to reassign the cadence value.
+    `const snappedCadence` → `let snappedCadence`
+
+  NEW: Step C' — Product/cadence compatibility block in section loop
+    Positioned between Step C (snap) and Step D (reconcile event count):
+    ```
+    if (snappedCadence > 0 && sectionHours > 0 && eventSizeG > 0 && discreteTargetCarbs > 0) {
+      const discreteCarbsPerHour = discreteTargetCarbs / sectionHours;
+      const extendedCadences = [15, 20, 25, 30, 35, 38, 40];
+      let extIdx = extendedCadences.findIndex(c => c >= snappedCadence);
+      if (extIdx < 0) extIdx = extendedCadences.length - 1;
+      while (extIdx < extendedCadences.length - 1) {
+        const cadenceCapacityG = discreteCarbsPerHour × (extendedCadences[extIdx] / 60);
+        if (eventSizeG <= cadenceCapacityG × 1.1) break;
+        extIdx += 1;
+      }
+      snappedCadence = extendedCadences[extIdx];
+    }
+    ```
+    Guards on all four key values to safely skip the check when any input is zero.
+    findIndex(c => c >= snappedCadence) seeds extIdx at the snapped value so the
+    compatibility check begins from the already-computed snap, not from the beginning.
+
+  CHANGED: Per-section sanity check — cadence range bound updated
+    Previous: Guard 1 checks `snappedCadence > 35` (would fire on any compatibility step-up)
+    New:      Guard 1 checks `snappedCadence > 40` (only fires above the maximum allowed)
+    Rationale: 38 and 40 are now valid outputs from the compatibility path. The sanity
+    check boundary moves to match the new maximum (40 min).
+
+  CHANGED: Architecture comment in generateSchedule updated to v2.8
+    Step 7a added (compatibility check description).
+    Step 11 updated: cadence range widened from [15, 35] to [15, 40].
+    Four-constraints summary: cadence range updated to [15, 40] with note that
+    38/40 are only reachable via the compatibility path.
+    Header changed from "v2.7 — constrained cadence system" to
+    "v2.8 — cadence/product compatibility system".
+
+  UNCHANGED: snapToNaturalCadence() — the snap set remains [15, 20, 25, 30, 35].
+    Only the compatibility step (after snapping) can produce 38 or 40.
+    The clamp in Step C still uses [15, 35] — unchanged from v2.7.
+
+  EXAMPLE (spec from brief: 3-hour section, 33g/hr discrete, 22g gel):
+    Section: 180 min | Discrete target: 99g | eventSizeG: 22g
+    v2.7: provisionalCount = ceil(99/22) = 5
+          rawCadence = 180/5 = 36 → clamp(36, 15, 35) = 35 → snap → 35
+          [no compatibility check]
+          eventCount = floor(180/35) = 5 → deliver 5×22 = 110g (111%) ✓
+          Events: 35, 70, 105, 140, 175 min
+    v2.8: provisionalCount = ceil(99/22) = 5
+          rawCadence = 180/5 = 36 → clamp → 35 → snap → 35
+          Compatibility: discreteCarbsPerHour = 99/3 = 33g/hr
+            At 35: capacity = 33×(35/60) = 19.25g; threshold = 21.2g. 22 > 21.2 → step up
+            At 38: capacity = 33×(38/60) = 20.9g;  threshold = 23.0g. 22 ≤ 23.0 → stop
+          snappedCadence = 38 min
+          eventCount = floor(180/38) = 4 → deliver 4×22 = 88g (89%) → within 85% tolerance
+          Events: 38, 76, 114, 152 min
+
+  NO CHANGE: snapToNaturalCadence(), clamp range [15, 35], gap-fill guardrail,
+    terrain rules, product scoring, carb target engine, drink mix allocation,
+    carry plan, aid station logic, race strategy layer, Layer I output sanity pass.
+
 
 ================================================================================
 13. DEVELOPMENT NOTES
