@@ -86,30 +86,72 @@ export default function ResultsPage() {
         </div>
       </nav>
 
-      {/* Warnings */}
-      {output.warnings.length > 0 && (
-        <div className="border-b border-stone-800 bg-amber-950/30">
-          <div className="mx-auto max-w-6xl px-6 py-3">
-            <div className="flex flex-wrap gap-3">
-              {output.warnings.map((w, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
-                    w.type === "error"
-                      ? "bg-red-900/30 text-red-300"
-                      : w.type === "warning"
-                      ? "bg-amber-900/30 text-amber-300"
-                      : "bg-stone-800/60 text-stone-400"
-                  }`}
-                >
-                  <span>{w.type === "error" ? "⛔" : w.type === "warning" ? "⚠️" : "ℹ️"}</span>
-                  <span>{w.message}</span>
-                </div>
-              ))}
+      {/* Plan notes (info) — subtle context strip */}
+      {output.warnings.filter(w => w.type === "info").length > 0 && (
+        <div className="border-b border-stone-800/50">
+          <div className="mx-auto max-w-6xl px-6 py-2.5">
+            <div className="flex flex-wrap gap-2">
+              {output.warnings
+                .filter(w => w.type === "info")
+                .map((w, i) => (
+                  <div key={i} className="flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs bg-stone-800/40 text-stone-400">
+                    <span className="shrink-0 mt-px">ℹ️</span>
+                    <span>{w.message}</span>
+                  </div>
+                ))}
             </div>
           </div>
         </div>
       )}
+
+      {/* Action warnings — grouped by code so duplicates don't flood the page */}
+      {(() => {
+        const alerts = output.warnings.filter(w => w.type !== "info");
+        if (alerts.length === 0) return null;
+
+        // Group repeated warning codes into a single entry
+        const groupMap = new Map<string, { w: typeof alerts[0]; count: number }>();
+        const groupOrder: string[] = [];
+        for (const w of alerts) {
+          const key = w.code ?? w.message;
+          if (groupMap.has(key)) {
+            groupMap.get(key)!.count++;
+          } else {
+            groupMap.set(key, { w, count: 1 });
+            groupOrder.push(key);
+          }
+        }
+        const grouped = groupOrder.map(key => {
+          const { w, count } = groupMap.get(key)!;
+          if (count === 1) return w;
+          if (w.code === "NO_SUITABLE_FUEL") {
+            return { ...w, message: `No suitable fuel at ${count} schedule points — add gels or other discrete fuels to your inventory.` };
+          }
+          return { ...w, message: `${w.message} (×${count})` };
+        });
+
+        return (
+          <div className="border-b border-stone-800 bg-amber-950/20">
+            <div className="mx-auto max-w-6xl px-6 py-2.5">
+              <div className="flex flex-wrap gap-2">
+                {grouped.map((w, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs ${
+                      w.type === "error"
+                        ? "bg-red-900/30 text-red-300"
+                        : "bg-amber-900/20 text-amber-400"
+                    }`}
+                  >
+                    <span className="shrink-0 mt-px">{w.type === "error" ? "⛔" : "⚠️"}</span>
+                    <span>{w.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tab nav */}
       <div className="border-b border-stone-800 bg-stone-950 no-print">

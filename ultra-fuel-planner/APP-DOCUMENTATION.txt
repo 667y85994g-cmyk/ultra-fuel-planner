@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.8 | March 2026
+Version 2.10 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -1296,6 +1296,260 @@ v2.8 — Cadence/Product Compatibility Fix
   NO CHANGE: snapToNaturalCadence(), clamp range [15, 35], gap-fill guardrail,
     terrain rules, product scoring, carb target engine, drink mix allocation,
     carry plan, aid station logic, race strategy layer, Layer I output sanity pass.
+
+v2.9 — Event-First Fuelling Model + Plan-First Carry Logic
+  Two separate briefs addressed in a single release, both fixing variants of the same
+  root problem: the engine was inventory-led and drink-mix-led rather than strategy-led.
+
+  ─── PART A: EVENT-FIRST FUELLING MODEL ───────────────────────────────────────
+
+  Core problem fixed: the v2.2–v2.8 engine allocated drink mix FIRST and subtracted its
+  carb contribution from the section budget before generating discrete events:
+    discreteTargetCarbs = max(0, sectionTargetCarbs − drinkMixCarbsThisSection)
+
+  For a Maurten Drink Mix 320 (80g/serving) at 38g/hr, 2-hour section:
+    sectionTargetCarbs = 76g
+    drinkMixSharePct[late] = 65% → targetCarbsFromMix = 49g
+    servingsNeeded = ceil(49/80) = 1 serving = 80g (whole-serving rounding)
+    drinkMixCarbsThisSection = 80g (exceeds target!)
+    discreteTargetCarbs = max(0, 76−80) = 0 → NO EVENTS GENERATED
+
+  This produced sections with 0% discrete event delivery, "No suitable fuel" warnings at
+  every schedule slot, and SECTION_CARB_GAP warnings at 0–31% delivery.
+
+  THE FIX: Events are now generated from the full section carb target, independently of
+  drink mix. Drink mix is a parallel continuous carb source (sipped from bottle between
+  events), not a pre-allocation that reduces the event budget.
+
+  CHANGED: Section loop — Layer E (line 912)
+    Previous: const discreteTargetCarbs = Math.max(0, sectionTargetCarbs − drinkMixCarbsThisSection)
+    New:      const discreteTargetCarbs = sectionTargetCarbs
+    Drink mix events are still generated (shown as "sip continuously"), but their carb
+    contribution no longer reduces the budget available to gels, chews, and other events.
+
+  CHANGED: Layer H section carb delivery check
+    Previous: sectionEntries.reduce(...) — included continuous (drink_mix) entries
+    New:      sectionEntries.filter(e => !e.isContinuous).reduce(...)
+    The delivery check now measures only discrete event delivery against the target.
+    Drink mix is excluded because it is a parallel bonus source, not a delivery substitute.
+
+  NEW: 30g/hr effective carb floor
+    effectiveCarbsPerHour = Math.max(30, athlete.carbTargetPerHour)
+    Very low carb targets (< 30g/hr) over-relied on drink mix and produced sparse discrete
+    event schedules. The floor ensures event generation is always meaningful.
+
+  NEW: selectBestFuel phase gate fallback
+    After the primary call returns null (strategy phase gates blocked all inventory — e.g.
+    late race allows gels only but athlete has none), a second call is made with
+    respectPhaseGates = false. This allows any format in the inventory to fill the slot
+    rather than leaving it empty. "No suitable fuel" only fires if BOTH calls return null.
+
+  EXPECTED OUTCOME for the race described above (18h, Maurten 320, 38g/hr):
+    Previous: late race sections → 0% delivery, "No suitable fuel" × 5, delivery warning 0%
+    New:      late race sections → gels/chews at 30-min cadence, delivery ~85-115% of target
+
+  TWO-LAYER MODEL SUMMARY (v2.9):
+    Layer A — Discrete events: always target sectionTargetCarbs, regardless of drink mix.
+              This is the backbone of the schedule. Events appear consistently throughout.
+    Layer B — Drink mix: continuous sip-from-bottle alongside events. Provides bonus carbs
+              and hydration. Shown as "sip continuously over X hours" in the schedule.
+    Total delivery = events + drink mix (realistic co-fuelling: higher than target is fine).
+
+  EXAMPLE (18h race, late race section, Maurten 320, 38g/hr, 2-hour section):
+    v2.8: drinkMixCarbsThisSection = 80g → discreteTargetCarbs = 0 → NO EVENTS
+          Delivery: 80g drink mix + 0g events = 105% (but all from one continuous sip)
+    v2.9: drinkMixCarbsThisSection = 80g → discreteTargetCarbs = 76g (unchanged)
+          Events: 3 gels × 22g = 66g (87% of discrete target) → within tolerance
+          Total: 80g drink mix + 66g events = 192% of target (realistic co-fuelling)
+          Delivery check: 66/76 = 87% → no warning ✓
+
+  ─── PART B: PLAN-FIRST CARRY LOGIC ───────────────────────────────────────────
+
+  Core problem fixed: the engine respected item.quantityAvailable during fuel selection.
+  If an item "ran out" (used >= available), it was excluded from further selection. This
+  caused plans to produce different schedules depending on pre-loaded stock counts, turning
+  the carry plan into a reflection of what the user happened to have on hand rather than
+  what the race requires.
+
+  THE FIX: The engine now runs in planning mode by default. Fuel is selected on merit
+  (terrain suitability, phase preferences, athlete constraints) without stock limits.
+  Required quantities are tallied from the completed schedule. The carry plan and kit list
+  reflect what the race demands, not what was pre-loaded.
+
+  CHANGED: preselectFuelForCadence, findBestAvailableDrinkMix, computeStrategyDrinkMixServings,
+    selectBestFuel — all four functions removed the `used >= item.quantityAvailable` stock
+    check. Fuel is now selected purely on merit.
+
+  CHANGED: computeStrategyDrinkMixServings — removed `remaining` from Math.min:
+    Previous: return Math.min(servingsNeeded, remaining, densityCap)
+    New:      return Math.min(servingsNeeded, densityCap)
+    Density cap (80g/L) still limits per-section drink mix allocation. Stock limit removed.
+
+  NEW: Stock shortfall warnings in generatePlan (after buildSummary)
+    If item.quantityAvailable > 0 and planned usage (summary.itemTotals) exceeds it,
+    an info warning is emitted: "ProductName: plan needs X, you have Y — buy Z more."
+    These appear as blue info pills, not alarming amber warnings.
+    Athletes who haven't entered quantities (quantityAvailable = 0) see no shortfall notes.
+
+  CHANGED: buildCarryPlan — carry quantities rounded up
+    .map([id, v]) → { quantity: Math.ceil(v.qty), ... }
+    Ensures carry items are always whole numbers. Prevents "0.5 bar" or "0.3 chew pack"
+    outputs. Standard discrete events use servings = 1 (already integer), but the ceil
+    guard handles edge cases and any future fractional-serving paths.
+
+  KIT LIST (unchanged output, improved accuracy):
+    summary.itemTotals (Record<string, { name, quantity, carbsG }>) is already the full
+    race kit list. With planning mode generating unrestricted schedules, it now accurately
+    reflects what the runner needs to buy/pack for race day.
+
+  ─── PART C: WARNINGS UI RESTRUCTURE ──────────────────────────────────────────
+
+  Core problem fixed: all warnings (info + warning + error) were rendered as a flat
+  flex-wrap of amber-coloured pills. With 7+ entries in some plans (5× "No suitable
+  fuel" + 2× delivery shortfall), the results page appeared broken and error-prone.
+
+  THE FIX: Split and group the warnings section in results/page.tsx.
+
+  CHANGED: Warnings section (results/page.tsx)
+    Info notes (type === "info") — now rendered in a separate, neutral grey strip above
+    the warnings. Background: stone-800/40, text: stone-400. No amber background.
+    These are contextual notes (carb target, strategy description, caloric burn) that
+    should feel informational, not like errors.
+
+    Action warnings (type === "warning" / "error") — grouped by code before rendering.
+    Multiple entries sharing the same code are collapsed into one grouped pill:
+      5× NO_SUITABLE_FUEL → "No suitable fuel at 5 schedule points — add gels..."
+      Other codes with n > 1 → appended with "(×n)"
+    Background: amber-900/20 (softer than previous amber-950/30).
+
+  RESULT: After v2.9 engine fixes, most plans should show zero warnings in the warning
+    strip. The info strip remains as useful context. The warnings strip only appears if
+    genuine issues exist (genuine inventory gaps, delivery shortfalls > 30%).
+
+  ─── SUMMARY OF ALL CHANGES ───────────────────────────────────────────────────
+
+  CHANGED: fuelling-engine.ts — 8 targeted edits
+    1. preselectFuelForCadence: removed stock check
+    2. findBestAvailableDrinkMix: removed stock check
+    3. computeStrategyDrinkMixServings: removed stock check + remaining from Math.min
+    4. selectBestFuel: removed stock check; added respectPhaseGates=true parameter;
+       wrapped phase gate filters in if(respectPhaseGates) block
+    5. Section loop (layer E): discreteTargetCarbs = sectionTargetCarbs (full target)
+    6. Section loop (layer E): 30g/hr effective carb floor added
+    7. Section loop (call site): graceful phase gate fallback added
+    8. Layer H: .filter(e => !e.isContinuous) added to scheduledCarbs computation
+    9. buildCarryPlan: Math.ceil on carry quantities
+   10. generatePlan: stock shortfall info warnings added after buildSummary
+   11. Architecture comment updated to v2.9
+
+  CHANGED: results/page.tsx
+    Warnings section restructured: info strip (grey) + grouped alerts strip (amber).
+
+  UNCHANGED: carb target engine, segmentation, terrain rules, product scoring, cadence
+    snap set, carry plan structure, gap-fill guardrail, race strategy boundaries,
+    aid station logic, Layer I output sanity pass, GPX parsing.
+
+v2.10 — Fuel Rotation and Variety
+  Core problem fixed: the v2.9 scoring system selected the highest-scoring product for
+  every event in a section. Because gels scored consistently higher than chews or bars
+  (particularly due to the long-ultra +25 liquid / -20 solid format bias), plans for
+  18-hour races produced long unbroken gel sequences. Schedules looked artificial and
+  did not resemble how experienced ultra runners actually fuel.
+
+  THE FIX: Three changes to the allocation model.
+    1. Fuel role classification (quick / base / food)
+    2. Race-wide rotation tracking with scoring penalties and rewards
+    3. Revised format bias that treats chews as a valid secondary fuel
+
+  FUEL ROLE MODEL:
+    quick — gels (fast, easy intake between efforts; primary discrete source)
+    base  — chews, bars (steady, sustaining; provides variety and palatability relief)
+    food  — real food such as banana, potato, flapjack (rare; aid-station only)
+    (drink_mix is a continuous section-level source handled separately)
+
+  NEW: fuelRole() helper function (fuelling-engine.ts)
+    Classifies an item type as "quick", "base", or "food". Used by selectBestFuel to
+    identify role-switching opportunities.
+
+  NEW: Race-wide rotation tracking in generateSchedule
+    const recentFuelIds: string[]  — last 2 selected product IDs
+    const recentFuelTypes: string[] — last 2 selected product types
+    Updated after every successful fuel selection. Persists across sections.
+    Passed to selectBestFuel and gap-fill as additional scoring context.
+
+  CHANGED: selectBestFuel signature — two new parameters
+    recentFuelIds: string[] = []    (default: empty, no rotation bias)
+    recentFuelTypes: string[] = []
+
+  CHANGED: Scoring component 2 — race-distance format bias (revised)
+    Previous: blanket isSolid ? -20 : +25 for long ultra (≥10h)
+    New (long ultra ≥10h):
+      gel:        +20  (primary discrete fuel, unchanged preference)
+      chew:        +5  (valid secondary; no longer heavily penalised)
+      bar:        -10  (digestive load; only early sections on flat)
+      real_food:  -15  (rare; requires aid-station aid)
+    New (ultra ≥6h, <10h):
+      gel:        +15, chew: +8, bar: -5, real_food: -8
+
+    Why: the previous -20 solid penalty created a 45-point advantage for gels over
+    chews. Chews are a realistic and common ultra fuel. The new scoring gives gels a
+    15-point lead over chews in long ultras — enough to maintain gel preference while
+    letting rotation bring chews into the schedule.
+
+  CHANGED: Scoring component 11 — replaced supply management with rotation scoring
+    Removed: remaining = quantityAvailable - used; if remaining <= 2: -20
+    (Stock management was misleading in planning mode where quantities are unlimited.)
+
+    New component 11 — Rotation and variety:
+      -30 if item.id === last selected ID          (consecutive same product: strong deterrent)
+      -12 if item.id === second-last selected ID   (two-ago repetition: mild nudge away)
+      -12 if item.type === last selected type      (same type two events in a row)
+      +18 if role switch: quick→base or base→quick (reward gel→chew or chew→gel transitions)
+      -35 if real_food && !isNearAidStation        (never carry a banana mid-section)
+       -8 if real_food                             (additional rarity penalty even at aid)
+
+  SCORE WALKTHROUGH — long ultra with one gel (G) and one chew pack (C):
+    Event 1: G(+20 gel, +0 rot) = +20, C(+5 chew, +0 rot) = +5 → G wins
+    Event 2: G(+20, -30 lastId) = -10, C(+5, +18 role switch) = +23 → C wins
+    Event 3: G(+20, +18 role switch) = +38, C(+5, -30 lastId) = -25 → G wins
+    Result: G → C → G → C → G (clean alternation) ✓
+
+  SCORE WALKTHROUGH — long ultra with only gels (G1 and G2):
+    Event 1: G1(+20) = +20, G2(+20) = +20 → tie, G1 wins (sort stable)
+    Event 2: G1(-30 lastId) = -10, G2(+20) = +20 → G2 wins
+    Event 3: G1(+20) = +20, G2(-30) = -10 → G1 wins
+    Result: G1 → G2 → G1 → G2 (product-level alternation between two gels) ✓
+    Even with only gels, different gel products rotate rather than repeating identically.
+
+  REAL FOOD CONSTRAINTS:
+    Real food (banana, potato, flapjack) receives a -35 penalty when not near an aid
+    station, making it essentially invisible for mid-section scheduling. At aid stations
+    on flat terrain (preferred position 0: +20), combined with the aid station solid bonus
+    (+10) and the real food penalties (-8 base, -15 long ultra format, +0 no-AidStation
+    penalty removed at aid): net ≈ +7 vs a gel's +20. Real food occasionally appears at
+    appropriate aid stations without dominating.
+    Fractional real food: all discrete events use servings=1. Math.ceil in buildCarryPlan
+    (v2.9) ensures whole units throughout the carry plan.
+
+  CARB TARGET INTEGRITY:
+    Rotation scoring is an addition to the existing scoring system, not a replacement.
+    Event count and cadence are computed before fuel selection (Steps A–F). The number
+    of events and their carb contribution is unchanged — only which product is selected
+    for each slot is affected. Carb accuracy (±15% per section) is preserved.
+    The ±5g/hr target in the brief is met because:
+      - eventCount is cadence-derived from the carb target (unchanged)
+      - each event delivers one serving (typically 20–25g for gels, 22–28g for chews)
+      - the delivery validation nudge (Step E) corrects any 85–115% violations
+
+  EXPECTED SCHEDULE PATTERN (18h race, one gel, one chew, drink mix continuous):
+    Previous (v2.9): gel gel gel gel gel gel gel gel gel ...
+    New (v2.10):     gel chew gel chew gel chew gel chew ...
+    With drink mix annotated (sip continuously): drink mix runs as background across all.
+
+  UNCHANGED: cadence pipeline (Steps A–F), event count, carb targets, phase gates,
+    terrain rules, selectBestFuel filter (availability, exclusions, caffeine, high-effort),
+    solid cap guardrail (component 9), aid station proximity (component 10),
+    gap-fill guardrail, Layer I and Layer H checks, carry plan, warnings UI.
 
 
 ================================================================================
