@@ -809,7 +809,7 @@ function computeStrategyDrinkMixServings(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.10 — fuel rotation and variety model):
+// Architecture (v2.11 — fuel preferences model, no quantity input):
 //
 // TWO LAYER MODEL:
 //   Layer A — Discrete events: generated from the full carb target, independent of drink mix.

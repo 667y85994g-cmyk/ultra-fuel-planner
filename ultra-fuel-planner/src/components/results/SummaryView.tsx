@@ -151,14 +151,14 @@ export function SummaryView({ output }: Props) {
         </CardContent>
       </Card>
 
-      {/* ── Fuel inventory match ────────────────────────────────────────────── */}
+      {/* ── Plan delivery ───────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-semibold text-stone-200">Fuel inventory match</h3>
+              <h3 className="text-sm font-semibold text-stone-200">Plan delivery</h3>
               <p className="text-xs text-stone-500">
-                How well your packed fuel covers the plan
+                How closely the schedule hits your carb target
               </p>
             </div>
             <span
@@ -187,26 +187,26 @@ export function SummaryView({ output }: Props) {
           </div>
           <p className="mt-2 text-xs text-stone-500">
             {summary.coverageScore >= 90
-              ? "Your inventory should cover the full race."
+              ? "Schedule is on track with your carb target."
               : summary.coverageScore >= 70
-              ? "You may need to top up at aid stations."
-              : "Plan to rely heavily on aid stations, or add more fuel to your inventory."}
+              ? "Schedule is slightly below your carb target."
+              : "Schedule falls short of your carb target — consider adjusting your fuel selection."}
           </p>
         </CardContent>
       </Card>
 
-      {/* ── What you're using ───────────────────────────────────────────────── */}
+      {/* ── What to pack ────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
             <Package className="h-4 w-4" />
-            What you're using
+            What to pack
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {Object.entries(summary.itemTotals)
-              .sort(([, a], [, b]) => b.carbsG - a.carbsG)
+              .sort(([, a], [, b]) => b.quantity - a.quantity)
               .map(([id, item]) => {
                 const fuelItem = eventPlan.fuelInventory.find((f) => f.id === id);
                 return (
@@ -220,15 +220,16 @@ export function SummaryView({ output }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-200 truncate">{item.name}</p>
                       <p className="text-xs text-stone-500">
-                        {item.quantity} serving{item.quantity !== 1 ? "s" : ""} ·{" "}
-                        {Math.round(item.carbsG)}g carbs
+                        {Math.round(item.carbsG)}g carbs total
                       </p>
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      <div className="text-sm font-semibold text-amber-400">
-                        {Math.round(item.carbsG)}g
+                      <div className="text-xl font-bold text-stone-100">
+                        ×{item.quantity}
                       </div>
-                      <div className="text-xs text-stone-500">carbs</div>
+                      <div className="text-xs text-stone-500">
+                        {item.quantity === 1 ? "serving" : "servings"}
+                      </div>
                     </div>
                   </div>
                 );

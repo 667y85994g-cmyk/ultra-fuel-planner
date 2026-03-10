@@ -55,7 +55,6 @@ const EMPTY_ITEM = (): Partial<FuelItem> => ({
   requiresChewing: false,
   sweetnessScore: 3,
   lateRaceToleranceScore: 4,
-  quantityAvailable: 5,
 });
 
 export function StepFuel({ onBack, onNext }: Props) {
@@ -64,11 +63,6 @@ export function StepFuel({ onBack, onNext }: Props) {
   const [editing, setEditing] = useState<FuelItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Partial<FuelItem>>(EMPTY_ITEM());
-
-  const totalCarbs = inventory.reduce(
-    (a, item) => a + item.carbsPerServing * item.quantityAvailable,
-    0
-  );
 
   const startAdd = () => {
     setDraft(EMPTY_ITEM());
@@ -104,7 +98,7 @@ export function StepFuel({ onBack, onNext }: Props) {
       requiresChewing: Boolean(draft.requiresChewing),
       sweetnessScore: (Number(draft.sweetnessScore ?? 3) as 1 | 2 | 3 | 4 | 5),
       lateRaceToleranceScore: (Number(draft.lateRaceToleranceScore ?? 4) as 1 | 2 | 3 | 4 | 5),
-      quantityAvailable: Number(draft.quantityAvailable ?? 1),
+      quantityAvailable: 999,
     };
 
     if (editing) {
@@ -123,10 +117,10 @@ export function StepFuel({ onBack, onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Add your fuel inventory</h1>
+        <h1 className="text-2xl font-bold text-stone-50">Your fuel preferences</h1>
         <p className="mt-2 text-stone-400">
-          Add everything you plan to carry. The planner matches fuel types to
-          terrain and tells you what to take and when.
+          Add the products you want to use. The planner matches them to terrain
+          and builds your race-day kit list.
         </p>
       </div>
 
@@ -136,13 +130,8 @@ export function StepFuel({ onBack, onNext }: Props) {
           <div className="flex items-center justify-between rounded-lg border border-stone-800 bg-stone-900/40 px-5 py-3">
             <div className="text-sm text-stone-400">
               <span className="font-semibold text-stone-200">
-                {inventory.length} items
-              </span>{" "}
-              ·{" "}
-              <span className="font-semibold text-amber-400">
-                {Math.round(totalCarbs)}g carbs
-              </span>{" "}
-              total
+                {inventory.length} {inventory.length === 1 ? "product" : "products"} added
+              </span>
             </div>
             <Button size="sm" onClick={startAdd}>
               <Plus className="h-4 w-4" />
@@ -157,9 +146,9 @@ export function StepFuel({ onBack, onNext }: Props) {
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
               <div className="text-4xl">🍌</div>
               <div>
-                <p className="font-medium text-stone-200">No fuel added yet</p>
+                <p className="font-medium text-stone-200">No products added yet</p>
                 <p className="text-sm text-stone-500">
-                  We&apos;ve pre-loaded some common items. Add or edit them below.
+                  Add the gels, chews, bars, or drink mixes you want to use.
                 </p>
               </div>
               <Button onClick={startAdd}>
@@ -257,7 +246,6 @@ function FuelItemCard({
           {item.caffeinePerServingMg > 0 && (
             <span>{item.caffeinePerServingMg}mg caffeine</span>
           )}
-          <span>×{item.quantityAvailable} available</span>
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
@@ -359,17 +347,6 @@ function FuelItemForm({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <Label>Quantity available (servings)</Label>
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              value={draft.quantityAvailable ?? ""}
-              onChange={(e) => set("quantityAvailable", Number(e.target.value))}
-              className="mt-1.5"
-            />
           </div>
         </div>
 

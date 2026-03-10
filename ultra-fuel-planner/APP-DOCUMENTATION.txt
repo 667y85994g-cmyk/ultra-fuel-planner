@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.10 | March 2026
+Version 2.11 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -1550,6 +1550,44 @@ v2.10 — Fuel Rotation and Variety
     terrain rules, selectBestFuel filter (availability, exclusions, caffeine, high-effort),
     solid cap guardrail (component 9), aid station proximity (component 10),
     gap-fill guardrail, Layer I and Layer H checks, carry plan, warnings UI.
+
+
+v2.11 — Fuel Preferences Model (no quantity input)
+  Core change: removed "quantity available" from the fuel input form entirely.
+  The planner now operates in pure planning mode — it treats all fuel products
+  as having unlimited availability and computes how many servings are needed.
+
+  RATIONALE:
+    The v2.9 engine already removed stock constraints from fuel selection (planning
+    mode). But the UI still showed a "quantity available" field, causing the engine
+    to emit stock shortfall warnings ("buy X more before race day"). This confused
+    users who hadn't yet bought anything — they were getting shopping advice before
+    they even had a plan.
+
+  CHANGES:
+    StepFuel.tsx:
+      - Removed "Quantity available (servings)" input from FuelItemForm
+      - Removed "×N available" from FuelItemCard display
+      - quantityAvailable hardcoded to 999 in save() — treated as unlimited
+      - Heading updated: "Add your fuel inventory" → "Your fuel preferences"
+      - Description updated to match planning-mode framing
+      - Summary bar simplified to item count only (no total carbs)
+
+    SummaryView.tsx:
+      - "Fuel inventory match" card renamed to "Plan delivery"
+      - Subtitle updated: "How well your packed fuel covers the plan"
+        → "How closely the schedule hits your carb target"
+      - Copy updated to reflect actual meaning of coverageScore
+        (delivery efficiency vs target, not stock match)
+      - "What you're using" renamed to "What to pack"
+      - Sort changed from carbsG descending → quantity descending
+      - Right-hand stat changed from carbsG → ×N (serving count) more prominently
+      - carbsG moved to secondary subtitle text
+
+  NOTE: checkInventoryExhaustion and buildEntryWarnings in fuelling-engine.ts
+    still reference quantityAvailable, but with qty=999 they will never fire
+    for realistic race quantities. These functions are retained for future
+    stock-constrained mode if needed.
 
 
 ================================================================================
