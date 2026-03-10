@@ -370,7 +370,8 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
   // Planning mode generates schedules without stock constraints so the plan shows what is needed.
   // If the user has entered available quantities, warn where they fall short.
   for (const item of fuelInventory) {
-    if (!item.quantityAvailable || item.quantityAvailable <= 0) continue;
+    // 999 = unlimited sentinel (planning mode — quantity field removed from UI)
+    if (!item.quantityAvailable || item.quantityAvailable <= 0 || item.quantityAvailable >= 999) continue;
     const planned = summary.itemTotals[item.id]?.quantity ?? 0;
     if (planned > item.quantityAvailable) {
       warnings.push({
@@ -791,6 +792,10 @@ function computeStrategyDrinkMixServings(
   // Planning mode: no stock limit check. Drink mix scheduled by density cap only.
   const targetCarbsFromMix = Math.round(sectionTargetCarbs * (drinkMixSharePct / 100));
   if (targetCarbsFromMix <= 0) return 0;
+  // Skip if 1 serving would overshoot the full section target (not just the share).
+  // e.g. Maurten 320 (80g/serving) in a 1-hr section with 38g target: skip, use gels instead.
+  // Drink mix is only worthwhile when the section is long enough to absorb it.
+  if (item.carbsPerServing > 0 && item.carbsPerServing > sectionTargetCarbs) return 0;
   const servingsNeeded = item.carbsPerServing > 0
     ? Math.max(1, Math.ceil(targetCarbsFromMix / item.carbsPerServing))
     : 1;
@@ -809,13 +814,14 @@ function computeStrategyDrinkMixServings(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.11 — fuel preferences model, no quantity input):
+// Architecture (v2.12 — drink mix delivery fix):
 //
 // TWO LAYER MODEL:
-//   Layer A — Discrete events: generated from the full carb target, independent of drink mix.
-//             Events drive fuel selection and produce the race schedule.
-//   Layer B — Drink mix: allocated per section as a continuous sip-from-bottle source.
-//             Runs in parallel with events; does not reduce event count.
+//   Layer A — Discrete events: fill the carb gap not covered by drink mix.
+//             discreteTargetCarbs = max(20g, sectionTarget - drinkMixCarbs).
+//             20g floor ensures at least one fuel event per section.
+//   Layer B — Drink mix: allocated per section when 1 serving ≤ sectionTarget.
+//             Skipped for short/low-target sections to avoid overshooting.
 //
 // PLANNING MODE (default): schedule is generated without stock quantity constraints.
 //   The plan tells the runner what to buy/pack. Required quantities are tallied after
@@ -945,11 +951,11 @@ function generateSchedule(
       }
     }
 
-    // ── Layer E: Discrete events target the full section carb goal ─────────
-    // Drink mix is a parallel carb source sipped continuously from the bottle.
-    // It does not reduce event count — events are generated independently of drink mix.
-    // Total section delivery = discrete events + drink mix (realistic co-fuelling model).
-    const discreteTargetCarbs = sectionTargetCarbs;
+    // ── Layer E: Discrete events fill the gap not covered by drink mix ─────
+    // Drink mix carbs reduce the discrete target so total delivery ≈ section target.
+    // Floor of 20g ensures at least one fuel event per section even when drink mix
+    // covers most of the target (e.g. Maurten 320 in a 3hr section).
+    const discreteTargetCarbs = Math.max(20, sectionTargetCarbs - drinkMixCarbsThisSection);
 
     // Constrained cadence system (v2.7):
     // Solves four constraints simultaneously: delivery ≈ target (±15%), cadence ∈ [15, 35] min,
@@ -1817,6 +1823,7 @@ function checkInventoryExhaustion(
   inventory: FuelItem[], usage: Map<string, number>, warnings: PlanWarning[]
 ) {
   for (const item of inventory) {
+    if (item.quantityAvailable >= 999) continue; // unlimited sentinel
     const used = usage.get(item.id) ?? 0;
     if (used > item.quantityAvailable) {
       warnings.push({
@@ -1834,8 +1841,10 @@ function buildEntryWarnings(
 ): string[] {
   const ws: string[] = [];
   const used = usage.get(item.id) ?? 0;
-  const remaining = item.quantityAvailable - used;
-  if (remaining <= 3) ws.push(`Low supply: only ${remaining} left.`);
+  if (item.quantityAvailable < 999) {
+    const remaining = item.quantityAvailable - used;
+    if (remaining <= 3) ws.push(`Low supply: only ${remaining} left.`);
+  }
   if (
     athlete.preferences.noSweetAfterHour &&
     raceHoursNow >= athlete.preferences.noSweetAfterHour &&

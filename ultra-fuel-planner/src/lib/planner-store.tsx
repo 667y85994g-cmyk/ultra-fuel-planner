@@ -158,8 +158,15 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
     case "SET_GENERATING":
       return { ...state, isGenerating: action.value };
 
-    case "LOAD_SAVED":
-      return { ...state, ...action.state, isDirty: false };
+    case "LOAD_SAVED": {
+      // Migrate pre-v2.11 fuel items: quantity field removed from UI, sentinel 999 = unlimited.
+      const rawInventory = action.state.fuelInventory ?? [];
+      const migratedInventory = rawInventory.map(item =>
+        item.quantityAvailable < 999 ? { ...item, quantityAvailable: 999 } : item
+      );
+      const didMigrate = rawInventory.some(item => item.quantityAvailable < 999);
+      return { ...state, ...action.state, fuelInventory: migratedInventory, isDirty: didMigrate };
+    }
 
     case "RESET":
       return { ...initialState };

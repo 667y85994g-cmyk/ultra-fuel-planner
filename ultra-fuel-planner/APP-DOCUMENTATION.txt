@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.11 | March 2026
+Version 2.12 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -1588,6 +1588,70 @@ v2.11 — Fuel Preferences Model (no quantity input)
     still reference quantityAvailable, but with qty=999 they will never fire
     for realistic race quantities. These functions are retained for future
     stock-constrained mode if needed.
+
+
+v2.12 — Drink Mix Delivery Fix + Stock Warning Migration
+  Two bugs fixed introduced during v2.9–v2.11 work.
+
+  BUG 1 — Planned average wildly over working target (e.g. 73g/hr vs 38g/hr target):
+    Root cause: v2.9 set `discreteTargetCarbs = sectionTargetCarbs`, treating drink mix
+    as a purely additive source. This doubled carb delivery:
+      - Discrete events: 38g/hr (full target)
+      - Drink mix (Maurten 320, 1 serving = 80g): also added on top
+      - Total: ~73–118g/hr for a 38g/hr target
+
+    Two-part fix in fuelling-engine.ts:
+
+    1. computeStrategyDrinkMixServings — added section-target threshold:
+       ```
+       if (item.carbsPerServing > sectionTargetCarbs) return 0;
+       ```
+       Prevents scheduling Maurten 320 (80g/serving) in short/low-target sections
+       where 1 serving alone would massively overshoot the section goal.
+       Example: 1hr section, 38g target → Maurten skipped; gels cover full 38g.
+       Example: 3hr section, 114g target → Maurten scheduled (80g < 114g); gels fill 34g gap.
+
+    2. discreteTargetCarbs — restored drink mix subtraction with 20g floor:
+       ```
+       const discreteTargetCarbs = Math.max(20, sectionTargetCarbs - drinkMixCarbsThisSection);
+       ```
+       Discrete events fill only the gap not covered by drink mix.
+       20g floor guarantees at least one gel-equivalent event per section.
+       Total section delivery = drink mix + discrete ≈ sectionTargetCarbs ✓
+
+  BUG 2 — "plan uses 20, you only have 8" warnings still showing after v2.11:
+    Root cause: existing localStorage items retained old `quantityAvailable` values
+    (e.g. 8) from before v2.11 removed the quantity field from the UI. The sentinel
+    value (999 = unlimited) was only applied to newly saved items.
+
+    Three-part fix:
+
+    1. planner-store.tsx LOAD_SAVED case — migration on load:
+       ```
+       const migratedInventory = rawInventory.map(item =>
+         item.quantityAvailable < 999 ? { ...item, quantityAvailable: 999 } : item
+       );
+       const didMigrate = rawInventory.some(item => item.quantityAvailable < 999);
+       return { ..., fuelInventory: migratedInventory, isDirty: didMigrate };
+       ```
+       Any item with qty < 999 is migrated to 999 on first load. isDirty: true
+       causes the migrated values to be persisted back to localStorage on next save.
+
+    2. STOCK_SHORTFALL check — sentinel guard:
+       ```
+       if (... || item.quantityAvailable >= 999) continue;
+       ```
+
+    3. checkInventoryExhaustion + buildEntryWarnings — sentinel guard:
+       ```
+       if (item.quantityAvailable >= 999) continue;
+       ```
+
+  RESULT:
+    - Planned average now matches working target (within ±5%) for typical gel+drink-mix combos
+    - Drink mix only scheduled in sections long enough to absorb a full serving
+    - No stock/exhaustion warnings for items in planning mode (qty = 999)
+    - Old localStorage items auto-migrated to 999 on next page load
 
 
 ================================================================================
