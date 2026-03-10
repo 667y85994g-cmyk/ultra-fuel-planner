@@ -71,15 +71,17 @@ export function SummaryView({ output }: Props) {
 
           <div className="mt-4 pt-4 border-t border-stone-800">
             <p className="text-xs text-stone-500 leading-relaxed">
-              Based on your {experienceLabel(athlete.experienceLevel)} experience and an estimated{" "}
-              {Math.round(summary.totalRaceDurationMinutes / 60)}-hour race.
-              {eventPlan.racePriority === "a_race" && " Adjusted up slightly — this is your A race."}
-              {eventPlan.racePriority === "completion" && " Adjusted down slightly — completion-focused approach."}
+              {buildCarbTargetExplanation(
+                workingTarget,
+                summary.totalRaceDurationMinutes / 60,
+                athlete.experienceLevel,
+                eventPlan.racePriority,
+              )}
             </p>
             {summary.estimatedTotalKcal !== undefined && (
               <p className="mt-1.5 text-xs text-stone-600">
                 Estimated energy expenditure: ~{summary.avgKcalPerHour?.toLocaleString()} kcal/hr
-                {" · "}~{summary.estimatedTotalKcal.toLocaleString()} kcal total
+                {" · "}~{summary.estimatedTotalKcal.toLocaleString()} kcal total (context only — does not determine your carb target)
               </p>
             )}
           </div>
@@ -254,6 +256,47 @@ function experienceLabel(level: string): string {
     case "elite":        return "elite";
     default:             return level;
   }
+}
+
+// ─── Carb target explanation ──────────────────────────────────────────────────
+//
+// Builds a plain-English sentence explaining the working carb target.
+// Avoids language that implies precise physiological calculation.
+// Uses runner-friendly framing: "practical target", "based on race duration".
+
+function buildCarbTargetExplanation(
+  workingTarget: number,
+  totalRaceHours: number,
+  experienceLevel: string,
+  racePriority?: string,
+): string {
+  const hours = Math.round(totalRaceHours);
+
+  const durationContext =
+    hours < 6  ? "shorter race"
+    : hours < 9  ? "long day out"
+    : hours < 14 ? "ultra-distance race"
+    : hours < 20 ? "long ultra"
+    : "very long ultra";
+
+  const toleranceLabel =
+    experienceLevel === "novice"       ? "beginner fuelling tolerance"
+    : experienceLevel === "intermediate" ? "moderate fuelling tolerance"
+    : experienceLevel === "experienced"  ? "higher fuelling capacity"
+    : "elite-level fuelling capacity";
+
+  const strategyLabel =
+    hours < 6  ? "short-race pacing"
+    : hours < 10 ? "endurance pacing"
+    : hours < 16 ? "long-duration pacing"
+    : "ultra-endurance pacing";
+
+  const priorityNote =
+    racePriority === "a_race"    ? " Adjusted upward slightly — this is your A race."
+    : racePriority === "completion" ? " Kept conservative — completion-focused approach."
+    : "";
+
+  return `Practical target for a ${hours}-hour ${durationContext}, ${toleranceLabel}, and ${strategyLabel} strategy.${priorityNote}`;
 }
 
 // ─── Confidence card ──────────────────────────────────────────────────────────

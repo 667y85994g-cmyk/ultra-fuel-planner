@@ -98,6 +98,141 @@ const TERRAIN_RULES: Record<TerrainType, TerrainRule> = {
   },
 };
 
+// ─── Race Strategy Layer ──────────────────────────────────────────────────────
+//
+// The Race Strategy Layer sits between carb target selection (Layer 2) and
+// product allocation (schedule generation). It determines the type of fuelling
+// plan — drink-led, mixed, or discrete-heavy — based on race duration.
+// Product allocation implements the strategy, not the reverse.
+
+type StrategyBackbone = "drink_led" | "mixed" | "discrete_heavy";
+type RacePhase = "early" | "mid" | "late";
+
+interface RaceStrategyPlan {
+  backbone: StrategyBackbone;
+  /** Target % of section carbs to deliver via drink mix, by phase */
+  drinkMixSharePct: Record<RacePhase, number>;
+  /** Whether solid foods (bars, real_food) are permitted, by phase */
+  allowSolids: Record<RacePhase, boolean>;
+  /** Whether chews are permitted, by phase */
+  allowChews: Record<RacePhase, boolean>;
+  /** Phase boundaries as fraction of total race time */
+  earlyRaceEndPct: number;
+  lateRaceStartPct: number;
+  rationale: string[];
+}
+
+/**
+ * Phase carb load factors: fraction of the base carb target to allocate each phase.
+ * Early race ramps up gradually. Mid race delivers the full target. Late race scales
+ * back slightly as gut tolerance typically decreases.
+ */
+const PHASE_LOAD_FACTOR: Record<RacePhase, number> = {
+  early: 0.90,
+  mid:   1.00,
+  late:  0.92,
+};
+
+/**
+ * Builds a race fuelling strategy from total race duration.
+ * Returns a RaceStrategyPlan that governs drink mix share, phase boundaries,
+ * and what product formats are permitted in each phase.
+ */
+function buildRaceStrategy(
+  totalRaceHours: number,
+  athlete: AthleteProfile,
+): RaceStrategyPlan {
+  const rationale: string[] = [];
+
+  if (totalRaceHours < 6) {
+    rationale.push(
+      "Discrete fuelling strategy (<6h): gels and chews are primary; drink mix supplements.",
+    );
+    rationale.push(
+      "Solids permitted in early race only. Chews throughout. No bars or solids after early phase.",
+    );
+    return {
+      backbone: "discrete_heavy",
+      drinkMixSharePct: { early: 20, mid: 25, late: 20 },
+      allowSolids:      { early: true,  mid: false, late: false },
+      allowChews:       { early: true,  mid: true,  late: true  },
+      earlyRaceEndPct:  0.25,
+      lateRaceStartPct: 0.65,
+      rationale,
+    };
+  }
+
+  if (totalRaceHours < 12) {
+    rationale.push(
+      "Mixed fuelling strategy (6\u201312h): drink mix provides carb backbone; gels and chews fill gaps.",
+    );
+    rationale.push(
+      "Solids permitted on easy terrain in early and mid race. No bars or solids in late race.",
+    );
+    return {
+      backbone: "mixed",
+      drinkMixSharePct: { early: 30, mid: 45, late: 40 },
+      allowSolids:      { early: true,  mid: true,  late: false },
+      allowChews:       { early: true,  mid: true,  late: true  },
+      earlyRaceEndPct:  0.25,
+      lateRaceStartPct: 0.60,
+      rationale,
+    };
+  }
+
+  if (totalRaceHours < 20) {
+    rationale.push(
+      "Drink-led mixed strategy (12\u201320h): drink mix is the primary carb vehicle after the early phase.",
+    );
+    rationale.push(
+      "Solids in early race only. Chews in early and mid. Late race: liquids and gels only.",
+    );
+    return {
+      backbone: "mixed",
+      drinkMixSharePct: { early: 40, mid: 55, late: 65 },
+      allowSolids:      { early: true,  mid: false, late: false },
+      allowChews:       { early: true,  mid: true,  late: false },
+      earlyRaceEndPct:  0.25,
+      lateRaceStartPct: 0.55,
+      rationale,
+    };
+  }
+
+  // 20h+ ultra
+  rationale.push(
+    "Drink-led strategy (20h+): drink mix and gels are the primary carb sources throughout.",
+  );
+  rationale.push(
+    "Solids in the first quarter of the race only. Late race: liquids and gels only.",
+  );
+
+  // Respect drinkHeavy preference — no change needed, already the most drink-led path
+  void athlete; // athlete context available for future adjustments
+
+  return {
+    backbone: "drink_led",
+    drinkMixSharePct: { early: 50, mid: 65, late: 70 },
+    allowSolids:      { early: true,  mid: false, late: false },
+    allowChews:       { early: true,  mid: false, late: false },
+    earlyRaceEndPct:  0.25,
+    lateRaceStartPct: 0.50,
+    rationale,
+  };
+}
+
+/** Returns the current race phase for a given elapsed time. */
+function getPhaseAtTime(
+  timeMinutes: number,
+  totalRaceMinutes: number,
+  strategy: RaceStrategyPlan,
+): RacePhase {
+  if (totalRaceMinutes <= 0) return "mid";
+  const pct = timeMinutes / totalRaceMinutes;
+  if (pct >= strategy.lateRaceStartPct) return "late";
+  if (pct >= strategy.earlyRaceEndPct)  return "mid";
+  return "early";
+}
+
 // ─── Calibration-aware target derivation ─────────────────────────────────────
 
 function deriveTargets(
@@ -215,8 +350,14 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
 
   const segmentRecommendations = generateSegmentRecommendations(segments, athlete, totalRaceHours);
 
+  // ── Race Strategy Layer: determine strategy before product allocation ─────
+  const strategy = buildRaceStrategy(totalRaceHours, plan.athlete);
+  for (const note of strategy.rationale) {
+    warnings.push({ type: "info", code: "RACE_STRATEGY", message: note });
+  }
+
   const schedule = generateSchedule(
-    segments, fuelInventory, aidStations, athlete, assumptions, totalRaceMinutes, warnings
+    segments, fuelInventory, aidStations, athlete, assumptions, totalRaceMinutes, strategy, warnings
   );
 
   const carryPlans = generateCarryPlans(
@@ -359,6 +500,34 @@ export function deriveCadenceMinutes(totalRaceHours: number): number {
   if (totalRaceHours < 12) return 27;
   if (totalRaceHours < 20) return 32;
   return 37;
+}
+
+/**
+ * Snaps a raw calculated cadence to the nearest natural fuelling rhythm.
+ *
+ * Ultra runners fuel at recognisable intervals, not arbitrary calculated decimals.
+ * This maps any cadence in the 18–40 min range to the closest value from a
+ * curated set of natural rhythms that match real-world fuelling patterns:
+ *
+ *   Band 20–25 min: 20, 22, 25  — short race / high-intensity fuelling
+ *   Band 25–30 min: 25, 27, 30  — standard endurance fuelling
+ *   Band 30–35 min: 30, 32, 35  — mixed / food-based fuelling
+ *   Band 35–40 min: 35, 38, 40  — slower pace / real-food variety
+ *
+ * Nearest-neighbour selection. Ties resolve to the lower (more conservative) value.
+ */
+function snapToNaturalCadence(rawCadence: number): number {
+  const naturalCadences = [20, 22, 25, 27, 30, 32, 35, 38, 40];
+  let best = naturalCadences[0];
+  let bestDist = Math.abs(rawCadence - best);
+  for (const c of naturalCadences) {
+    const dist = Math.abs(rawCadence - c);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  return best;
 }
 
 // ─── Section architecture ─────────────────────────────────────────────────────
@@ -518,6 +687,57 @@ function generateCadenceSlots(section: Section, cadenceMins: number): CadenceSlo
   return slots;
 }
 
+// ─── Product-driven cadence helpers ──────────────────────────────────────────
+//
+// Cadence is derived from product reality, not a fixed duration band.
+// Flow: identify likely product format → realistic event size → derive cadence.
+
+/**
+ * Lightweight pre-selection of a discrete fuel for cadence calculation.
+ * Does not consume inventory — just identifies the likely dominant format.
+ */
+function preselectFuelForCadence(
+  inventory: FuelItem[],
+  usage: Map<string, number>,
+  terrain: TerrainType,
+  phase: RacePhase,
+  strategy: RaceStrategyPlan,
+): FuelItem | null {
+  const rule = TERRAIN_RULES[terrain];
+  const available = inventory.filter(item => {
+    const used = usage.get(item.id) ?? 0;
+    if (used >= item.quantityAvailable) return false;
+    if (rule.avoid.includes(item.type)) return false;
+    if (!strategy.allowSolids[phase] && (item.type === "bar" || item.type === "real_food")) return false;
+    if (!strategy.allowChews[phase] && item.type === "chew") return false;
+    return true;
+  });
+  if (available.length === 0) return null;
+  return available.sort((a, b) => {
+    const aPref = rule.preferred.indexOf(a.type);
+    const bPref = rule.preferred.indexOf(b.type);
+    const aN = aPref === -1 ? 99 : aPref;
+    const bN = bPref === -1 ? 99 : bPref;
+    if (aN !== bN) return aN - bN;
+    return b.carbsPerServing - a.carbsPerServing;
+  })[0] ?? null;
+}
+
+/**
+ * Returns a realistic fuelling event size in grams for a given fuel item.
+ * Clamps the item's actual carbs per serving into the expected range for that product type.
+ * This ensures event sizes match real product norms rather than floating to arbitrary values.
+ */
+function realisticEventSize(item: FuelItem): number {
+  switch (item.type) {
+    case "gel":       return Math.max(18, Math.min(25, item.carbsPerServing));
+    case "chew":      return Math.max(20, Math.min(30, item.carbsPerServing));
+    case "real_food": return Math.max(18, Math.min(25, item.carbsPerServing));
+    case "bar":       return Math.max(35, Math.min(45, item.carbsPerServing));
+    default:          return Math.max(18, Math.min(40, item.carbsPerServing));
+  }
+}
+
 // ─── Drink mix helpers ────────────────────────────────────────────────────────
 
 /**
@@ -541,17 +761,36 @@ function findBestAvailableDrinkMix(
 }
 
 /**
- * Determines how many servings to use for a section: ~1 per 2 hours, capped by stock.
+ * Determines how many drink mix servings to use for a section, guided by the
+ * race strategy. Targets delivering drinkMixSharePct% of the section carb goal
+ * from the drink mix, capped by available stock.
  */
-function computeDrinkMixServings(
+function computeStrategyDrinkMixServings(
   item: FuelItem,
-  sectionHours: number,
+  sectionTargetCarbs: number,
+  drinkMixSharePct: number,
   usage: Map<string, number>,
+  sectionHours: number,
 ): number {
   const used = usage.get(item.id) ?? 0;
   const remaining = item.quantityAvailable - used;
-  const needed = Math.max(1, Math.ceil(sectionHours / 2));
-  return Math.min(needed, remaining);
+  if (remaining <= 0) return 0;
+  const targetCarbsFromMix = Math.round(sectionTargetCarbs * (drinkMixSharePct / 100));
+  if (targetCarbsFromMix <= 0) return 0;
+  const servingsNeeded = item.carbsPerServing > 0
+    ? Math.max(1, Math.ceil(targetCarbsFromMix / item.carbsPerServing))
+    : 1;
+  // Density constraint: max 80g carbs per litre prevents unrealistic concentrations.
+  // Use the item's standard bottle volume (fluidContributionMl) to compute max carbs per fill.
+  // Runner refills roughly once per 2 hours.
+  const bottleMl = item.fluidContributionMl > 0 ? item.fluidContributionMl : 500;
+  const maxCarbsPerBottle = bottleMl * 0.08; // 80g/L = 0.08g/mL
+  const servingsPerBottle = item.carbsPerServing > 0
+    ? Math.max(1, Math.floor(maxCarbsPerBottle / item.carbsPerServing))
+    : 1;
+  const refillsInSection = Math.max(1, Math.ceil(sectionHours / 2));
+  const densityCap = servingsPerBottle * refillsInSection;
+  return Math.min(servingsNeeded, remaining, densityCap);
 }
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
@@ -559,12 +798,20 @@ function computeDrinkMixServings(
 // Architecture:
 //   1. Build sections (aid-station-bounded, or inferred every ~120 min)
 //   2. Per section: allocate drink_mix as a continuous section-level carb source
-//   3. Generate cadence slots — time-driven cadence, NOT burn-rate-driven
-//   4. Schedule discrete events (gels/chews/bars) to deliver remaining carb gap
-//   5. Validate section carb delivery (Layer H)
+//      (capped by 80g/L density limit and ~1 bottle refill per 2 hours)
+//   3. Identify representative discrete fuel → derive realistic event size
+//   4. Derive EVENT COUNT from carb need ÷ event size (not cadence first)
+//   5. Derive raw cadence from event count: rawCadence = sectionMins / eventCount
+//   6. Clamp raw cadence to 18–40 min by adjusting eventCount if needed
+//   7. Validate 85–115% delivery tolerance; nudge eventCount ±1 if needed
+//   8. SNAP raw cadence to nearest natural fuelling rhythm (snapToNaturalCadence)
+//   9. Generate events at sectionStart + (i+1) × snappedCadence; clamp to section end
+//  10. Schedule discrete events (gels/chews/bars) — always 1 serving per event
+//  11. Validate section carb delivery (Layer H)
 //
-// eventCarbTarget per slot = workingCarbTargetPerHour × (cadenceMins / 60)
-// Discrete event size is clamped to 12–40g. Drink mix covers continuous carbs.
+// Key principle: event count is derived first; cadence is a consequence.
+// Cadence snapping converts mechanical intervals (e.g. 33, 37 min) into the
+// recognisable rhythms that runners actually use (30, 35, 38 min).
 
 function generateSchedule(
   segments: RouteSegment[],
@@ -573,6 +820,7 @@ function generateSchedule(
   athlete: AthleteProfile,
   assumptions: PlannerAssumptions,
   totalRaceMinutes: number,
+  strategy: RaceStrategyPlan,
   warnings: PlanWarning[]
 ): FuelScheduleEntry[] {
   const schedule: FuelScheduleEntry[] = [];
@@ -584,7 +832,6 @@ function generateSchedule(
   let liquidCarbsSoFar = 0;
 
   const totalRaceHours = totalRaceMinutes / 60;
-  const cadenceMins = deriveCadenceMinutes(totalRaceHours);
   const sections = buildSections(segments, aidStations, totalRaceMinutes);
 
   const drinkMixItems = inventory.filter(i => i.type === "drink_mix");
@@ -593,14 +840,21 @@ function generateSchedule(
   for (const section of sections) {
     const sectionMins = section.toMinutes - section.fromMinutes;
     const sectionHours = sectionMins / 60;
-    const sectionTargetCarbs = Math.round(athlete.carbTargetPerHour * sectionHours);
+
+    // ── Race Strategy: determine phase and apply phase carb load factor ─────
+    const sectionMidMinutes = section.fromMinutes + sectionMins / 2;
+    const phase = getPhaseAtTime(sectionMidMinutes, totalRaceMinutes, strategy);
+    const phaseFactor = PHASE_LOAD_FACTOR[phase];
+    const sectionTargetCarbs = Math.round(athlete.carbTargetPerHour * sectionHours * phaseFactor);
 
     // ── Layer D: Drink mix as continuous section-level carb source ──────────
     let drinkMixCarbsThisSection = 0;
     const bestDrinkMix = findBestAvailableDrinkMix(drinkMixItems, inventoryUsage, athlete);
 
     if (bestDrinkMix) {
-      const servings = computeDrinkMixServings(bestDrinkMix, sectionHours, inventoryUsage);
+      const servings = computeStrategyDrinkMixServings(
+        bestDrinkMix, sectionTargetCarbs, strategy.drinkMixSharePct[phase], inventoryUsage, sectionHours,
+      );
       if (servings > 0) {
         drinkMixCarbsThisSection = Math.round(bestDrinkMix.carbsPerServing * servings);
         const used = inventoryUsage.get(bestDrinkMix.id) ?? 0;
@@ -624,9 +878,10 @@ function generateSchedule(
             fluidMl: Math.round(bestDrinkMix.fluidContributionMl * servings),
             sodiumMg: Math.round(bestDrinkMix.sodiumPerServingMg * servings),
             caffeinesMg: Math.round(bestDrinkMix.caffeinePerServingMg * servings),
-            rationale: `Mix ${servings}\u00a0serving${servings > 1 ? "s" : ""} into bottle \u2014 provides ~${drinkMixCarbsThisSection}g carbs continuously over ${formatDuration(sectionMins)}.`,
+            rationale: `Mix ${servings}\u00a0serving${servings > 1 ? "s" : ""} into bottle \u2014 sip continuously over ${formatDuration(sectionMins)} (~${drinkMixCarbsThisSection}g carbs).`,
             priority: "required",
             isNearAidStation: false,
+            isContinuous: true,
             warnings: [],
           });
         }
@@ -636,20 +891,73 @@ function generateSchedule(
     // ── Layer E: Discrete events to top up to section target ───────────────
     const discreteTargetCarbs = Math.max(0, sectionTargetCarbs - drinkMixCarbsThisSection);
 
-    // Target ~20g per discrete event; never go below 12g per event.
-    // This prevents single gels covering unrealistic time spans.
-    const targetEventSizeG = 20;
-    const eventsNeeded = discreteTargetCarbs > 0
-      ? Math.max(1, Math.round(discreteTargetCarbs / targetEventSizeG))
-      : 0;
+    // Event-count-first scheduling: derive how many events are needed, then space them evenly.
+    // Flow: discrete carb target → event size (product) → event count → cadence → even spacing.
+    const representativeSeg = section.segments[0] ?? (segments.length > 0 ? segments[0] : null);
+    const representativeFuel = representativeSeg
+      ? preselectFuelForCadence(discreteInventory, inventoryUsage, representativeSeg.terrain, phase, strategy)
+      : null;
+    const eventSizeG = representativeFuel ? realisticEventSize(representativeFuel) : 22;
 
-    const allSlots = generateCadenceSlots(section, cadenceMins);
-    const activeSlots = allSlots.slice(0, Math.min(allSlots.length, eventsNeeded));
-    const carbsPerSlot = activeSlots.length > 0
-      ? Math.round(discreteTargetCarbs / activeSlots.length)
-      : 0;
+    // Step 5 — Raw event count: how many events to hit the discrete carb target?
+    let eventCount = 0;
+    if (discreteTargetCarbs > 0 && eventSizeG > 0) {
+      const rawCount = Math.ceil(discreteTargetCarbs / eventSizeG);
+      const maxCount = Math.max(1, Math.floor(sectionHours * 3)); // no more than 1 event per 20 min
+      eventCount = Math.max(1, Math.min(rawCount, maxCount));
+    }
 
-    for (const slot of activeSlots) {
+    // Step 6 — Derive cadence from event count; clamp to 18–40 min by adjusting eventCount.
+    if (eventCount > 0 && sectionMins > 0) {
+      const cadenceFromCount = sectionMins / eventCount;
+      if (cadenceFromCount < 18) {
+        // Fuelling too frequent — reduce events until cadence is ≥ 18 min
+        eventCount = Math.max(1, Math.floor(sectionMins / 18));
+      } else if (cadenceFromCount > 40) {
+        // Fuelling too infrequent — add events until cadence is ≤ 40 min
+        eventCount = Math.ceil(sectionMins / 40);
+      }
+
+      // Step 9 — Validate 85–115% delivery tolerance; nudge eventCount ±1 if needed.
+      const discreteTargetCarbsTotal = discreteTargetCarbs; // already calculated above
+      if (discreteTargetCarbsTotal > 0) {
+        const deliveryRatio = (eventCount * eventSizeG) / discreteTargetCarbsTotal;
+        if (deliveryRatio < 0.85) {
+          const maxAllowed = Math.floor(sectionMins / 18);
+          if (eventCount < maxAllowed) eventCount += 1;
+        } else if (deliveryRatio > 1.15 && eventCount > 1) {
+          eventCount -= 1;
+        }
+      }
+    }
+
+    // Step 7 — Snap raw cadence to a natural fuelling rhythm, then generate events.
+    // Raw cadence = sectionMins / eventCount. The snapper maps this to the nearest
+    // recognisable interval (e.g. 36 min → 35, 33 min → 32) so the schedule reads like
+    // a plan written by a runner rather than a calculator.
+    // If the snapped cadence × eventCount exceeds the section duration, the final event
+    // is clamped to the section end — the rhythm still reads naturally.
+    const evenlySpacedSlots: Array<{ timeMinutes: number; distanceKm: number; isPriority: boolean }> = [];
+    if (eventCount > 0 && discreteTargetCarbs > 0 && sectionMins > 0) {
+      const rawCadenceFromCount = sectionMins / eventCount;
+      const snappedCadence = snapToNaturalCadence(rawCadenceFromCount);
+      for (let i = 0; i < eventCount; i++) {
+        const rawOffset = (i + 1) * snappedCadence;
+        // Clamp to section end so events never fall in the next section.
+        const offset = Math.min(rawOffset, sectionMins);
+        const sectionFrac = offset / sectionMins;
+        const distanceKm = Math.round(
+          (section.fromKm + sectionFrac * (section.toKm - section.fromKm)) * 10
+        ) / 10;
+        evenlySpacedSlots.push({
+          timeMinutes: Math.round(section.fromMinutes + offset),
+          distanceKm,
+          isPriority: i === 0,
+        });
+      }
+    }
+
+    for (const slot of evenlySpacedSlots) {
       const slotSeg = findSegmentAtTime(segments, slot.timeMinutes);
       if (!slotSeg) continue;
 
@@ -667,6 +975,7 @@ function generateSchedule(
         discreteInventory, inventoryUsage, slotSeg.terrain, rule, athlete,
         raceHoursNow, totalRaceHours, totalCaffeineMg, caffeineLimitMg,
         solidCarbsSoFar, liquidCarbsSoFar, !!nearAid,
+        phase, strategy,
       );
 
       if (!selectedFuel) {
@@ -679,9 +988,8 @@ function generateSchedule(
         continue;
       }
 
-      // Layer C: Clamp event carb target to plausible range (12–40g)
-      const clampedTarget = Math.max(12, Math.min(40, carbsPerSlot));
-      const servings = Math.max(1, Math.min(3, Math.round(clampedTarget / selectedFuel.carbsPerServing)));
+      // One serving per event — event size follows the product, not a calculated carb target.
+      const servings = 1;
       const actualCarbs = Math.round(selectedFuel.carbsPerServing * servings);
 
       const used = inventoryUsage.get(selectedFuel.id) ?? 0;
@@ -821,7 +1129,7 @@ function buildCarryPlan(
   const durationMins = section.toMinutes - section.fromMinutes;
   const durationHours = durationMins / 60;
   const targetFluidMl = Math.round(athlete.fluidTargetPerHourMl * durationHours);
-  const targetCarbsG = Math.round(athlete.carbTargetPerHour * durationHours);
+  const targetCarbsG = Math.round(athlete.carbTargetPerHour * durationHours); // used for gap warning only
 
   const sectionSchedule = schedule.filter(
     e => e.timeMinutes >= section.fromMinutes
@@ -875,7 +1183,7 @@ function buildCarryPlan(
     toLabel: section.toLabel,
     estimatedDurationMinutes: durationMins,
     fluidToCarryMl: targetFluidMl,
-    carbsToCarryG: targetCarbsG,
+    carbsToCarryG: scheduledCarbs,
     itemsToCarry: items,
     warnings,
   };
@@ -896,9 +1204,12 @@ function selectBestFuel(
   solidCarbsSoFar: number,
   liquidCarbsSoFar: number,
   isNearAidStation: boolean,
+  phase: RacePhase,
+  strategy: RaceStrategyPlan,
 ): FuelItem | null {
-  const isLateRace = raceHoursNow >= (athlete.preferences.noSweetAfterHour ?? Infinity) ||
-    raceHoursNow >= totalRaceHours * 0.65;
+  const isLateRace = phase === "late" ||
+    (athlete.preferences.noSweetAfterHour != null &&
+      raceHoursNow >= athlete.preferences.noSweetAfterHour);
   const isUltra = totalRaceHours >= 6;
   const isLongUltra = totalRaceHours >= 10;
   const isHighEffort = terrain === "steep_climb" || terrain === "sustained_climb";
@@ -912,6 +1223,9 @@ function selectBestFuel(
     if (athlete.caffeinePreference === "none" && item.caffeinePerServingMg > 0) return false;
     if (totalCaffeineMg + item.caffeinePerServingMg > caffeineLimitMg) return false;
     if (isHighEffort && item.requiresChewing) return false;
+    // ── Race strategy format gates ──────────────────────────────────────────
+    if (!strategy.allowSolids[phase] && (item.type === "bar" || item.type === "real_food")) return false;
+    if (!strategy.allowChews[phase] && item.type === "chew") return false;
     return true;
   });
 

@@ -284,6 +284,7 @@ export interface FuelScheduleEntry {
   rationale: string;
   priority: "required" | "recommended" | "optional";
   isNearAidStation?: boolean;
+  isContinuous?: boolean;       // drink mix entries: sip continuously over section (not a point event)
   warnings?: string[];
 }
 

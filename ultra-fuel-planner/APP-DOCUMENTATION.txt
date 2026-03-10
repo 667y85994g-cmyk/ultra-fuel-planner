@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 1.8 | March 2026
+Version 2.3 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -78,7 +78,7 @@ src/
 │
 ├── lib/
 │   ├── fuelling-engine.ts          Core planner: terrain rules, fuel selection,
-│   │                                schedule generation, carry plans (~960 lines)
+│   │                                schedule generation, carry plans (~1520 lines)
 │   ├── carb-target-engine.ts       Layer 2: duration-band carb target engine
 │   │                                (does NOT use caloric burn rate)
 │   ├── calibration-engine.ts       Prior effort calibration, finish time
@@ -669,6 +669,241 @@ v2.0 — Execution engine rewrite: cadence-driven schedule generation
   Carry plans: generateCarryPlans now always uses section structure; drink_mix
     items listed first (in-bottle), then discrete items.
   Version bump: all v1.8 references updated to v2.0 across the codebase.
+
+
+v2.1 — Race Strategy Layer
+  Core problem fixed: the v2.0 engine treated all sections identically — same
+  product scoring, same solid/chew eligibility, same drink mix share — regardless
+  of where the runner was in the race. Bars and solids could appear late in a
+  20-hour ultra; drink mix share didn't scale with duration; carry plan showed
+  raw target carbs (not what was actually scheduled).
+
+  NEW: Race Strategy Layer (fuelling-engine.ts — runs before product allocation)
+    buildRaceStrategy(totalRaceHours, athlete) → RaceStrategyPlan
+      Determines fuelling backbone from race duration:
+        <6h:   discrete_heavy — gels/chews primary, drink mix supplements
+        6–12h: mixed — drink mix grows mid-race, solids on easy terrain early+mid
+        12–20h: mixed (drink-led) — drink mix primary after early phase, solids early only
+        20h+:  drink_led — drink mix and gels throughout, solids only in first quarter
+      Returns: drinkMixSharePct per phase, allowSolids per phase, allowChews per phase,
+        earlyRaceEndPct, lateRaceStartPct, rationale strings.
+
+    getPhaseAtTime(timeMinutes, totalRaceMinutes, strategy) → "early" | "mid" | "late"
+      Maps elapsed time to race phase using strategy phase boundaries.
+
+    PHASE_LOAD_FACTOR: { early: 0.90, mid: 1.00, late: 0.92 }
+      Section carb targets are scaled by this factor. Early race ramps up gradually;
+      late race scales back as gut tolerance typically decreases.
+
+  CHANGED: computeDrinkMixServings → computeStrategyDrinkMixServings
+    Now takes sectionTargetCarbs and drinkMixSharePct instead of sectionHours.
+    Targets delivering drinkMixSharePct% of section carb goal from drink mix.
+
+  CHANGED: generateSchedule signature adds strategy: RaceStrategyPlan parameter.
+    Per section: phase computed from section midpoint time.
+    sectionTargetCarbs multiplied by PHASE_LOAD_FACTOR[phase].
+    Drink mix servings derived from strategy.drinkMixSharePct[phase].
+    Drink mix schedule entries now have isContinuous: true.
+    selectBestFuel receives phase and strategy for format-gate enforcement.
+
+  CHANGED: selectBestFuel adds phase: RacePhase and strategy: RaceStrategyPlan.
+    New hard filters before scoring:
+      !strategy.allowSolids[phase] → bars and real_food filtered out
+      !strategy.allowChews[phase] → chews filtered out
+    isLateRace now derived from phase === "late" (strategy-driven, not heuristic).
+
+  CHANGED: generatePlan builds strategy before schedule generation.
+    Strategy rationale strings emitted as info-type plan warnings (RACE_STRATEGY code).
+
+  CHANGED: buildCarryPlan — carbsToCarryG now uses scheduledCarbs (actual plan
+    delivery) rather than the raw target. Reflects reality more accurately.
+
+  CHANGED: FuelScheduleEntry type — added isContinuous?: boolean field.
+    True for drink mix section entries (sip continuously); false/absent for point events.
+
+  CHANGED: TimelineView — isContinuous entries render as a distinct section
+    annotation (blue tinted, "in bottle, sip continuously" label, no terrain badge)
+    rather than a regular timestamped point event.
+
+
+v2.2 — Product-Driven Cadence and Event Allocation Fix
+  Core problem fixed: the v2.1 engine derived cadence first (from duration class),
+  then calculated event size as eventCarbTarget = carbsPerHour × (cadence / 60).
+  This produced top-down allocation where timing drove portion size, resulting in
+  implausible schedules — e.g. a 27g "gel" event where the product's actual serving
+  is 22g, or a cadence of 20 min when a 45g bar would naturally be eaten every 40+.
+
+  FIX: Inverted the flow. Product reality now determines event size; event size
+  determines cadence. The schedule is built bottom-up from actual product specs.
+
+  NEW: realisticEventSize(item: FuelItem) → number
+    Clamps item.carbsPerServing to product-type norms:
+      gel:       18–25g carbs per event
+      chew:      20–30g carbs per event
+      real_food: 18–25g carbs per event
+      bar:       35–45g carbs per event
+      other:     18–40g carbs per event
+    Never exceeds the product's actual carbsPerServing.
+
+  NEW: preselectFuelForCadence(inventory, usage, terrain, phase, strategy)
+    Lightweight pre-selection used ONLY to determine event size for cadence
+    calculation, before the main slot loop runs. Does not consume inventory or
+    modify usage counts. Respects terrain rules, phase gates (allowSolids,
+    allowChews), and availability. Returns the top-ranked discrete item or null.
+
+  CHANGED: Cadence derivation in generateSchedule (per-section, not global)
+    Previous: const cadenceMins = deriveCadenceMinutes(totalRaceHours) — set once
+      outside the section loop, applied uniformly to all sections.
+    New: per-section cadence derived from representative product size:
+      1. Call preselectFuelForCadence() for section terrain and phase
+      2. eventSizeG = realisticEventSize(representativeFuel) ?? 22g fallback
+      3. discreteCarbsPerHour = discreteTargetCarbs / sectionHours
+      4. rawCadence = (eventSizeG / discreteCarbsPerHour) × 60 minutes
+      5. sectionCadence = clamp(rawCadence, 18, 40) minutes
+    Duration bands are now starting-point DEFAULTS via the 18–40 min clamp boundary,
+    not hard targets. A 50g/hr bar-eating athlete naturally gets ~45 min cadence →
+    clamped to 40. A 70g/hr gel-eating athlete gets ~19 min → valid as-is.
+
+  CHANGED: Slot loop — always 1 serving per discrete event
+    Previous: servings = Math.round(eventCarbTarget / item.carbsPerServing), allowing
+      fractional scaling that pushed athletes to eat 1.8 servings of a product.
+    New: servings = 1 — always exactly one serving per event.
+    actualCarbs = item.carbsPerServing (not a derived target).
+    maxEventsNeeded cap: Math.ceil(discreteTargetCarbs / eventSizeG) — the slot
+      list is sliced to this ceiling, preventing over-delivery when drink mix
+      already covers most of the section carb target.
+
+  CHANGED: computeStrategyDrinkMixServings — added density constraint
+    New parameter: sectionHours (used to estimate realistic bottle refill count).
+    Density cap: max 80g carbs per litre of fluid in bottle.
+      bottleMl = item.fluidContributionMl (if set) else 500ml default
+      maxCarbsPerBottle = bottleMl × 0.08
+      servingsPerBottle = floor(maxCarbsPerBottle / item.carbsPerServing)
+    Refill cap: refillsInSection = ceil(sectionHours / 2) — one refill per ~2h.
+    densityCap = servingsPerBottle × refillsInSection.
+    Final servings = min(servingsNeeded, remaining, densityCap).
+    Prevents over-concentrated mix that exceeds gut tolerance (GI distress risk).
+
+  UNCHANGED: deriveCadenceMinutes() remains exported and is still used by
+    generateSegmentRecommendations() for segment-level display hints. It is no
+    longer used inside generateSchedule.
+
+  HYBRID MODEL SUMMARY (v2.2):
+    1. Drink mix carbs: determined by strategy.drinkMixSharePct[phase] × sectionTarget,
+       subject to density cap (80g/L) and refill frequency (~1 per 2h).
+    2. Discrete event carbs: sectionTarget × PHASE_LOAD_FACTOR − drinkMixCarbs.
+    3. Event size: product type norm (realisticEventSize).
+    4. Cadence: derived from (eventSize / discreteCarbsPerHour) × 60, clamped 18–40 min.
+    5. Event count: min(slots from cadence, ceil(discreteTarget / eventSize)).
+    6. Actual delivery validated post-section: warn if <85% or >115% of target.
+
+
+v2.3 — Event-Count-First Cadence Inversion
+  Core problem fixed: the v2.2 engine still derived cadence first (from product size ÷
+  discrete carbs/hr), then generated slots and sliced them. This caused fuelling events
+  to cluster at the front of sections, with large gaps later, because generateCadenceSlots()
+  places its first event at cadence/2 and repeats, leaving unused tail time when the slot
+  list is sliced. Carb delivery per hour was uneven; the schedule did not resemble how
+  runners actually fuel.
+
+  NEW PRINCIPLE: Event count is derived first. Cadence is a consequence.
+
+  CHANGED: generateSchedule — section loop cadence logic fully replaced.
+    Previous (v2.2) flow:
+      1. Derive cadence from (eventSize / discreteCarbsPerHour) × 60
+      2. generateCadenceSlots() — first event at cadence/2, then every cadenceMins
+      3. Slice slot list to maxEventsNeeded cap
+
+    New (v2.3) flow:
+      1. Raw event count = ceil(discreteTargetCarbs / eventSizeG)
+         Clamped: minimum 1, maximum sectionHours × 3 (prevents >1 event per 20 min)
+      2. Cadence = sectionMins / eventCount
+         If cadence < 18 min: reduce eventCount = floor(sectionMins / 18)
+         If cadence > 40 min: increase eventCount = ceil(sectionMins / 40)
+      3. Delivery validation: ratio = (eventCount × eventSizeG) / discreteTargetCarbs
+         If ratio < 0.85: eventCount += 1 (if within cadence floor)
+         If ratio > 1.15: eventCount -= 1 (if count > 1)
+      4. Generate evenly spaced events:
+         interval = sectionMins / eventCount
+         For i = 0 to eventCount-1: event at sectionStart + (i+1) × interval
+         This places events at equal intervals throughout the section, never clustered.
+
+  UNCHANGED: generateCadenceSlots() remains in the codebase but is no longer used by
+    generateSchedule. It is retained as a utility. deriveCadenceMinutes() is still
+    exported for use by generateSegmentRecommendations().
+
+  EXAMPLE (from spec):
+    Section: 3 hours | Target: 53g/hr | Drink mix: 20g/hr | Discrete: 33g/hr
+    Product: gel (22g)
+    Event count: ceil(99g / 22g) = 5 events
+    Cadence: 180min / 5 = 36 min — within 18–40 range, no adjustment needed
+    Events: +36, +72, +108, +144, +180 min from section start
+    Delivery: 5 × 22g = 110g over 3h = 36.7g/hr (111% of 33g/hr — within 85–115%)
+
+  HYBRID MODEL SUMMARY (v2.3):
+    1. Drink mix carbs: strategy.drinkMixSharePct[phase] × sectionTarget, density-capped.
+    2. Discrete target: sectionTarget − drinkMixCarbs.
+    3. Event size: realisticEventSize(product) — product type norms.
+    4. Event count: ceil(discreteTarget / eventSize), clamped by cadence range.
+    5. Cadence: sectionMins / eventCount (derived, not set).
+    6. Events: evenly spaced at sectionStart + (i+1) × (sectionMins / eventCount).
+    7. Always 1 serving per event.
+    8. Delivery validated: 85–115% of discrete target; eventCount nudged ±1 if needed.
+
+
+v2.4 — Cadence Snapping and Output Clarity
+  Core problem fixed: mathematically-derived cadences (e.g. 33, 37, 41 min) are correct
+  but unnatural. Real runners fuel at recognisable intervals, not arbitrary calculated
+  values. The planner's schedule read like a spreadsheet output rather than a plan written
+  by an experienced ultra runner.
+
+  NEW: snapToNaturalCadence(rawCadence: number) → number (fuelling-engine.ts)
+    Maps any raw cadence in the 18–40 min range to the nearest value from a curated set
+    of natural fuelling rhythms:
+      Band 20–25 min: 20, 22, 25  — short race / high-intensity fuelling
+      Band 25–30 min: 25, 27, 30  — standard endurance fuelling
+      Band 30–35 min: 30, 32, 35  — mixed / food-based fuelling
+      Band 35–40 min: 35, 38, 40  — slower pace / real-food variety
+    Nearest-neighbour selection. Ties resolve to the lower value.
+    Examples: 36 → 35, 33 → 32, 28 → 27, 24 → 25, 39 → 38.
+
+  CHANGED: generateSchedule — Step 7 event generation
+    Previous: interval = sectionMins / eventCount (raw mathematical interval)
+    New:
+      rawCadence = sectionMins / eventCount
+      snappedCadence = snapToNaturalCadence(rawCadence)
+      events at sectionStart + (i+1) × snappedCadence
+      Last event clamped to section end if snappedCadence × eventCount > sectionMins.
+    Event count is NOT changed by snapping — only spacing is adjusted.
+    This produces schedules like "every 30 min" or "every 35 min" rather than
+    "every 33.7 min".
+
+  EXAMPLE (updated from spec):
+    Section: 3 hours | Discrete: 33g/hr | Product: gel (22g)
+    Event count: 5 | Raw cadence: 180/5 = 36 min
+    Snapped cadence: 35 min
+    Events: +35, +70, +105, +140, +175 min from section start
+    (Final event at 175 min — 5 min before section end, within section boundary)
+
+  REFERENCE SCENARIO CADENCES (post v2.4):
+    50 km (~6h):        target 60–75g/hr, expected cadence 20–25 min
+    100 km (~13h):      target 50–60g/hr, expected cadence 25–32 min
+    100 km slow (~18h): target 40–50g/hr, expected cadence 30–35 min
+    100 mi (~27h):      target 35–50g/hr, expected cadence 32–38 min
+    Elite 100 km (~8h): target 70–90g/hr, expected cadence 20–22 min
+
+  CHANGED: SummaryView.tsx — carb target explanation text
+    Previous: "Based on your [experience] experience and an estimated [N]-hour race."
+    New: buildCarbTargetExplanation() produces a natural sentence, e.g.:
+      "Practical target for a 13-hour ultra-distance race, moderate fuelling tolerance,
+       and long-duration pacing strategy."
+    Avoids implying precise physiological calculation. Uses runner-friendly framing.
+    Race priority notes appended as a plain sentence when applicable.
+
+    Also: energy expenditure footnote now includes "(context only — does not determine
+    your carb target)" to reinforce that calories are not the source of the target.
+
+  VERSION BUMP: 2.3 → 2.4 across APP-DOCUMENTATION.txt.
 
 ================================================================================
 13. DEVELOPMENT NOTES
