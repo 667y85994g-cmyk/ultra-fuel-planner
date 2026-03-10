@@ -131,8 +131,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
                 },
               ].map((t) => (
                 <div key={t.label}>
-                  <p className="text-xs text-stone-500">{t.label}</p>
-                  <p className="mt-0.5 font-semibold text-stone-100">{t.value}</p>
+                  <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">{t.label}</p>
+                  <p className="font-semibold text-stone-100">{t.value}</p>
                 </div>
               ))}
             </div>

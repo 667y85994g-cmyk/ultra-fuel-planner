@@ -46,23 +46,23 @@ export function SummaryView({ output }: Props) {
           <div className={`grid grid-cols-1 gap-6 ${carbRange ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {carbRange && (
               <div>
-                <p className="text-xs text-stone-500">Recommended range</p>
-                <p className="mt-1 text-2xl font-bold text-amber-400">
+                <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Recommended range</p>
+                <p className="text-2xl font-bold text-amber-400">
                   {carbRange[0]}–{carbRange[1]}{" "}
                   <span className="text-base font-normal text-stone-400">g/hr</span>
                 </p>
               </div>
             )}
             <div>
-              <p className="text-xs text-stone-500">Working target</p>
-              <p className="mt-1 text-2xl font-bold text-stone-100">
+              <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Working target</p>
+              <p className="text-2xl font-bold text-stone-100">
                 {workingTarget}{" "}
                 <span className="text-base font-normal text-stone-400">g/hr</span>
               </p>
             </div>
             <div>
-              <p className="text-xs text-stone-500">Planned average</p>
-              <p className="mt-1 text-2xl font-bold text-stone-300">
+              <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Planned average</p>
+              <p className="text-2xl font-bold text-stone-300">
                 {summary.avgCarbsPerHour}{" "}
                 <span className="text-base font-normal text-stone-500">g/hr</span>
               </p>

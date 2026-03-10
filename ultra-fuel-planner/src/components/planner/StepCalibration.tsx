@@ -110,28 +110,30 @@ export function StepCalibration({ onBack, onNext }: Props) {
                   </h3>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-sm mb-3">
                     <div>
-                      <p className="text-xs text-stone-500">Estimated burn rate</p>
+                      <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Estimated burn rate</p>
                       <p className="font-semibold text-stone-100">
                         ~{calibration.estimatedKcalPerHour} kcal/hr
                       </p>
-                      <p className="text-xs text-stone-600">
+                      <p className="text-xs text-stone-600 mt-0.5">
                         range: {calibration.kcalPerHourRange[0]}–{calibration.kcalPerHourRange[1]}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Suggested carb range</p>
+                      <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Suggested carb range</p>
                       <p className="font-semibold text-stone-100">
                         {calibration.suggestedCarbRangeGPerHour[0]}–{calibration.suggestedCarbRangeGPerHour[1]} g/hr
                       </p>
+                      <p className="text-xs text-stone-600 mt-0.5 invisible">·</p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Working target</p>
+                      <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Working target</p>
                       <p className="font-semibold text-amber-400">
                         {calibration.workingCarbTargetGPerHour} g/hr
                       </p>
+                      <p className="text-xs text-stone-600 mt-0.5 invisible">·</p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Confidence</p>
+                      <p className="text-xs text-stone-500 min-h-[2.25rem] flex items-start">Confidence</p>
                       <p className={`font-semibold ${
                         calibration.confidenceLevel === "high" ? "text-green-400"
                         : calibration.confidenceLevel === "moderate" ? "text-blue-400"
@@ -139,7 +141,7 @@ export function StepCalibration({ onBack, onNext }: Props) {
                       }`}>
                         {calibration.confidenceLevel}
                       </p>
-                      <p className="text-xs text-stone-600">
+                      <p className="text-xs text-stone-600 mt-0.5">
                         {calibration.priorEffortsUsed} effort{calibration.priorEffortsUsed !== 1 ? "s" : ""} used
                       </p>
                     </div>

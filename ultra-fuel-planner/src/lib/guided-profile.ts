@@ -65,35 +65,40 @@ export const GUIDED_EXPERIENCE_OPTIONS: {
 export const FUELLING_LEVEL_OPTIONS: {
   value: FuellingLevel;
   label: string;
-  description: string;
+  carbRange: string | null;
+  note: string;
   carbsPerHour: number;
   maxCarbsPerHour: number;
 }[] = [
   {
     value: "light",
     label: "Light",
-    description: "~40–50g carbs/hr — conservative approach",
+    carbRange: "~40–50g carbs/hr",
+    note: "Conservative approach",
     carbsPerHour: 45,
     maxCarbsPerHour: 60,
   },
   {
     value: "moderate",
     label: "Moderate",
-    description: "~50–65g carbs/hr — standard ultra fuelling",
+    carbRange: "~50–65g carbs/hr",
+    note: "Standard ultra fuelling",
     carbsPerHour: 57,
     maxCarbsPerHour: 75,
   },
   {
     value: "high",
     label: "High",
-    description: "~65–90g carbs/hr — trained gut, aggressive",
+    carbRange: "~65–90g carbs/hr",
+    note: "Trained gut, aggressive",
     carbsPerHour: 72,
     maxCarbsPerHour: 90,
   },
   {
     value: "not_sure",
     label: "Not sure",
-    description: "Planner will estimate from your experience and race length",
+    carbRange: null,
+    note: "Planner will estimate from your experience and race length",
     carbsPerHour: 57,   // sensible default; carb-target-engine will refine
     maxCarbsPerHour: 80,
   },

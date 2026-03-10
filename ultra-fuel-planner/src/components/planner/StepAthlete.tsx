@@ -290,8 +290,9 @@ export function StepAthlete({ onNext }: Props) {
                 If unsure, choose &ldquo;Not sure&rdquo; — the planner will estimate
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {FUELLING_LEVEL_OPTIONS.map(({ value, label, description }) => {
+                {FUELLING_LEVEL_OPTIONS.map(({ value, label, carbRange, note }) => {
                   const selected = profile.fuellingLevel === value;
+                  const description = [carbRange, note].filter(Boolean).join(" — ");
                   return (
                     <button
                       key={value}
