@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.13 | March 2026
+Version 2.14 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -1695,6 +1695,47 @@ v2.13 — Carb Target Engine: Duration Band Correction
   UNCHANGED: calibration engine, fuelling engine, schedule generation, drink mix
     allocation, terrain rules, product scoring, carry plan, aid station logic,
     race strategy layer, UI, all display components.
+
+
+v2.14 — Summary Trust Fix, Warning Cleanup, Continuous Drink Visualisation
+
+  Problem 1 — Planned average wildly above working target (73g/hr vs 51g/hr):
+    Root cause: discreteTargetCarbs used Math.max(20, gap) where gap could be
+    negative when drink mix servings rounded up past the section target. For
+    example, 2 servings × 80g = 160g allocated but only 153g section target →
+    gap = -7g → Math.max(20, -7) = 20g → 20g of extra discrete events
+    scheduled on top of an already-over-target drink mix allocation.
+    Fix: discreteGap = sectionTargetCarbs - drinkMixCarbsThisSection;
+         discreteTargetCarbs = discreteGap <= 0 ? 0 : Math.max(20, discreteGap);
+    CHANGED: src/lib/fuelling-engine.ts — discreteTargetCarbs computation
+
+  Problem 2 — Warning strip showed too many noisy engine diagnostics:
+    All info-type warnings (CARB_TARGET_SET, KCAL_CONTEXT, RACE_STRATEGY,
+    LOW_CONFIDENCE, SANITY_*, STOCK_SHORTFALL) were surfaced to the user.
+    Fix: whitelist approach — only HEAT_FLUID_ADJUSTED and CARB_TARGET_CAPPED
+    are shown in the info strip; only errors appear in the action strip.
+    NO_SUITABLE_FUEL errors are grouped when repeated to show once.
+    CHANGED: src/app/results/page.tsx — warning strip rendering
+
+  Problem 3 — "On the route" wording too prescriptive about gels vs solids:
+    Previous text: "Recommended for long ultras to minimise gut stress" —
+    too absolute; real-food tolerance is highly individual.
+    Fix: updated all three fuelFormatNotes branches (gel-dominant, mixed,
+    solid-heavy) to add nuance about individual variation, late-race
+    digestibility patterns, and gel hydration guidance (sip water with gels).
+    CHANGED: src/lib/fuelling-engine.ts — buildSummary fuelFormatNotes branches
+
+  Problem 4 — Drink mix rendered as a point-in-time event with a timestamp:
+    Continuous drink mix entries (isContinuous: true) appeared in the timeline
+    as a standard row with a timestamp — misleading because drink mix is sipped
+    steadily throughout a section, not consumed at a specific moment.
+    Fix: redesigned isContinuous rendering in TimelineView as a left-border
+    section annotation without a timestamp column. Text updated to "mix into
+    bottle at section start, sip steadily throughout". Print page updated to
+    show isContinuous rows with a blue left border, "section" in the time
+    column, and the updated instruction text.
+    CHANGED: src/components/results/TimelineView.tsx — isContinuous branch
+    CHANGED: src/app/print/page.tsx — isContinuous table row branch
 
 
 ================================================================================

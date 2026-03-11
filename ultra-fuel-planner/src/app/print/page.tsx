@@ -156,6 +156,27 @@ export default function PrintPage() {
             .sort((a, b) => a.timeMinutes - b.timeMinutes)
             .map((entry, i) => {
               const isAid = entry.action === "refill_at_aid";
+              if (entry.isContinuous) {
+                return (
+                  <tr
+                    key={entry.id}
+                    style={{
+                      background: "#eff6ff",
+                      borderBottom: "1px solid #bfdbfe",
+                      borderLeft: "3px solid #3b82f6",
+                    }}
+                  >
+                    <td style={{ padding: "4px 8px", color: "#6b7280", fontStyle: "italic" }}>section</td>
+                    <td style={{ padding: "4px 8px", color: "#6b5c4c" }}>{entry.distanceKm.toFixed(1)}</td>
+                    <td style={{ padding: "4px 8px", color: "#1d4ed8" }} colSpan={2}>
+                      🫙 {entry.fuelItemName ?? "Drink mix"}{entry.quantity > 1 ? ` ×${entry.quantity}` : ""} — mix into bottle here, sip steadily throughout section
+                    </td>
+                    <td style={{ padding: "4px 8px", textAlign: "right", color: "#1d4ed8" }}>
+                      {entry.carbsG > 0 ? `~${entry.carbsG}g` : "—"}
+                    </td>
+                  </tr>
+                );
+              }
               return (
                 <tr
                   key={entry.id}
@@ -310,7 +331,7 @@ export default function PrintPage() {
           justifyContent: "space-between",
         }}
       >
-        <span>Ultra Fuel Planner v2.13 — ultrafuelplanner.com</span>
+        <span>Ultra Fuel Planner v2.14 — ultrafuelplanner.com</span>
         <span>
           All times are estimates. Adjust based on real conditions.
         </span>

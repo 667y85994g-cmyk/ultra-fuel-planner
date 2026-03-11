@@ -119,26 +119,21 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
   const isAid = entry.action === "refill_at_aid";
   const isRequired = entry.priority === "required";
 
-  // Continuous drink mix entries (section-level backbone) render as a distinct annotation
+  // Continuous drink mix entries render as a section-level annotation (not a point event)
   if (entry.isContinuous) {
     return (
-      <div className="flex items-center gap-3 rounded-md px-4 py-2 border border-blue-900/30 bg-blue-950/20">
-        <div className="flex-shrink-0 font-mono text-xs text-stone-600 min-w-[3rem]">
-          {raceStartTime
-            ? toTimeOfDay(entry.timeMinutes, raceStartTime)
-            : formatTime(entry.timeMinutes)}
-        </div>
-        <span className="flex-shrink-0 text-base leading-none">🫙</span>
+      <div className="flex items-start gap-3 rounded-r-md border-l-2 border-blue-700/50 bg-blue-950/15 pl-3 pr-4 py-2">
+        <span className="flex-shrink-0 text-sm leading-none mt-0.5">🫙</span>
         <div className="flex-1 min-w-0 text-xs">
-          <span className="text-blue-200 font-medium">
+          <span className="text-blue-300 font-medium">
             {entry.fuelItemName ?? "Drink mix"}
             {entry.quantity > 1 && (
-              <span className="text-stone-500 font-normal"> ×{entry.quantity}</span>
+              <span className="text-stone-400 font-normal"> ×{entry.quantity}</span>
             )}
           </span>
-          <span className="text-stone-500"> — in bottle, sip continuously</span>
+          <span className="text-stone-500"> — mix into bottle at section start, sip steadily throughout</span>
           {entry.carbsG > 0 && (
-            <span className="ml-2 text-stone-600">~{entry.carbsG}g carbs over section</span>
+            <span className="ml-2 text-stone-600">~{entry.carbsG}g carbs over this section</span>
           )}
         </div>
       </div>

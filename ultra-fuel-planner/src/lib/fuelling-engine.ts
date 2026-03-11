@@ -814,7 +814,7 @@ function computeStrategyDrinkMixServings(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.13 — carb target engine band correction):
+// Architecture (v2.14 — carb target engine band correction):
 //
 // TWO LAYER MODEL:
 //   Layer A — Discrete events: fill the carb gap not covered by drink mix.
@@ -953,9 +953,13 @@ function generateSchedule(
 
     // ── Layer E: Discrete events fill the gap not covered by drink mix ─────
     // Drink mix carbs reduce the discrete target so total delivery ≈ section target.
-    // Floor of 20g ensures at least one fuel event per section even when drink mix
-    // covers most of the target (e.g. Maurten 320 in a 3hr section).
-    const discreteTargetCarbs = Math.max(20, sectionTargetCarbs - drinkMixCarbsThisSection);
+    // The 20g floor only applies when there is a genuine positive gap to fill.
+    // When drink mix servings round up past the section target (e.g. 2×80g = 160g
+    // for a 153g section), the gap is negative — forcing 20g of discrete events on
+    // top would create a systematic overshoot. Setting discreteTargetCarbs = 0 in
+    // that case means no discrete events are scheduled; the runner sips continuously.
+    const discreteGap = sectionTargetCarbs - drinkMixCarbsThisSection;
+    const discreteTargetCarbs = discreteGap <= 0 ? 0 : Math.max(20, discreteGap);
 
     // Constrained cadence system (v2.7):
     // Solves four constraints simultaneously: delivery ≈ target (±15%), cadence ∈ [15, 35] min,
@@ -1632,15 +1636,23 @@ function buildSummary(
   if (totalRaceHours >= 8) {
     if (solidPct <= 30) {
       fuelFormatNotes.push(
-        `Gel and drink-dominant plan (${100 - solidPct}% of carbs from liquids/gels). Recommended for long ultras to minimise gut stress.`
+        `Gel and drink-dominant plan (${100 - solidPct}% of carbs from liquids/gels). ` +
+        `Late in long ultras, simpler lower-fibre fuels like gels and drink mix are often ` +
+        `easier to tolerate than solids or real food — though real-food tolerance is highly ` +
+        `individual and should be tested in training. When using gels, sip water regularly ` +
+        `rather than taking them dry.`
       );
     } else if (solidPct <= 45) {
       fuelFormatNotes.push(
-        `Mixed format plan: ${solidPct}% of carbs from solid foods, ${100 - solidPct}% from gels/drinks. Solids are scheduled on easier terrain.`
+        `Mixed format plan: ${solidPct}% of carbs from solid foods, ${100 - solidPct}% from gels/drinks. ` +
+        `Solids are scheduled on easier terrain. As the race progresses, you may find simpler ` +
+        `lower-fibre formats easier to manage — adapt to how your gut is responding.`
       );
     } else {
       fuelFormatNotes.push(
-        `Solid-heavy plan (${solidPct}% from solids). For races over 8 hours, consider shifting more toward gels and drinks for better absorption.`
+        `Solid-heavy plan (${solidPct}% from solids). For races over 8 hours, many runners ` +
+        `find it easier to shift toward gels and drink mix in the later stages, particularly ` +
+        `if gut sensitivity increases — though this varies considerably between individuals.`
       );
     }
   } else if (totalRaceHours >= 3) {
