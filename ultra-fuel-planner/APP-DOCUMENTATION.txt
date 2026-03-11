@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.14 | March 2026
+Version 2.15 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -1736,6 +1736,86 @@ v2.14 — Summary Trust Fix, Warning Cleanup, Continuous Drink Visualisation
     column, and the updated instruction text.
     CHANGED: src/components/results/TimelineView.tsx — isContinuous branch
     CHANGED: src/app/print/page.tsx — isContinuous table row branch
+
+
+v2.15 — Drink Mix Over-Allocation Fix (Context-Gated Scheduling)
+
+  Problem: The planner was scheduling one full Maurten 320 serving (80g carbs)
+  in every section regardless of terrain, race phase, or section duration.
+  For an 18h 100k with a 51g/hr working target this produced:
+    Drink mix ×9 = 720g + gels/chews ×24 = ~624g → total 1,344g over 18.5h = 73g/hr
+  This was 43% above the working target and exceeded the top of the recommended
+  range (40–65g/hr), contrary to the plan being described as conservative.
+
+  Root cause: computeStrategyDrinkMixServings used Math.max(1, Math.ceil(...))
+  which forced ≥1 serving in any section where carbsPerServing ≤ sectionTargetCarbs
+  (i.e. 80g ≤ ~100g for a 2h mid-race section). The drinkMixSharePct values
+  (12–20h band: early 40%, mid 55%, late 65%) were irrelevant — the Math.max(1)
+  floor meant drink mix appeared in every single section regardless of share target.
+
+  Fix: Replaced the automatic "always schedule if available" model with a
+  context-scoring gate. Three conditions must ALL pass before drink mix is
+  scheduled in a section:
+
+    Gate 1 — Context score ≥ DRINK_MIX_MIN_SCORE (3):
+      Scored on phase, terrain, section duration, and temperature:
+        Phase late:        +3  (solids become harder; drink mix more valuable)
+        Phase mid:         +1
+        Phase early:        0  (discrete fuelling is easy; drink mix not priority)
+        Steep climb:       +3  (heavy breathing, impractical to eat)
+        Sustained climb:   +2
+        Rolling:           +1
+        Technical descent: -1  (hands needed; no fiddly fuelling)
+        Flat/other:         0
+        Section ≥ 1.5h:    +1  (long enough to justify steady bottle source)
+        Section ≥ 2.5h:    +1
+        Warm (≥20°C):      +2
+
+    Gate 2 — Minimum gap: ≥90 minutes since last drink mix section.
+      Prevents back-to-back scheduling in adjacent short sections.
+
+    Gate 3 — Budget fit: 1 serving must not exceed the full section carb target.
+      (Unchanged from before — already existed as a hard guard.)
+
+  Expected result for Race to the Stones profile (18h, flat/rolling, cool):
+    Early flat sections (score ~1–2): skip
+    Mid flat sections (score ~2):    skip
+    Mid rolling sections (score ~3): schedule (borderline, passes gate)
+    Late flat/rolling sections (score ~4–5): schedule (most)
+    Result: ~4–5 servings × 80g = 320–400g from drink mix
+    Discrete fills remaining: ~540–600g from gels/chews
+    Total: ~920g over 18.5h ≈ 50g/hr — within working target ±5g/hr ✓
+
+  Secondary changes:
+    - drinkMixSharePct values lowered in buildRaceStrategy to reflect selective model:
+        12–20h: { early: 25, mid: 35, late: 50 }  (was 40/55/65)
+        20h+:   { early: 30, mid: 40, late: 55 }  (was 50/65/70)
+        6–12h:  { early: 20, mid: 30, late: 35 }  (was 30/45/40)
+        <6h:    { early: 15, mid: 20, late: 20 }  (was 20/25/20)
+    - computeStrategyDrinkMixServings: removed Math.max(1, ...) floor
+      (the context gate is now the primary frequency control)
+    - generateSchedule signature: added expectedTemperatureC?: number
+      (passed through from plan.expectedTemperatureC to enable warm-condition bias)
+    - Added getDominantTerrain() and drinkMixContextScore() helpers
+    - Architecture comment updated to v2.15
+
+  How drink mix is now budget-limited:
+    When drink mix IS scheduled (gate passed), its carbs count against the
+    section budget: discreteTargetCarbs = sectionTarget − drinkMixCarbs.
+    In sections without drink mix, the discrete budget fills the full target.
+    Total section delivery stays close to sectionTargetCarbs regardless.
+
+  How route and race context affect drink mix use:
+    A flat 18h 100k (Race to the Stones profile) → drink mix in ~4–5 sections
+    A hilly 100k with sustained climbs → drink mix on most climb sections
+    A 24h mountain race → drink mix more frequently (higher late-race score)
+    Hot race (≥20°C) → +2 to every section score → more sections qualify
+
+  CHANGED: src/lib/fuelling-engine.ts — generateSchedule, computeStrategyDrinkMixServings,
+    buildRaceStrategy (drinkMixSharePct), getDominantTerrain (new), drinkMixContextScore (new),
+    DRINK_MIX_MIN_SCORE / DRINK_MIX_MIN_GAP_MINUTES constants (new)
+  UNCHANGED: carb-target-engine.ts, calibration-engine.ts, carry plan, aid station logic,
+    terrain rules, discrete event cadence solver, product scoring, UI components
 
 
 ================================================================================

@@ -153,7 +153,9 @@ function buildRaceStrategy(
     );
     return {
       backbone: "discrete_heavy",
-      drinkMixSharePct: { early: 20, mid: 25, late: 20 },
+      // drinkMixSharePct: used when drink mix IS scheduled (context gate controls frequency).
+      // Lower values = drink mix contributes a smaller share of each approved section.
+      drinkMixSharePct: { early: 15, mid: 20, late: 20 },
       allowSolids:      { early: true,  mid: false, late: false },
       allowChews:       { early: true,  mid: true,  late: true  },
       earlyRaceEndPct:  0.25,
@@ -164,14 +166,14 @@ function buildRaceStrategy(
 
   if (totalRaceHours < 12) {
     rationale.push(
-      "Mixed fuelling strategy (6\u201312h): drink mix provides carb backbone; gels and chews fill gaps.",
+      "Mixed fuelling strategy (6\u201312h): gels and chews are the primary rhythm; drink mix used selectively on climbs and in later sections.",
     );
     rationale.push(
       "Solids permitted on easy terrain in early and mid race. No bars or solids in late race.",
     );
     return {
       backbone: "mixed",
-      drinkMixSharePct: { early: 30, mid: 45, late: 40 },
+      drinkMixSharePct: { early: 20, mid: 30, late: 35 },
       allowSolids:      { early: true,  mid: true,  late: false },
       allowChews:       { early: true,  mid: true,  late: true  },
       earlyRaceEndPct:  0.25,
@@ -182,14 +184,14 @@ function buildRaceStrategy(
 
   if (totalRaceHours < 20) {
     rationale.push(
-      "Drink-led mixed strategy (12\u201320h): drink mix is the primary carb vehicle after the early phase.",
+      "Mixed strategy (12\u201320h): discrete fuelling is the primary rhythm; drink mix used selectively for climbs, late race, and warmer conditions.",
     );
     rationale.push(
       "Solids in early race only. Chews in early and mid. Late race: liquids and gels only.",
     );
     return {
       backbone: "mixed",
-      drinkMixSharePct: { early: 40, mid: 55, late: 65 },
+      drinkMixSharePct: { early: 25, mid: 35, late: 50 },
       allowSolids:      { early: true,  mid: false, late: false },
       allowChews:       { early: true,  mid: true,  late: false },
       earlyRaceEndPct:  0.25,
@@ -211,7 +213,7 @@ function buildRaceStrategy(
 
   return {
     backbone: "drink_led",
-    drinkMixSharePct: { early: 50, mid: 65, late: 70 },
+    drinkMixSharePct: { early: 30, mid: 40, late: 55 },
     allowSolids:      { early: true,  mid: false, late: false },
     allowChews:       { early: true,  mid: false, late: false },
     earlyRaceEndPct:  0.25,
@@ -357,7 +359,8 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
   }
 
   const schedule = generateSchedule(
-    segments, fuelInventory, aidStations, athlete, assumptions, totalRaceMinutes, strategy, warnings
+    segments, fuelInventory, aidStations, athlete, assumptions, totalRaceMinutes, strategy, warnings,
+    plan.expectedTemperatureC,
   );
 
   const carryPlans = generateCarryPlans(
@@ -789,16 +792,20 @@ function computeStrategyDrinkMixServings(
   _usage: Map<string, number>, // retained for future stock-constrained mode
   sectionHours: number,
 ): number {
-  // Planning mode: no stock limit check. Drink mix scheduled by density cap only.
+  // By the time this is called the context gate has already approved this section.
+  // Compute how many servings the share target calls for, without a forced minimum.
   const targetCarbsFromMix = Math.round(sectionTargetCarbs * (drinkMixSharePct / 100));
   if (targetCarbsFromMix <= 0) return 0;
-  // Skip if 1 serving would overshoot the full section target (not just the share).
-  // e.g. Maurten 320 (80g/serving) in a 1-hr section with 38g target: skip, use gels instead.
-  // Drink mix is only worthwhile when the section is long enough to absorb it.
+  // Hard guard: 1 serving must not overshoot the full section target.
   if (item.carbsPerServing > 0 && item.carbsPerServing > sectionTargetCarbs) return 0;
+  // Servings needed to hit the share target — no forced minimum.
+  // For large-serving products (Maurten 320 = 80g) this naturally returns 1 when
+  // targetCarbsFromMix > 0, and 0 would only occur if targetCarbsFromMix = 0
+  // (already handled above).
   const servingsNeeded = item.carbsPerServing > 0
-    ? Math.max(1, Math.ceil(targetCarbsFromMix / item.carbsPerServing))
+    ? Math.ceil(targetCarbsFromMix / item.carbsPerServing)
     : 1;
+  if (servingsNeeded <= 0) return 0;
   // Density constraint: max 80g carbs per litre prevents unrealistic concentrations.
   // Use the item's standard bottle volume (fluidContributionMl) to compute max carbs per fill.
   // Runner refills roughly once per 2 hours.
@@ -812,16 +819,92 @@ function computeStrategyDrinkMixServings(
   return Math.min(servingsNeeded, densityCap);
 }
 
+// ─── Drink mix context scoring ────────────────────────────────────────────────
+//
+// Drink mix is a strategic tool, not the automatic backbone of every section.
+// These helpers score each section to decide whether drink mix is appropriate.
+// Only sections that meet the minimum score threshold and spacing gap receive
+// a drink mix serving.
+
+/** Minimum context score a section must reach to receive a drink mix serving. */
+const DRINK_MIX_MIN_SCORE = 3;
+
+/**
+ * Minimum gap in minutes between consecutive sections that receive drink mix.
+ * Prevents back-to-back scheduling of a serving in adjacent short sections.
+ */
+const DRINK_MIX_MIN_GAP_MINUTES = 90;
+
+/**
+ * Returns the dominant terrain type in a section, weighted by segment duration.
+ * Used by drinkMixContextScore to assess section suitability.
+ */
+function getDominantTerrain(sectionSegments: RouteSegment[]): TerrainType {
+  if (sectionSegments.length === 0) return "flat_runnable";
+  const minutes: Partial<Record<TerrainType, number>> = {};
+  for (const seg of sectionSegments) {
+    minutes[seg.terrain] = (minutes[seg.terrain] ?? 0) + seg.estimatedDurationMinutes;
+  }
+  let best: TerrainType = "flat_runnable";
+  let max = 0;
+  for (const [t, m] of Object.entries(minutes) as [TerrainType, number][]) {
+    if (m > max) { max = m; best = t; }
+  }
+  return best;
+}
+
+/**
+ * Context score for drink mix use in a section. Higher = more appropriate.
+ *
+ * Positive signals: late race phase, uphill terrain, longer section, warm conditions.
+ * Negative signals: early race, technical descent.
+ * Neutral: flat runnable, runnable descent, mid-race short sections.
+ *
+ * Score ≥ DRINK_MIX_MIN_SCORE (3) required to schedule drink mix.
+ */
+function drinkMixContextScore(
+  phase: RacePhase,
+  terrain: TerrainType,
+  sectionHours: number,
+  isWarm: boolean,
+): number {
+  let score = 0;
+
+  // Phase: later in the race drink mix becomes more valuable (solids harder to eat)
+  if (phase === "late") score += 3;
+  else if (phase === "mid") score += 1;
+  // early race: 0 — discrete fuelling is easy; drink mix is not the priority
+
+  // Terrain: climbs favour drink mix (heavy breathing, impractical to eat solids)
+  if (terrain === "steep_climb")     score += 3;
+  else if (terrain === "sustained_climb") score += 2;
+  else if (terrain === "rolling")    score += 1;
+  else if (terrain === "technical_descent") score -= 1;
+  // flat_runnable, runnable_descent, recovery: neutral (0)
+
+  // Duration: a longer section justifies having a steady carb source in the bottle
+  if (sectionHours >= 1.5) score += 1;
+  if (sectionHours >= 2.5) score += 1;
+
+  // Warm conditions: staying hydrated with carbs in the bottle is more useful in heat
+  if (isWarm) score += 2;
+
+  return score;
+}
+
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.14 — carb target engine band correction):
+// Architecture (v2.15 — drink mix context gate):
 //
 // TWO LAYER MODEL:
-//   Layer A — Discrete events: fill the carb gap not covered by drink mix.
-//             discreteTargetCarbs = max(20g, sectionTarget - drinkMixCarbs).
-//             20g floor ensures at least one fuel event per section.
-//   Layer B — Drink mix: allocated per section when 1 serving ≤ sectionTarget.
-//             Skipped for short/low-target sections to avoid overshooting.
+//   Layer D — Drink mix (context-gated): scheduled only in sections that score ≥
+//             DRINK_MIX_MIN_SCORE on the context gate (phase, terrain, duration,
+//             conditions). A minimum gap of DRINK_MIX_MIN_GAP_MINUTES is enforced
+//             between consecutive drink mix sections. One serving must fit within
+//             the section's full carb budget (prevents runaway overshoot).
+//   Layer E — Discrete events: fill the gap remaining after drink mix.
+//             discreteTargetCarbs = sectionTarget − drinkMixCarbs (floor 20g when > 0).
+//             In sections with no drink mix, discrete events fill the entire budget.
 //
 // PLANNING MODE (default): schedule is generated without stock quantity constraints.
 //   The plan tells the runner what to buy/pack. Required quantities are tallied after
@@ -830,9 +913,10 @@ function computeStrategyDrinkMixServings(
 //
 // PER-SECTION PIPELINE:
 //   1. Build sections (aid-station-bounded, or inferred every ~120 min)
-//   2. Allocate drink_mix as a continuous section-level carb source (Layer B)
-//      (capped by 80g/L density limit and ~1 bottle refill per 2 hours)
-//   3. Set discreteTargetCarbs = sectionTargetCarbs (full target — drink mix does NOT subtract)
+//   2. Context-gate drink mix (Layer D): score section on phase, terrain, duration, heat.
+//      Schedule 1 serving only if score ≥ 3 and gap from last serving ≥ 90 min.
+//      Drink mix carbs are counted against the section budget (not layered on top).
+//   3. Set discreteTargetCarbs = sectionTarget − drinkMixCarbs (floor 20g when gap > 0)
 //      Minimum effective carb rate: 30g/hr (prevents over-reliance on drink mix alone)
 //   4. Identify representative discrete fuel → derive realistic event size (eventSizeG)
 //      Enforce global event size bounds: [15g, 45g] — operationally realistic servings
@@ -875,7 +959,8 @@ function generateSchedule(
   assumptions: PlannerAssumptions,
   totalRaceMinutes: number,
   strategy: RaceStrategyPlan,
-  warnings: PlanWarning[]
+  warnings: PlanWarning[],
+  expectedTemperatureC?: number,
 ): FuelScheduleEntry[] {
   const schedule: FuelScheduleEntry[] = [];
   const inventoryUsage = new Map<string, number>();
@@ -897,6 +982,12 @@ function generateSchedule(
   const drinkMixItems = inventory.filter(i => i.type === "drink_mix");
   const discreteInventory = inventory.filter(i => i.type !== "drink_mix");
 
+  // ── Drink mix context gate state ─────────────────────────────────────────────
+  // Warm threshold: ≥20 °C boosts drink mix context score (staying hydrated in heat).
+  const isWarm = (expectedTemperatureC ?? 15) >= 20;
+  // Track when drink mix was last scheduled to enforce the minimum gap.
+  let lastDrinkMixMinutes = -Infinity;
+
   for (const section of sections) {
     const sectionMins = section.toMinutes - section.fromMinutes;
     const sectionHours = sectionMins / 60;
@@ -910,43 +1001,56 @@ function generateSchedule(
     const effectiveCarbsPerHour = Math.max(30, athlete.carbTargetPerHour);
     const sectionTargetCarbs = Math.round(effectiveCarbsPerHour * sectionHours * phaseFactor);
 
-    // ── Layer D: Drink mix as continuous section-level carb source ──────────
+    // ── Layer D: Drink mix — context-gated, budget-limited ───────────────────
+    // Drink mix is a strategic tool, not the automatic carb backbone of every section.
+    // Three gates must all pass before a serving is scheduled:
+    //   1. Context score ≥ DRINK_MIX_MIN_SCORE (terrain, phase, duration, conditions)
+    //   2. Minimum gap from the last drink mix section (prevents back-to-back scheduling)
+    //   3. One serving must fit within the section's full carb budget
     let drinkMixCarbsThisSection = 0;
     const bestDrinkMix = findBestAvailableDrinkMix(drinkMixItems, inventoryUsage, athlete);
 
     if (bestDrinkMix) {
-      const servings = computeStrategyDrinkMixServings(
-        bestDrinkMix, sectionTargetCarbs, strategy.drinkMixSharePct[phase], inventoryUsage, sectionHours,
-      );
-      if (servings > 0) {
-        drinkMixCarbsThisSection = Math.round(bestDrinkMix.carbsPerServing * servings);
-        const used = inventoryUsage.get(bestDrinkMix.id) ?? 0;
-        inventoryUsage.set(bestDrinkMix.id, used + servings);
-        totalCaffeineMg += Math.round(bestDrinkMix.caffeinePerServingMg * servings);
-        liquidCarbsSoFar += drinkMixCarbsThisSection;
+      const dominantTerrain = getDominantTerrain(section.segments);
+      const contextScore = drinkMixContextScore(phase, dominantTerrain, sectionHours, isWarm);
+      const gapOk = (section.fromMinutes - lastDrinkMixMinutes) >= DRINK_MIX_MIN_GAP_MINUTES;
+      const fitsInSection = bestDrinkMix.carbsPerServing <= sectionTargetCarbs;
 
-        const firstSeg = section.segments[0] ?? segments[0];
-        if (firstSeg) {
-          schedule.push({
-            id: `entry-${++entryIdx}-mix`,
-            timeMinutes: section.fromMinutes,
-            distanceKm: Math.round(section.fromKm * 10) / 10,
-            segmentId: firstSeg.id,
-            terrain: firstSeg.terrain,
-            action: "drink_fluid",
-            fuelItemId: bestDrinkMix.id,
-            fuelItemName: bestDrinkMix.productName,
-            quantity: servings,
-            carbsG: drinkMixCarbsThisSection,
-            fluidMl: Math.round(bestDrinkMix.fluidContributionMl * servings),
-            sodiumMg: Math.round(bestDrinkMix.sodiumPerServingMg * servings),
-            caffeinesMg: Math.round(bestDrinkMix.caffeinePerServingMg * servings),
-            rationale: `Mix ${servings}\u00a0serving${servings > 1 ? "s" : ""} into bottle \u2014 sip continuously over ${formatDuration(sectionMins)} (~${drinkMixCarbsThisSection}g carbs).`,
-            priority: "required",
-            isNearAidStation: false,
-            isContinuous: true,
-            warnings: [],
-          });
+      if (contextScore >= DRINK_MIX_MIN_SCORE && gapOk && fitsInSection) {
+        const servings = computeStrategyDrinkMixServings(
+          bestDrinkMix, sectionTargetCarbs, strategy.drinkMixSharePct[phase], inventoryUsage, sectionHours,
+        );
+        if (servings > 0) {
+          drinkMixCarbsThisSection = Math.round(bestDrinkMix.carbsPerServing * servings);
+          const used = inventoryUsage.get(bestDrinkMix.id) ?? 0;
+          inventoryUsage.set(bestDrinkMix.id, used + servings);
+          totalCaffeineMg += Math.round(bestDrinkMix.caffeinePerServingMg * servings);
+          liquidCarbsSoFar += drinkMixCarbsThisSection;
+          lastDrinkMixMinutes = section.fromMinutes;
+
+          const firstSeg = section.segments[0] ?? segments[0];
+          if (firstSeg) {
+            schedule.push({
+              id: `entry-${++entryIdx}-mix`,
+              timeMinutes: section.fromMinutes,
+              distanceKm: Math.round(section.fromKm * 10) / 10,
+              segmentId: firstSeg.id,
+              terrain: dominantTerrain,
+              action: "drink_fluid",
+              fuelItemId: bestDrinkMix.id,
+              fuelItemName: bestDrinkMix.productName,
+              quantity: servings,
+              carbsG: drinkMixCarbsThisSection,
+              fluidMl: Math.round(bestDrinkMix.fluidContributionMl * servings),
+              sodiumMg: Math.round(bestDrinkMix.sodiumPerServingMg * servings),
+              caffeinesMg: Math.round(bestDrinkMix.caffeinePerServingMg * servings),
+              rationale: `Mix ${servings}\u00a0serving${servings > 1 ? "s" : ""} into bottle \u2014 sip continuously over ${formatDuration(sectionMins)} (~${drinkMixCarbsThisSection}g carbs).`,
+              priority: "required",
+              isNearAidStation: false,
+              isContinuous: true,
+              warnings: [],
+            });
+          }
         }
       }
     }
