@@ -2244,6 +2244,95 @@ Change:
   or users who clear their localStorage. Existing saved inventories are unchanged.
 
 
+────────────────────────────────────────────────────────────────────────────────
+v2.20 — Drink Mix Eligibility: Elevation Signals + Narrative Accuracy
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Two fixes addressing drink mix appearing too rarely (especially on courses like
+  Race to the Stones where terrain classifies as flat_runnable despite meaningful
+  ascent), and summary narrative statements contradicting the actual plan when
+  drink mix was absent.
+
+Problem 1 — Drink Mix Gate Too Strict on Runnable-Gradient Courses
+
+  Root cause:
+    drinkMixContextScore() penalised flat_runnable terrain with -1. Many ultra
+    courses (e.g. Race to the Stones) contain long gradual gradients that the
+    terrain classifier labels flat_runnable because peak gradient is below the
+    sustained_climb threshold (8%), even though sections may accumulate 200–400m
+    of ascent and demand steady carb intake. Combined with threshold=4, these
+    sections never qualified for drink mix.
+
+  Fix — drinkMixContextScore() in fuelling-engine.ts:
+
+    1. flat_runnable penalty removed (was -1, now 0/neutral).
+       Rationale: preventing drink mix on flat sections is now handled by the
+       absence of positive signals (low elevation, mid phase scores only +1),
+       not by a terrain penalty that also blocks gradual-climb sections.
+
+    2. Elevation burden signals added — new parameters: sectionAscentM, sectionKm:
+         ascentPerKm ≥ 15 m/km → +1  (meaningful gradient throughout section)
+         ascentPerKm ≥ 30 m/km → +1  (additional for sustained gradient)
+         sectionAscentM ≥ 200m → +1  (significant total ascent regardless of distance)
+
+    3. Carb target signal added — new parameter: carbTargetPerHour:
+         carbTargetPerHour ≥ 55 g/hr → +1  (drink mix is efficient at high targets)
+
+    Updated typical scores:
+      Late/flat (low elev)/2h        = 3 + 0 + 0 + 1         = 4  → passes ✓
+      Mid/flat (low elev)/2h         = 1 + 0 + 0 + 1         = 2  → blocked ✓
+      Mid/flat (20m/km)/2h/300m asc  = 1 + 0 + 1+1+1 + 1     = 5  → passes ✓
+      Late/steep/2h                  = 3 + 3 + 0 + 1         = 7  → passes ✓
+      Mid/sustained/2h               = 1 + 2 + 0 + 1         = 4  → passes ✓
+      Early/flat/2h                  = 0 + 0 + 0 + 1         = 1  → blocked ✓
+      Late/flat/warm/2h              = 3 + 0 + 0 + 1 + 2     = 6  → passes ✓
+
+  Call site updated (generateSchedule):
+    sectionAscentM = section.segments.reduce(sum, seg.ascentM)
+    sectionKm = section.toKm - section.fromKm
+    contextScore = drinkMixContextScore(..., sectionAscentM, sectionKm,
+                                        athlete.carbTargetPerHour)
+
+Problem 2 — Summary Narrative Contradicted the Plan
+
+  Root cause:
+    buildSummary() contained a hardcoded fuelFormatNotes entry:
+      "Solids are scheduled on flatter sections ... Gels and drink mix are
+       prioritised on climbs and in the later stages of the race."
+    This was appended unconditionally even when drink mix appeared zero times
+    in the generated schedule.
+
+    Additionally, strategy.rationale info warnings (generated before the
+    schedule) contained references to "drink mix used selectively on climbs"
+    even when drink mix was absent.
+
+  Fix 1 — buildSummary() fuelFormatNotes (fuelling-engine.ts):
+    Replaced hardcoded string with conditional logic:
+      If drink mix appears in fuelEvents → include "Gels and drink mix are
+        prioritised on climbs, longer sections, and in the later stages."
+      If not → "Gels are prioritised on climbs and in the later stages."
+
+  Fix 2 — Post-filter strategy warnings (generatePlan, fuelling-engine.ts):
+    After schedule generation, scan RACE_STRATEGY info warnings. If no drink
+    mix item appears in the schedule, strip drink mix clauses from those strings
+    using targeted regex replacement before they are returned to the caller.
+    This prevents strategy-intent language from contradicting plan output.
+
+Files changed:
+  CHANGED: src/lib/fuelling-engine.ts —
+    drinkMixContextScore() (signature + scoring — flat penalty removed,
+      elevation signals + carb-target signal added),
+    generateSchedule() call site (computes sectionAscentM, sectionKm, passes
+      carbTargetPerHour to drinkMixContextScore),
+    buildSummary() (conditional fuelFormatNotes narrative),
+    generatePlan() (post-filter strategy warnings block),
+    DRINK_MIX_MIN_SCORE JSDoc comment updated,
+    architecture comment updated to v2.20
+  CHANGED: version strings → v2.20 (5 UI locations)
+  UNCHANGED: types, UI components, carry plan, print page, timeline
+
+
 ================================================================================
 13. DEVELOPMENT NOTES
 ================================================================================

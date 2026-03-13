@@ -63,7 +63,7 @@ export default function ResultsPage() {
             <Link href="/" className="flex items-center gap-2 text-stone-400 hover:text-stone-200">
               <Mountain className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium hidden sm:inline">Ultra Fuel Planner</span>
-              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.19</span>
+              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.20</span>
             </Link>
             <span className="text-stone-700">/</span>
             <span className="text-sm text-stone-300 font-medium">

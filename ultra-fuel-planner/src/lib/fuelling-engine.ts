@@ -379,6 +379,28 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
     segments, aidStations, schedule, fuelInventory, athlete, assumptions
   );
 
+  // Post-filter: if drink mix does not appear in the final schedule, remove
+  // drink mix references from strategy info warnings to avoid contradictions.
+  // These warnings are generated before the schedule and describe intent, not output.
+  const hasDrinkMixScheduled = schedule.some(e => {
+    const item = fuelInventory.find(f => f.id === e.fuelItemId);
+    return item?.type === "drink_mix";
+  });
+  if (!hasDrinkMixScheduled) {
+    for (const w of warnings) {
+      if (w.type !== "info" || w.code !== "RACE_STRATEGY") continue;
+      if (!w.message.toLowerCase().includes("drink mix")) continue;
+      // Strip drink mix clauses from mixed strategy messages.
+      w.message = w.message
+        .replace(/;\s*drink mix[^.]+\./g, ".")
+        .replace(/,\s*drink mix[^.]+/g, "")
+        .replace(/drink mix and gels are the primary carb sources/g,
+                 "gels are the primary carb source")
+        .replace(/\.\s*\./g, ".")
+        .trim();
+    }
+  }
+
   const summary = buildSummary(schedule, fuelInventory, totalRaceMinutes, athlete, segments, avgKcalPerHour, calibration, plan.expectedTemperatureC);
 
   // ── Stock shortfall check ──────────────────────────────────────────────────
@@ -935,15 +957,15 @@ function computeStrategyDrinkMixServings(
 
 /**
  * Minimum context score a section must reach to receive a drink mix serving.
- * Raised to 4 (from 3 in v2.16) so that flat/cool late sections do not
- * automatically qualify — drink mix should be selective, not a default anchor.
  *
- * Typical scores:
- *   Late/flat/cool/2h    = 3 − 1 + 1 = 3  → blocked ✓
- *   Late/rolling/cool/2h = 3 + 1 + 1 = 5  → passes ✓
- *   Late/steep/cool/2h   = 3 + 3 + 1 = 7  → passes ✓
- *   Mid/sustained/cool/2h= 1 + 2 + 1 = 4  → passes ✓
- *   Late/flat/warm/2h    = 3 − 1 + 1 + 2 = 5 → passes ✓ (heat justifies it)
+ * Typical scores (illustrative — see drinkMixContextScore for full logic):
+ *   Late/flat (low elev)/2h        = 3 + 0 + 1         = 4  → passes ✓
+ *   Mid/flat (low elev)/2h         = 1 + 0 + 1         = 2  → blocked ✓
+ *   Mid/flat (20m/km)/2h/300m asc  = 1 + 0 + 1 + 1 + 1 = 4  → passes ✓
+ *   Late/steep/2h                  = 3 + 3 + 1         = 7  → passes ✓
+ *   Mid/sustained/2h               = 1 + 2 + 1         = 4  → passes ✓
+ *   Early/rolling/2h               = 0 + 1 + 1         = 2  → blocked ✓
+ *   Late/flat/warm/2h              = 3 + 0 + 1 + 2     = 6  → passes ✓
  */
 const DRINK_MIX_MIN_SCORE = 4;
 
@@ -974,41 +996,66 @@ function getDominantTerrain(sectionSegments: RouteSegment[]): TerrainType {
 /**
  * Context score for drink mix use in a section. Higher = more appropriate.
  *
- * Positive signals: late race phase, uphill terrain, longer section, warm conditions.
+ * Positive signals: late race phase, uphill terrain, elevation burden,
+ *   longer section, higher carb target, warm conditions.
  * Negative signals: early race, technical descent.
- * Neutral: flat runnable, runnable descent, mid-race short sections.
+ * Neutral: flat_runnable, runnable_descent, recovery.
  *
- * Score ≥ DRINK_MIX_MIN_SCORE (3) required to schedule drink mix.
+ * Design note: flat_runnable terrain receives no penalty. Ultra courses often
+ * contain long runnable gradients with meaningful ascent that the dominant
+ * terrain classifier still labels flat_runnable. Elevation burden signals
+ * (ascentPerKm, total ascentM) capture this demand without penalising sections
+ * that happen to have a low peak gradient. Genuinely flat sections remain
+ * low-scoring because they accumulate few other positive signals.
+ *
+ * Score ≥ DRINK_MIX_MIN_SCORE (4) required to schedule drink mix.
  */
 function drinkMixContextScore(
   phase: RacePhase,
   terrain: TerrainType,
   sectionHours: number,
   isWarm: boolean,
+  sectionAscentM: number = 0,
+  sectionKm: number = 0,
+  carbTargetPerHour: number = 50,
 ): number {
   let score = 0;
 
-  // Phase: later in the race drink mix becomes more valuable (solids harder to eat)
+  const ascentPerKm = sectionKm > 0 ? sectionAscentM / sectionKm : 0;
+
+  // Phase: later in the race drink mix becomes more valuable (appetite suppression,
+  // chewing fatigue, gut sensitivity make steady liquid carbs increasingly practical).
   if (phase === "late") score += 3;
   else if (phase === "mid") score += 1;
   // early race: 0 — discrete fuelling is easy; drink mix is not the priority
 
-  // Terrain: climbs favour drink mix (heavy breathing, impractical to eat solids).
-  // Flat/runnable terrain scores -1: discrete fuelling is fully practical there,
-  // so drink mix should not be the default. This prevents automatic drink mix
-  // scheduling on every flat late section (the key over-allocation pattern).
-  if (terrain === "steep_climb")          score += 3;
-  else if (terrain === "sustained_climb") score += 2;
-  else if (terrain === "rolling")         score += 1;
-  else if (terrain === "flat_runnable")   score -= 1; // discrete fuelling is easy here
+  // Terrain: uphill terrain strongly favours drink mix (heavy breathing makes eating
+  // difficult). No penalty for flat_runnable — elevation burden signals (below) handle
+  // the distinction between a genuinely flat section and a gradual-climb section.
+  if (terrain === "steep_climb")            score += 3;
+  else if (terrain === "sustained_climb")   score += 2;
+  else if (terrain === "rolling")           score += 1;
   else if (terrain === "technical_descent") score -= 1;
-  // runnable_descent, recovery: neutral (0)
+  // flat_runnable, runnable_descent, recovery: neutral (0)
 
-  // Duration: a longer section justifies having a steady carb source in the bottle
+  // Elevation burden: gradual climbs on ultra courses often classify as flat_runnable
+  // despite significant ascent demand. Score both gradient intensity (m/km) and
+  // total section ascent to capture these sections.
+  if (ascentPerKm >= 15) score += 1;  // meaningful gradient throughout
+  if (ascentPerKm >= 30) score += 1;  // sustained gradient — doubly demanding
+  if (sectionAscentM >= 200) score += 1; // section carries significant total ascent
+
+  // Duration: a longer section justifies a steady carb source in the bottle — fewer
+  // interruptions and more consistent delivery without repeated chewing/opening.
   if (sectionHours >= 1.5) score += 1;
   if (sectionHours >= 2.5) score += 1;
 
-  // Warm conditions: staying hydrated with carbs in the bottle is more useful in heat
+  // Carb target: higher carb targets make drink mix a more efficient delivery
+  // mechanism — fewer discrete events needed to reach target.
+  if (carbTargetPerHour >= 55) score += 1;
+
+  // Warm conditions: staying hydrated with carbs in the bottle is more practical
+  // when sweat rate is high and the athlete is already drinking more frequently.
   if (isWarm) score += 2;
 
   return score;
@@ -1076,7 +1123,7 @@ function computeSectionFormatBudget(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.19 — strengthened fatigue curve + carry plan elevation context):
+// Architecture (v2.20 — drink mix eligibility: elevation signals + narrative accuracy):
 //
 // TWO LAYER MODEL:
 //   Layer D — Drink mix (context-gated, budget-first):
@@ -1201,7 +1248,12 @@ function generateSchedule(
 
     if (bestDrinkMix) {
       const dominantTerrain = getDominantTerrain(section.segments);
-      const contextScore = drinkMixContextScore(phase, dominantTerrain, sectionHours, isWarm);
+      const sectionAscentM = section.segments.reduce((sum, seg) => sum + seg.ascentM, 0);
+      const sectionKm = section.toKm - section.fromKm;
+      const contextScore = drinkMixContextScore(
+        phase, dominantTerrain, sectionHours, isWarm,
+        sectionAscentM, sectionKm, athlete.carbTargetPerHour,
+      );
       const gapOk = (section.fromMinutes - lastDrinkMixMinutes) >= DRINK_MIX_MIN_GAP_MINUTES;
       const fitsInSection = bestDrinkMix.carbsPerServing <= sectionTargetCarbs;
 
@@ -2037,9 +2089,23 @@ function buildSummary(
   }
 
   if (segments.length > 0) {
-    fuelFormatNotes.push(
-      "Solids are scheduled on flatter, easier sections where eating is most practical. Gels and drink mix are prioritised on climbs and in the later stages of the race."
-    );
+    // Derive whether drink mix actually appears in the generated plan before
+    // writing narrative — prevents statements contradicting the actual schedule.
+    const hasDrinkMixInPlan = fuelEvents.some(e => {
+      const item = inventory.find(f => f.id === e.fuelItemId);
+      return item?.type === "drink_mix";
+    });
+    if (hasDrinkMixInPlan) {
+      fuelFormatNotes.push(
+        "Solids are scheduled on flatter, easier sections where eating is most practical. " +
+        "Gels and drink mix are prioritised on climbs, longer sections, and in the later stages of the race."
+      );
+    } else {
+      fuelFormatNotes.push(
+        "Solids are scheduled on flatter, easier sections where eating is most practical. " +
+        "Gels are prioritised on climbs and in the later stages of the race."
+      );
+    }
   }
 
   const hydrationGuidance = deriveHydrationGuidance(athlete, expectedTemperatureC, totalRaceHours);

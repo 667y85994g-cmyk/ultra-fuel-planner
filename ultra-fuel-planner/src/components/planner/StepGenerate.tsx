@@ -37,6 +37,17 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
   );
   const carbsNeeded = (athlete.carbTargetPerHour * estimatedMinutes) / 60;
   const carbCoverage = carbsNeeded > 0 ? Math.round((totalCarbs / carbsNeeded) * 100) : 100;
+  const fuelTypeCounts = inventory.reduce<Record<string, number>>((acc, item) => {
+    acc[item.type] = (acc[item.type] ?? 0) + 1;
+    return acc;
+  }, {});
+  const TYPE_LABELS: Record<string, string> = {
+    gel: "gel", bar: "bar", drink_mix: "drink mix", chew: "chew",
+    real_food: "real food", liquid: "liquid", electrolyte: "electrolyte",
+  };
+  const fuelTypeSub = Object.entries(fuelTypeCounts)
+    .map(([type, count]) => `${count} ${TYPE_LABELS[type] ?? type}${count !== 1 ? "s" : ""}`)
+    .join(" · ") || "No items";
 
   const priorEfforts = state.priorEfforts ?? [];
 
@@ -103,8 +114,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
           <SummaryCard
             icon={FlaskConical}
             label="Fuel"
-            value={`${inventory.length} items`}
-            sub={`${Math.round(totalCarbs)}g carbs total`}
+            value={`${inventory.length} item${inventory.length !== 1 ? "s" : ""}`}
+            sub={fuelTypeSub}
             ok={inventory.length > 0}
           />
           <SummaryCard
