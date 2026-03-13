@@ -342,10 +342,22 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
     });
   }
 
-  const segments = route?.segments ?? [];
+  const rawSegments = route?.segments ?? [];
+
+  // ── Terrain-aware pacing with fatigue + finish-time calibration ───────────
+  // Segment durations from segmentation.ts are already terrain-aware (Naismith).
+  // applyFatiguePaceModifiers adds a progressive slowdown layer (0–15% by race
+  // position) then normalises so the total matches the user's target finish time.
+  // If no target was entered, the Naismith sum is used as the fallback target.
+  // All downstream timing (sections, carry plan, event placement) flows from these
+  // calibrated segments — not from raw Naismith.
+  const naisimthSumMinutes = rawSegments.reduce((acc, s) => acc + s.estimatedDurationMinutes, 0);
+  const targetRaceMinutes = plan.targetFinishTimeMinutes ?? naisimthSumMinutes;
+  const segments = applyFatiguePaceModifiers(rawSegments, targetRaceMinutes);
+
   const { effectiveAthlete: athlete, calibration, avgKcalPerHour } = deriveTargets(plan, segments, warnings);
 
-  const totalRaceMinutes = segments.reduce((acc, s) => acc + s.estimatedDurationMinutes, 0);
+  const totalRaceMinutes = targetRaceMinutes;
   const totalRaceHours = totalRaceMinutes / 60;
 
   validateInventory(fuelInventory, athlete, totalRaceHours, warnings);
@@ -549,6 +561,87 @@ function snapToNaturalCadence(rawCadence: number): number {
     }
   }
   return best;
+}
+
+// ─── Fatigue pace model ────────────────────────────────────────────────────────
+//
+// Segment durations from segmentation.ts already vary by terrain (Naismith's rule).
+// This layer adds a fatigue dimension: runners slow progressively across a race,
+// independent of terrain. Durations are normalised after applying fatigue multipliers
+// so the total always matches the user's target finish time.
+//
+// Fatigue factors by fraction of total race distance completed:
+//   0–25%  : 1.00  (baseline — runners typically start near planned pace)
+//   25–60% : 1.05  (slight fade — sustained effort begins to accumulate)
+//   60–85% : 1.10  (moderate fade — mid-race fatigue clearly visible)
+//   85–100%: 1.15  (late-race slowdown — terrain effect amplified by fatigue)
+//
+// Normalisation: after fatigue multipliers are applied, all durations are scaled
+// so their sum equals targetRaceMinutes. This preserves the terrain shape (steep
+// climbs remain longer relative to flats) while always respecting the user's finish
+// time prediction. If no target is provided, falls back to the Naismith sum.
+
+/**
+ * Applies fatigue-based pace modifiers to segment durations, then normalises
+ * so the total matches targetRaceMinutes (preserving the user's finish time).
+ *
+ * Returns a new segment array — originals are not mutated.
+ * estimatedPaceMinPerKm is also updated to reflect the adjusted duration.
+ */
+function applyFatiguePaceModifiers(
+  segments: RouteSegment[],
+  targetRaceMinutes: number,
+): RouteSegment[] {
+  if (segments.length === 0) return segments;
+  const totalKm = segments[segments.length - 1].endKm;
+  if (totalKm <= 0 || targetRaceMinutes <= 0) return segments;
+
+  // Fatigue multiplier by fraction of total race distance at segment mid-point.
+  function fatigueMultiplier(raceFraction: number): number {
+    if (raceFraction < 0.25) return 1.00;
+    if (raceFraction < 0.60) return 1.05;
+    if (raceFraction < 0.85) return 1.10;
+    return 1.15;
+  }
+
+  // Step 1: compute fatigue-weighted durations.
+  const fatigued = segments.map(seg => {
+    const midKm = (seg.startKm + seg.endKm) / 2;
+    const fraction = totalKm > 0 ? midKm / totalKm : 0;
+    return seg.estimatedDurationMinutes * fatigueMultiplier(fraction);
+  });
+
+  // Step 2: normalise so the sum equals targetRaceMinutes.
+  const rawSum = fatigued.reduce((s, d) => s + d, 0);
+  if (rawSum <= 0) return segments;
+  const scale = targetRaceMinutes / rawSum;
+
+  return segments.map((seg, i) => {
+    const newDuration = Math.max(1, Math.round(fatigued[i] * scale));
+    const newPace = seg.distanceKm > 0
+      ? Math.round((newDuration / seg.distanceKm) * 10) / 10
+      : seg.estimatedPaceMinPerKm;
+    return { ...seg, estimatedDurationMinutes: newDuration, estimatedPaceMinPerKm: newPace };
+  });
+}
+
+/**
+ * Returns true if a significant climb (steep or sustained) starts within
+ * lookAheadKm kilometres ahead of currentKm on the route.
+ * Used to annotate pre-climb fuelling events with appropriate rationale.
+ */
+function hasUpcomingClimb(
+  segments: RouteSegment[],
+  currentKm: number,
+  lookAheadKm = 1.5,
+): boolean {
+  const windowEnd = currentKm + lookAheadKm;
+  for (const seg of segments) {
+    if (seg.endKm <= currentKm) continue;   // entirely behind current position
+    if (seg.startKm >= windowEnd) break;    // beyond look-ahead window (segments sorted)
+    if (seg.terrain === "steep_climb" || seg.terrain === "sustained_climb") return true;
+  }
+  return false;
 }
 
 // ─── Section architecture ─────────────────────────────────────────────────────
@@ -783,7 +876,11 @@ function findBestAvailableDrinkMix(
 /**
  * Determines how many drink mix servings to use for a section, guided by the
  * race strategy. Targets delivering drinkMixSharePct% of the section carb goal
- * from the drink mix, capped by available stock.
+ * from the drink mix, capped by the strategy backbone and osmolality limits.
+ *
+ * @param maxServingsPerSection - hard cap on servings, determined by backbone:
+ *   mixed / discrete_heavy = 1 (one bottle fill per section, budget-first)
+ *   drink_led = 2 (long-race strategy may justify two bottle fills per section)
  */
 function computeStrategyDrinkMixServings(
   item: FuelItem,
@@ -791,6 +888,7 @@ function computeStrategyDrinkMixServings(
   drinkMixSharePct: number,
   _usage: Map<string, number>, // retained for future stock-constrained mode
   sectionHours: number,
+  maxServingsPerSection: number = 1,
 ): number {
   // By the time this is called the context gate has already approved this section.
   // Compute how many servings the share target calls for, without a forced minimum.
@@ -816,7 +914,8 @@ function computeStrategyDrinkMixServings(
     : 1;
   const refillsInSection = Math.max(1, Math.ceil(sectionHours / 2));
   const densityCap = servingsPerBottle * refillsInSection;
-  return Math.min(servingsNeeded, densityCap);
+  // Apply backbone cap first, then osmolality density cap.
+  return Math.min(servingsNeeded, maxServingsPerSection, densityCap);
 }
 
 // ─── Drink mix context scoring ────────────────────────────────────────────────
@@ -826,8 +925,19 @@ function computeStrategyDrinkMixServings(
 // Only sections that meet the minimum score threshold and spacing gap receive
 // a drink mix serving.
 
-/** Minimum context score a section must reach to receive a drink mix serving. */
-const DRINK_MIX_MIN_SCORE = 3;
+/**
+ * Minimum context score a section must reach to receive a drink mix serving.
+ * Raised to 4 (from 3 in v2.16) so that flat/cool late sections do not
+ * automatically qualify — drink mix should be selective, not a default anchor.
+ *
+ * Typical scores:
+ *   Late/flat/cool/2h    = 3 − 1 + 1 = 3  → blocked ✓
+ *   Late/rolling/cool/2h = 3 + 1 + 1 = 5  → passes ✓
+ *   Late/steep/cool/2h   = 3 + 3 + 1 = 7  → passes ✓
+ *   Mid/sustained/cool/2h= 1 + 2 + 1 = 4  → passes ✓
+ *   Late/flat/warm/2h    = 3 − 1 + 1 + 2 = 5 → passes ✓ (heat justifies it)
+ */
+const DRINK_MIX_MIN_SCORE = 4;
 
 /**
  * Minimum gap in minutes between consecutive sections that receive drink mix.
@@ -875,12 +985,16 @@ function drinkMixContextScore(
   else if (phase === "mid") score += 1;
   // early race: 0 — discrete fuelling is easy; drink mix is not the priority
 
-  // Terrain: climbs favour drink mix (heavy breathing, impractical to eat solids)
-  if (terrain === "steep_climb")     score += 3;
+  // Terrain: climbs favour drink mix (heavy breathing, impractical to eat solids).
+  // Flat/runnable terrain scores -1: discrete fuelling is fully practical there,
+  // so drink mix should not be the default. This prevents automatic drink mix
+  // scheduling on every flat late section (the key over-allocation pattern).
+  if (terrain === "steep_climb")          score += 3;
   else if (terrain === "sustained_climb") score += 2;
-  else if (terrain === "rolling")    score += 1;
+  else if (terrain === "rolling")         score += 1;
+  else if (terrain === "flat_runnable")   score -= 1; // discrete fuelling is easy here
   else if (terrain === "technical_descent") score -= 1;
-  // flat_runnable, runnable_descent, recovery: neutral (0)
+  // runnable_descent, recovery: neutral (0)
 
   // Duration: a longer section justifies having a steady carb source in the bottle
   if (sectionHours >= 1.5) score += 1;
@@ -954,16 +1068,20 @@ function computeSectionFormatBudget(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.16 — drink mix context gate + section format budget):
+// Architecture (v2.18 — terrain-aware fatigue pacing + pre-climb fuelling signals):
 //
 // TWO LAYER MODEL:
-//   Layer D — Drink mix (context-gated): scheduled only in sections that score ≥
-//             DRINK_MIX_MIN_SCORE on the context gate (phase, terrain, duration,
-//             conditions). A minimum gap of DRINK_MIX_MIN_GAP_MINUTES is enforced
-//             between consecutive drink mix sections. One serving must fit within
-//             the section's full carb budget (prevents runaway overshoot).
-//   Layer E — Discrete events: fill the gap remaining after drink mix.
-//             discreteTargetCarbs = sectionTarget − drinkMixCarbs (floor 20g when > 0).
+//   Layer D — Drink mix (context-gated, budget-first):
+//             Scheduled only in sections that score ≥ DRINK_MIX_MIN_SCORE = 4.
+//             The score threshold (raised from 3 in v2.16) ensures flat/cool
+//             late-race sections are blocked; drink mix fires only on climbs,
+//             rolling terrain, or with warm conditions. Minimum gap of
+//             DRINK_MIX_MIN_GAP_MINUTES is enforced between servings.
+//             One serving per section max for mixed/discrete_heavy backbone
+//             (drink_led allows up to 2). Drink mix carbs count against the
+//             section budget — they are not additive on top of discrete events.
+//   Layer E — Discrete events: fill the remaining gap after drink mix.
+//             discreteTargetCarbs = sectionTarget − drinkMixCarbs (no forced floor).
 //             In sections with no drink mix, discrete events fill the entire budget.
 //
 // PLANNING MODE (default): schedule is generated without stock quantity constraints.
@@ -1079,9 +1197,15 @@ function generateSchedule(
       const gapOk = (section.fromMinutes - lastDrinkMixMinutes) >= DRINK_MIX_MIN_GAP_MINUTES;
       const fitsInSection = bestDrinkMix.carbsPerServing <= sectionTargetCarbs;
 
+      // Backbone cap: mixed/discrete_heavy strategies allow at most 1 serving per
+      // section (budget-first: drink mix fills part of the budget, not on top of it).
+      // drink_led (20h+) allows 2 servings for very long sections.
+      const maxServingsPerSection = strategy.backbone === "drink_led" ? 2 : 1;
+
       if (contextScore >= DRINK_MIX_MIN_SCORE && gapOk && fitsInSection) {
         const servings = computeStrategyDrinkMixServings(
-          bestDrinkMix, sectionTargetCarbs, strategy.drinkMixSharePct[phase], inventoryUsage, sectionHours,
+          bestDrinkMix, sectionTargetCarbs, strategy.drinkMixSharePct[phase],
+          inventoryUsage, sectionHours, maxServingsPerSection,
         );
         if (servings > 0) {
           drinkMixCarbsThisSection = Math.round(bestDrinkMix.carbsPerServing * servings);
@@ -1107,7 +1231,7 @@ function generateSchedule(
               fluidMl: Math.round(bestDrinkMix.fluidContributionMl * servings),
               sodiumMg: Math.round(bestDrinkMix.sodiumPerServingMg * servings),
               caffeinesMg: Math.round(bestDrinkMix.caffeinePerServingMg * servings),
-              rationale: `Mix ${servings}\u00a0serving${servings > 1 ? "s" : ""} into bottle \u2014 sip continuously over ${formatDuration(sectionMins)} (~${drinkMixCarbsThisSection}g carbs).`,
+              rationale: `In bottle: mix at section start, sip steadily over ${formatDuration(sectionMins)}. ~${drinkMixCarbsThisSection}g carbs, supporting discrete events.`,
               priority: "required",
               isNearAidStation: false,
               isContinuous: true,
@@ -1119,14 +1243,17 @@ function generateSchedule(
     }
 
     // ── Layer E: Discrete events fill the gap not covered by drink mix ─────
-    // Drink mix carbs reduce the discrete target so total delivery ≈ section target.
-    // The 20g floor only applies when there is a genuine positive gap to fill.
-    // When drink mix servings round up past the section target (e.g. 2×80g = 160g
-    // for a 153g section), the gap is negative — forcing 20g of discrete events on
-    // top would create a systematic overshoot. Setting discreteTargetCarbs = 0 in
-    // that case means no discrete events are scheduled; the runner sips continuously.
+    // Budget-first: section carb target is split across drink mix and discrete events.
+    // discreteTargetCarbs is simply the remaining gap — no forced minimum.
+    //
+    // When drink mix nearly fills the section (e.g. 80g in a 94g section → 14g gap),
+    // the cadence solver will schedule 1 gel to cover the gap rather than being forced
+    // to add an arbitrary extra 20g that would inflate the section total above target.
+    //
+    // When drink mix fully covers the section (discreteGap ≤ 0 — only possible for
+    // drink_led backbone with 2 servings), no discrete events are scheduled.
     const discreteGap = sectionTargetCarbs - drinkMixCarbsThisSection;
-    const discreteTargetCarbs = discreteGap <= 0 ? 0 : Math.max(20, discreteGap);
+    const discreteTargetCarbs = discreteGap <= 0 ? 0 : discreteGap;
 
     // Constrained cadence system (v2.7):
     // Solves four constraints simultaneously: delivery ≈ target (±15%), cadence ∈ [15, 35] min,
@@ -1328,6 +1455,13 @@ function generateSchedule(
       if (selectedFuel.requiresChewing) solidCarbsSoFar += actualCarbs;
       else liquidCarbsSoFar += actualCarbs;
 
+      // Terrain look-ahead: if a significant climb starts within 1.5 km,
+      // annotate as a pre-climb event — easier to fuel now than during the climb.
+      const climbAhead = hasUpcomingClimb(segments, slot.distanceKm, 1.5);
+      const terrainRationale = climbAhead && slotSeg.terrain !== "steep_climb" && slotSeg.terrain !== "sustained_climb"
+        ? `Fuel now — ${terrainLabel(slotSeg.terrain).toLowerCase()} before upcoming climb. ${rule.rationale}`
+        : `${terrainLabel(slotSeg.terrain)}: ${rule.rationale}`;
+
       schedule.push({
         id: `entry-${++entryIdx}`,
         timeMinutes: slot.timeMinutes,
@@ -1342,7 +1476,7 @@ function generateSchedule(
         fluidMl: Math.round(selectedFuel.fluidContributionMl * servings),
         sodiumMg: Math.round(selectedFuel.sodiumPerServingMg * servings),
         caffeinesMg: Math.round(selectedFuel.caffeinePerServingMg * servings),
-        rationale: `${terrainLabel(slotSeg.terrain)}: ${rule.rationale}`,
+        rationale: terrainRationale,
         priority: slot.isPriority ? "required" : "recommended",
         isNearAidStation: !!nearAid,
         warnings: buildEntryWarnings(selectedFuel, servings, inventoryUsage, athlete, raceHoursNow),
@@ -1376,11 +1510,9 @@ function generateSchedule(
         && e.action !== "refill_at_aid"
         && e.action !== "restock_carry"
     );
-    // Exclude continuous entries (drink_mix) — they are a parallel carb source and do not
-    // substitute for discrete events. Check that events alone meet the section target.
-    const scheduledCarbs = sectionEntries
-      .filter(e => !e.isContinuous)
-      .reduce((sum, e) => sum + e.carbsG, 0);
+    // Budget-first model: drink mix carbs count toward the section target.
+    // Validate combined delivery (continuous + discrete) vs sectionTargetCarbs.
+    const scheduledCarbs = sectionEntries.reduce((sum, e) => sum + e.carbsG, 0);
     if (sectionTargetCarbs > 0) {
       const deliveryRatio = scheduledCarbs / sectionTargetCarbs;
       if (deliveryRatio < 0.70 || deliveryRatio > 1.45) {

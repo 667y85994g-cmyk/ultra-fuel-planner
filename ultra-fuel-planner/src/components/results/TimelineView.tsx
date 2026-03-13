@@ -103,7 +103,13 @@ export function TimelineView({ output, raceStartTime }: Props) {
 
             <div className="space-y-1.5 mb-4">
               {entries
-                .sort((a, b) => a.timeMinutes - b.timeMinutes)
+                .sort((a, b) => {
+                  // Continuous (drink mix) bands always appear at the top of the hour group
+                  // so the runner reads "bottle context" before their discrete event list.
+                  if (a.isContinuous && !b.isContinuous) return -1;
+                  if (!a.isContinuous && b.isContinuous) return 1;
+                  return a.timeMinutes - b.timeMinutes;
+                })
                 .map((entry) => (
                   <TimelineEntry key={entry.id} entry={entry} raceStartTime={raceStartTime} />
                 ))}
@@ -119,21 +125,24 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
   const isAid = entry.action === "refill_at_aid";
   const isRequired = entry.priority === "required";
 
-  // Continuous drink mix entries render as a section-level annotation (not a point event)
+  // Continuous drink mix entries render as a section-level band — visually subordinate
+  // to discrete events so the runner reads the discrete rhythm as primary.
+  // The band communicates "this bottle supports the section" not "eat this now".
   if (entry.isContinuous) {
     return (
-      <div className="flex items-start gap-3 rounded-r-md border-l-2 border-blue-700/50 bg-blue-950/15 pl-3 pr-4 py-2">
-        <span className="flex-shrink-0 text-sm leading-none mt-0.5">🫙</span>
-        <div className="flex-1 min-w-0 text-xs">
-          <span className="text-blue-300 font-medium">
-            {entry.fuelItemName ?? "Drink mix"}
+      <div className="flex items-center gap-2.5 rounded-r-md border-l-[3px] border-blue-800/35 bg-blue-950/8 pl-3 pr-4 py-1">
+        <span className="flex-shrink-0 text-[10px] text-blue-700/50 select-none leading-none">≋</span>
+        <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+          <span className="text-[11px] text-blue-400/70 font-medium leading-tight">
+            In bottle:{" "}
+            <span className="font-normal">{entry.fuelItemName ?? "Drink mix"}</span>
             {entry.quantity > 1 && (
-              <span className="text-stone-400 font-normal"> ×{entry.quantity}</span>
+              <span className="text-blue-400/50"> ×{entry.quantity}</span>
             )}
           </span>
-          <span className="text-stone-500"> — mix into bottle at section start, sip steadily throughout</span>
+          <span className="text-[11px] text-stone-600 italic leading-tight">sip steadily through this section</span>
           {entry.carbsG > 0 && (
-            <span className="ml-2 text-stone-600">~{entry.carbsG}g carbs over this section</span>
+            <span className="text-[11px] text-stone-600 leading-tight">~{entry.carbsG}g carbs</span>
           )}
         </div>
       </div>

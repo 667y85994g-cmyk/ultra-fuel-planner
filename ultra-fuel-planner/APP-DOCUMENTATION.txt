@@ -1966,6 +1966,187 @@ v2.16 — Site Language and Positioning Update
   UNCHANGED: all algorithm logic, UI components, data models, version number
 
 
+v2.17 — Budget-First Drink Mix Allocation + Selective Context Gate
+
+  Problems addressed:
+  1. Late sections in 12-20h races showed carry totals of 150-180g for ~2h windows
+     (e.g. 176g, 146g, 154g) — roughly 50% higher than the working target implied.
+     Root cause: double-serving scheduling (2×80g = 160g) in 3h+ sections, combined
+     with a forced 20g minimum for discrete events even when drink mix nearly filled
+     the budget.
+  2. Context gate (score ≥ 3) was too permissive: flat/cool/late/2h sections scored
+     3+0+1 = 4 ≥ threshold 3, making drink mix the automatic default for every late
+     flat section regardless of whether it was genuinely useful.
+
+  Three-part fix:
+
+  1. Budget-first serving cap (mixed backbone):
+     computeStrategyDrinkMixServings() now accepts a maxServingsPerSection argument.
+     For mixed/discrete_heavy backbone (< 20h races): max 1 serving per section.
+     For drink_led backbone (20h+): up to 2 servings (existing density cap remains).
+     Effect: 3.5h late section now gets 1×80g drink mix + gels to fill ~84g gap
+     = ~164g total (matching target), instead of 2×80g + 20g forced = 180g.
+
+  2. No forced 20g discrete floor:
+     Old: discreteTargetCarbs = discreteGap <= 0 ? 0 : Math.max(20, discreteGap)
+     New: discreteTargetCarbs = discreteGap <= 0 ? 0 : discreteGap
+     Effect: when drink mix leaves a small gap (e.g. 14g), the cadence solver
+     schedules 1 gel to cover it rather than forcing an extra 20g that inflates
+     the section total above target.
+
+  3. Stricter context gate:
+     DRINK_MIX_MIN_SCORE raised from 3 to 4.
+     flat_runnable terrain now scores -1 (was neutral 0).
+     Effect: flat/cool late sections score 3-1+1=3 → blocked.
+     Rolling/cool late sections score 3+1+1=5 → passes.
+     Climbs and warm conditions continue to qualify easily.
+
+     Updated score table:
+       Late/flat/cool/2h     = 3-1+1 = 3  → blocked ✓
+       Late/rolling/cool/2h  = 3+1+1 = 5  → passes ✓
+       Late/steep/cool/2h    = 3+3+1 = 7  → passes ✓
+       Mid/sustained/cool/2h = 1+2+1 = 4  → passes ✓
+       Late/flat/warm/2h     = 3-1+1+2=5  → passes ✓ (heat justifies it)
+
+  Layer H validation:
+    Section carb gap check now validates combined delivery (drink mix + discrete)
+    against the section target, consistent with the budget-first model. Previously
+    it only checked discrete events.
+
+  Visual treatment of drink mix (continuous entries):
+    TimelineView.tsx: drink mix band is now visually subordinate — lighter border
+    (3px, 35% opacity), dimmer background, smaller text, wave glyph (≋) instead
+    of jar emoji, "In bottle:" label frames it as background support. Continuous
+    entries sort to the TOP of their hour group so the runner sees bottle context
+    before reading the discrete event list.
+    Print page: same lighter colour palette; smaller row padding; "≋ In bottle:"
+    prefix replaces "🫙 ... mix into bottle here" wording.
+    Rationale text updated: "In bottle: mix at section start, sip steadily over Xh.
+    ~Yg carbs, supporting discrete events." (was "Mix N serving(s) into bottle — sip
+    continuously over Xh (~Yg carbs).")
+
+  Expected result for Race to the Stones profile (18h flat/rolling, cool):
+    Before v2.17: late sections showed 150-180g carry for ~2-3.5h windows;
+                  drink mix in most late flat sections.
+    After v2.17: late flat sections blocked from drink mix; drink mix appears
+                 selectively on rolling/climb sections or in warm conditions;
+                 section carry totals 70-110g for 2h sections (~51g/hr target) ✓
+
+  CHANGED: src/lib/fuelling-engine.ts — DRINK_MIX_MIN_SCORE (3→4),
+    drinkMixContextScore (flat_runnable now -1, not neutral),
+    computeStrategyDrinkMixServings (maxServingsPerSection param, default 1),
+    generateSchedule (maxServingsPerSection backbone cap passed to servings fn;
+    forced 20g floor removed from discreteTargetCarbs; rationale text updated;
+    Layer H now validates combined carbs not discrete-only),
+    architecture comment updated to v2.17
+  CHANGED: src/components/results/TimelineView.tsx — continuous entry visual
+    treatment (lighter band, ≋ glyph, "In bottle:" label, smaller text);
+    sort order puts continuous entries before discrete in hour groups
+  CHANGED: src/app/print/page.tsx — continuous row lighter palette,
+    smaller padding, "≋ In bottle:" wording
+  CHANGED: version strings → v2.17 (5 UI locations)
+  UNCHANGED: cadence solver, carry plan calculation, format budget, all other
+    fuelling-engine logic, data models
+
+
+v2.18 — Terrain-Aware Pace Distribution + Pre-Climb Fuelling Signals
+
+  Goal: Move from a static fuelling schedule to a terrain-aware fuelling strategy.
+  Two connected improvements:
+  1. Fatigue-accumulated pacing calibrated to the user's target finish time.
+  2. Pre-climb look-ahead that annotates events before significant climbs.
+
+  Part 1: Terrain-Aware Pacing with Fatigue Accumulation
+
+  Background:
+    segmentation.ts already uses Naismith's rule to assign terrain-aware durations
+    to individual segments (climbs take longer than flats). buildSections accumulates
+    these per-segment durations into section fromMinutes/toMinutes, so sections
+    already inherit terrain-based timing differences. What was missing:
+    (a) Fatigue accumulation — a km 90 climb runs the same pace as a km 5 climb.
+    (b) Calibration — Naismith's raw sum often differs from the user's entered finish
+        time (e.g. Naismith predicts 10.8h for a 100km flat race but runner targets 18h).
+        Previously, totalRaceMinutes was derived from Naismith alone, not the user's target.
+
+  New function: applyFatiguePaceModifiers(segments, targetRaceMinutes)
+    1. Computes each segment's position in the race (mid-point km ÷ total km).
+    2. Applies a fatigue multiplier based on that position:
+         0–25% of race distance: ×1.00  (baseline — early race)
+         25–60%:                 ×1.05  (slight fade)
+         60–85%:                 ×1.10  (moderate fade)
+         85–100%:                ×1.15  (late-race slowdown)
+    3. Normalises all durations so their sum = targetRaceMinutes.
+       The normalisation preserves the terrain shape (climbs still slower than flats)
+       while always respecting the user's finish time prediction.
+    4. Updates estimatedPaceMinPerKm to reflect the adjusted duration per km.
+
+  Effect:
+    - Early sections are fractionally shorter (fresh pace).
+    - Late sections are longer, with climbs amplified by both Naismith and fatigue.
+    - Carry plans naturally improve — late sections carry more because they take longer.
+    - Caloric burn in deriveTargets now uses fatigue-adjusted pace (more accurate).
+    - Total race time always matches the user's entered target finish time.
+
+  Calibration:
+    targetRaceMinutes = plan.targetFinishTimeMinutes ?? naisimthSumMinutes
+    If the user hasn't entered a finish time, Naismith sum is used (existing behaviour).
+    If entered, the entire timing model is normalised to that value — the planner
+    now truly uses the user's finish time to set section durations, not just carb targets.
+
+  Race to the Stones example (18h, 100km flat/rolling):
+    Before: all sections ~60 min (Naismith flat pace normalised to 18h, no fatigue)
+    After:  early sections slightly shorter; late sections slightly longer;
+            climbs (if any) disproportionately longer in late race.
+    The difference is subtle (±5–15 min per section) but creates a believable,
+    runner-familiar pacing curve rather than a flat even distribution.
+
+  Part 2: Pre-Climb Fuelling Signals
+
+  New helper: hasUpcomingClimb(segments, currentKm, lookAheadKm = 1.5)
+    Scans forward from currentKm and returns true if a sustained or steep climb
+    starts within lookAheadKm on the route. Segments are traversed in order;
+    search exits early once beyond the look-ahead window.
+
+  In the slot loop:
+    Before each discrete event is pushed to the schedule, hasUpcomingClimb is called
+    at slot.distanceKm with a 1.5 km look-ahead. If a climb is detected and the
+    current terrain is NOT already a climb (so this is the last easy fuelling
+    opportunity before the ascent), the event rationale is prefixed:
+      "Fuel now — [terrain] before upcoming climb. [terrain rule rationale]"
+    This mimics real race behaviour where experienced runners fuel proactively
+    before a climb rather than trying to eat while breathing hard on the ascent.
+
+  Fuel selection is unchanged for pre-climb slots — terrain rules already favour
+  gels and chews in high-effort situations, and the current section's terrain rule
+  still governs which products are preferred/avoided. The annotation is rationale-only.
+
+  Design notes:
+    - The 1.5 km look-ahead is practical: 1.5 km at 9 min/km = ~14 min warning.
+      Long enough to act on; short enough to be actionable context, not noise.
+    - The check excludes slots already on a climb (terrain === "steep_climb" or
+      "sustained_climb") — those events are climb events, not pre-climb events.
+    - Technical descent fuelling is already blocked (slotSeg.terrain === "technical_descent"
+      → continue); this is unchanged.
+
+  What was NOT changed:
+    - segmentation.ts: terrain classification and Naismith pace logic unchanged.
+    - Fuel selection scoring: all 12 scoring criteria unchanged.
+    - Carb target engine: unchanged.
+    - Hydration / electrolyte models: unchanged.
+    - Carry plan structure: improved naturally from better section timing.
+    - Drink mix context gate: unchanged.
+    - UI layout and visual components: unchanged.
+
+  CHANGED: src/lib/fuelling-engine.ts —
+    applyFatiguePaceModifiers() (new function, near buildSections),
+    hasUpcomingClimb() (new function, near buildSections),
+    generatePlan() (applies fatigue+calibration before all downstream calls),
+    slot loop (terrainRationale with pre-climb annotation),
+    architecture comment updated to v2.18
+  CHANGED: version strings → v2.18 (5 UI locations)
+  UNCHANGED: segmentation.ts, fuel scoring, carry plan structure, UI components
+
+
 ================================================================================
 13. DEVELOPMENT NOTES
 ================================================================================

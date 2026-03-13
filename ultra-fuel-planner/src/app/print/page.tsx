@@ -161,17 +161,17 @@ export default function PrintPage() {
                   <tr
                     key={entry.id}
                     style={{
-                      background: "#eff6ff",
-                      borderBottom: "1px solid #bfdbfe",
-                      borderLeft: "3px solid #3b82f6",
+                      background: "#f8faff",
+                      borderBottom: "1px solid #dde8f8",
+                      borderLeft: "3px solid #93b4e8",
                     }}
                   >
-                    <td style={{ padding: "4px 8px", color: "#6b7280", fontStyle: "italic" }}>section</td>
-                    <td style={{ padding: "4px 8px", color: "#6b5c4c" }}>{entry.distanceKm.toFixed(1)}</td>
-                    <td style={{ padding: "4px 8px", color: "#1d4ed8" }} colSpan={2}>
-                      🫙 {entry.fuelItemName ?? "Drink mix"}{entry.quantity > 1 ? ` ×${entry.quantity}` : ""} — mix into bottle here, sip steadily throughout section
+                    <td style={{ padding: "3px 8px", color: "#9ca3af", fontStyle: "italic", fontSize: "11px" }}>section</td>
+                    <td style={{ padding: "3px 8px", color: "#9ca3af", fontSize: "11px" }}>{entry.distanceKm.toFixed(1)}</td>
+                    <td style={{ padding: "3px 8px", color: "#4b6ea8", fontSize: "11px" }} colSpan={2}>
+                      ≋ In bottle: {entry.fuelItemName ?? "Drink mix"}{entry.quantity > 1 ? ` ×${entry.quantity}` : ""} — sip steadily throughout this section
                     </td>
-                    <td style={{ padding: "4px 8px", textAlign: "right", color: "#1d4ed8" }}>
+                    <td style={{ padding: "3px 8px", textAlign: "right", color: "#7a9bc8", fontSize: "11px" }}>
                       {entry.carbsG > 0 ? `~${entry.carbsG}g` : "—"}
                     </td>
                   </tr>
@@ -331,7 +331,7 @@ export default function PrintPage() {
           justifyContent: "space-between",
         }}
       >
-        <span>Ultra Fuel Planner v2.16 — ultrafuelplanner.com</span>
+        <span>Ultra Fuel Planner v2.18 — ultrafuelplanner.com</span>
         <span>
           All times are estimates. Adjust based on real conditions.
         </span>
