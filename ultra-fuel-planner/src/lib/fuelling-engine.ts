@@ -566,23 +566,29 @@ function snapToNaturalCadence(rawCadence: number): number {
 // ─── Fatigue pace model ────────────────────────────────────────────────────────
 //
 // Segment durations from segmentation.ts already vary by terrain (Naismith's rule).
-// This layer adds a fatigue dimension: runners slow progressively across a race,
-// independent of terrain. Durations are normalised after applying fatigue multipliers
-// so the total always matches the user's target finish time.
+// This layer adds a freshness/fatigue dimension: runners start slightly faster than
+// their average pace and slow progressively as fatigue accumulates. Durations are
+// normalised after applying multipliers so the total always matches the user's
+// finish time target.
 //
-// Fatigue factors by fraction of total race distance completed:
-//   0–25%  : 1.00  (baseline — runners typically start near planned pace)
-//   25–60% : 1.05  (slight fade — sustained effort begins to accumulate)
-//   60–85% : 1.10  (moderate fade — mid-race fatigue clearly visible)
-//   85–100%: 1.15  (late-race slowdown — terrain effect amplified by fatigue)
+// Pacing curve (v2.19 — strengthened):
+//   0–15%  : 0.93  (freshness boost — early race enthusiasm, near-target pace)
+//   15–60% : 1.00  (baseline — settled-in effort)
+//   60–85% : 1.08  (moderate fade — accumulated fatigue, terrain feels harder)
+//   85–100%: 1.18  (strongest slowdown — late-race fatigue, terrain amplified)
 //
-// Normalisation: after fatigue multipliers are applied, all durations are scaled
-// so their sum equals targetRaceMinutes. This preserves the terrain shape (steep
-// climbs remain longer relative to flats) while always respecting the user's finish
-// time prediction. If no target is provided, falls back to the Naismith sum.
+// Ratio earliest→latest: 1.18 / 0.93 = 1.27 — a late segment of same terrain
+// takes ~27% longer than an early segment. For a 10km section this represents
+// ~25 min difference on an 18h 100km race. Clearly visible in the carry plan;
+// believable for typical ultra pacing data.
+//
+// Normalisation: all adjusted durations are scaled so their sum = targetRaceMinutes.
+// The terrain shape is preserved (climbs still proportionally longer than flats)
+// while respecting the user's finish time. If no target is provided, Naismith sum
+// is the fallback (normalisation scale = 1.0 ≈ flat — terrain shape unchanged).
 
 /**
- * Applies fatigue-based pace modifiers to segment durations, then normalises
+ * Applies freshness/fatigue pace modifiers to segment durations, then normalises
  * so the total matches targetRaceMinutes (preserving the user's finish time).
  *
  * Returns a new segment array — originals are not mutated.
@@ -596,12 +602,14 @@ function applyFatiguePaceModifiers(
   const totalKm = segments[segments.length - 1].endKm;
   if (totalKm <= 0 || targetRaceMinutes <= 0) return segments;
 
-  // Fatigue multiplier by fraction of total race distance at segment mid-point.
+  // Pacing multiplier by fraction of total race distance at segment mid-point.
+  // Values < 1.0 = faster than Naismith average (early freshness).
+  // Values > 1.0 = slower than Naismith average (accumulated fatigue).
   function fatigueMultiplier(raceFraction: number): number {
-    if (raceFraction < 0.25) return 1.00;
-    if (raceFraction < 0.60) return 1.05;
-    if (raceFraction < 0.85) return 1.10;
-    return 1.15;
+    if (raceFraction < 0.15) return 0.93; // freshness — first 15% of race
+    if (raceFraction < 0.60) return 1.00; // baseline settled effort
+    if (raceFraction < 0.85) return 1.08; // moderate fade
+    return 1.18;                          // strongest late-race slowdown
   }
 
   // Step 1: compute fatigue-weighted durations.
@@ -1068,7 +1076,7 @@ function computeSectionFormatBudget(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.18 — terrain-aware fatigue pacing + pre-climb fuelling signals):
+// Architecture (v2.19 — strengthened fatigue curve + carry plan elevation context):
 //
 // TWO LAYER MODEL:
 //   Layer D — Drink mix (context-gated, budget-first):
@@ -1727,6 +1735,12 @@ function buildCarryPlan(
     warnings.push(`${scheduledCarbs}g carbs scheduled vs ${targetCarbsG}g target \u2014 check inventory quantities.`);
   }
 
+  // Section elevation context: sum ascent/descent from all segments in this section.
+  // Helps runners understand why one section is longer or harder than another.
+  const ascentM = Math.round(section.segments.reduce((sum, seg) => sum + seg.ascentM, 0));
+  const descentM = Math.round(section.segments.reduce((sum, seg) => sum + seg.descentM, 0));
+  const dominantTerrain = getDominantTerrain(section.segments);
+
   return {
     sectionId: `${section.fromKm.toFixed(1)}-${section.toKm.toFixed(1)}`,
     fromKm: section.fromKm,
@@ -1736,6 +1750,9 @@ function buildCarryPlan(
     estimatedDurationMinutes: durationMins,
     fluidToCarryMl: targetFluidMl,
     carbsToCarryG: scheduledCarbs,
+    ascentM,
+    descentM,
+    dominantTerrain,
     itemsToCarry: items,
     warnings,
   };

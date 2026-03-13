@@ -260,6 +260,9 @@ export default function PrintPage() {
               <div style={{ color: "#6b5c4c", fontSize: "11px", marginBottom: "8px" }}>
                 km {plan.fromKm.toFixed(1)}–{plan.toKm.toFixed(1)} ·{" "}
                 ~{formatDuration(plan.estimatedDurationMinutes)}
+                {plan.ascentM > 20 && <span style={{ marginLeft: "6px", color: "#6b5c4c" }}>↑{plan.ascentM}m</span>}
+                {plan.descentM > 20 && <span style={{ marginLeft: "4px", color: "#9b8b7c" }}>↓{plan.descentM}m</span>}
+                {" · "}{terrainLabel(plan.dominantTerrain)}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
@@ -331,7 +334,7 @@ export default function PrintPage() {
           justifyContent: "space-between",
         }}
       >
-        <span>Ultra Fuel Planner v2.18 — ultrafuelplanner.com</span>
+        <span>Ultra Fuel Planner v2.19 — ultrafuelplanner.com</span>
         <span>
           All times are estimates. Adjust based on real conditions.
         </span>

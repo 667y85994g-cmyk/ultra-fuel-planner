@@ -3,6 +3,7 @@
 import type { PlannerOutput, CarryPlan } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
+import { terrainLabel } from "@/lib/segmentation";
 import { Droplets, Zap, MapPin, AlertTriangle, Package } from "lucide-react";
 
 interface Props {
@@ -75,6 +76,14 @@ export function CarryView({ output }: Props) {
                 <p className="mt-0.5 text-xs text-stone-500">
                   km {plan.fromKm.toFixed(1)}–{plan.toKm.toFixed(1)} ·{" "}
                   ~{formatDuration(plan.estimatedDurationMinutes)}
+                  {plan.ascentM > 20 && (
+                    <span className="ml-1.5 text-stone-400">↑{plan.ascentM}m</span>
+                  )}
+                  {plan.descentM > 20 && (
+                    <span className="ml-1 text-stone-500">↓{plan.descentM}m</span>
+                  )}
+                  {" · "}
+                  <span className="text-stone-500">{terrainLabel(plan.dominantTerrain)}</span>
                 </p>
               </div>
               <div className="text-right text-xs text-stone-500">

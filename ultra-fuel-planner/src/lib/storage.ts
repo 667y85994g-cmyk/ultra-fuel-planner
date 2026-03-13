@@ -62,11 +62,11 @@ export function defaultFuelInventory(): FuelItem[] {
       sweetnessScore: 4, lateRaceToleranceScore: 3, quantityAvailable: 6,
     },
     {
-      id: generateId(), productName: "Maurten Drink Mix 320", brand: "Maurten",
-      type: "drink_mix", carbsPerServing: 80, sodiumPerServingMg: 500, fluidContributionMl: 500,
-      caffeinePerServingMg: 0, caloriesPerServing: 320, servingSizeG: 80,
+      id: generateId(), productName: "Maurten Drink Mix 160", brand: "Maurten",
+      type: "drink_mix", carbsPerServing: 40, sodiumPerServingMg: 250, fluidContributionMl: 500,
+      caffeinePerServingMg: 0, caloriesPerServing: 160, servingSizeG: 40,
       easyOnClimbs: true, easyAtHighEffort: true, requiresChewing: false,
-      sweetnessScore: 2, lateRaceToleranceScore: 5, quantityAvailable: 4,
+      sweetnessScore: 2, lateRaceToleranceScore: 5, quantityAvailable: 6,
     },
     {
       id: generateId(), productName: "Clif Bar", brand: "Clif",

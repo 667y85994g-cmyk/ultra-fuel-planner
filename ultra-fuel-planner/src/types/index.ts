@@ -309,6 +309,12 @@ export interface CarryPlan {
   estimatedDurationMinutes: number;
   fluidToCarryMl: number;
   carbsToCarryG: number;
+  /** Total ascent across all segments in this section (metres, rounded). */
+  ascentM: number;
+  /** Total descent across all segments in this section (metres, rounded). */
+  descentM: number;
+  /** Time-weighted dominant terrain type for this section. */
+  dominantTerrain: TerrainType;
   itemsToCarry: CarryItem[];
   refillInstructions?: string;
   warnings: string[];

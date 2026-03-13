@@ -31,7 +31,7 @@ export function LegalFooter({ compact = false }: LegalFooterProps) {
                 Disclaimer
               </Link>
             </nav>
-            <span className="text-xs text-stone-700">v2.18</span>
+            <span className="text-xs text-stone-700">v2.19</span>
           </div>
         </div>
       </div>

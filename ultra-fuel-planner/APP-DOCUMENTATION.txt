@@ -2147,6 +2147,103 @@ v2.18 — Terrain-Aware Pace Distribution + Pre-Climb Fuelling Signals
   UNCHANGED: segmentation.ts, fuel scoring, carry plan structure, UI components
 
 
+────────────────────────────────────────────────────────────────────────────────
+v2.19 — Pace Distribution Strengthening + Carry Plan Elevation Context
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Two improvements: a stronger fatigue/freshness pacing curve that produces more
+  realistic early/late pace splits, and elevation context added to every carry
+  plan section so runners know what terrain they're fuelling for.
+
+Part 1: Strengthened Fatigue Curve
+
+  Problem:
+    The v2.18 fatigue curve (1.00 / 1.05 / 1.10 / 1.15) produced a maximum
+    late/early ratio of 1.15 — only 15% difference between the freshest and most
+    fatigued sections on the same terrain. Real ultra pacing typically shows 25–35%
+    differential between early-race and late-race effort.
+
+  Change — applyFatiguePaceModifiers() in fuelling-engine.ts:
+    Old multipliers:  [0–25%: 1.00] [25–60%: 1.05] [60–85%: 1.10] [85–100%: 1.15]
+    New multipliers:  [0–15%: 0.93] [15–60%: 1.00] [60–85%: 1.08] [85–100%: 1.18]
+
+    Ratio: 1.18 / 0.93 = 1.27 — a late-race segment of the same terrain type
+    takes ~27% longer than the equivalent segment in the first 15% of the race.
+
+  Behaviour:
+    - The "freshness window" is now the first 15% of the race (not 25%).
+    - The freshness bonus is 7% faster than baseline (multiplier 0.93).
+    - Late-race penalty is 18% slower than baseline (was 15%).
+    - All segment durations are still normalised to targetFinishTimeMinutes so
+      total race time is unchanged — only the distribution changes.
+    - For a 10km segment on a 100km/18h race, the timing difference between
+      earliest and latest identical terrain is approximately 23–25 minutes.
+
+Part 2: Carry Plan Elevation Context
+
+  Problem:
+    Each carry section showed distance + duration only. Runners couldn't tell
+    at a glance whether a long section was flat (easy effort, gel every 30min)
+    or a big climb (high effort, need solid fuel + extra fluid).
+
+  Change — three new fields added to CarryPlan interface:
+    ascentM: number          — total ascent for this section (metres, rounded)
+    descentM: number         — total descent for this section (metres, rounded)
+    dominantTerrain: TerrainType — time-weighted terrain type for the section
+
+  Implementation:
+    - buildCarryPlan() in fuelling-engine.ts computes all three from
+      section.segments using reduce() and existing getDominantTerrain().
+    - CarryView.tsx (app UI): metadata line now shows
+        "km X.X–X.X · ~Xh ↑Xm ↓Xm · Terrain Label"
+      Ascent/descent are shown conditionally (threshold: > 20m).
+    - print/page.tsx: same metadata format applied to the print card.
+
+Files changed:
+  CHANGED: src/lib/fuelling-engine.ts —
+    applyFatiguePaceModifiers() (multiplier array + boundary at 0.15 not 0.25),
+    buildCarryPlan() (adds ascentM, descentM, dominantTerrain to return value),
+    architecture comment updated to v2.19
+  CHANGED: src/types/index.ts —
+    CarryPlan interface (added ascentM, descentM, dominantTerrain fields)
+  CHANGED: src/components/results/CarryView.tsx —
+    import terrainLabel from @/lib/segmentation,
+    metadata row extended with ↑Xm ↓Xm · terrain label
+  CHANGED: src/app/print/page.tsx —
+    carry section metadata row extended with ↑Xm ↓Xm · terrain label
+  CHANGED: version strings → v2.19 (5 UI locations)
+  UNCHANGED: segmentation.ts, TimelineView, fuelling intervals, scoring
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.19 (patch) — Default Drink Mix: Maurten 320 → Maurten 160
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Changed the preloaded seed inventory drink mix from Maurten Drink Mix 320
+  (80g carbs/serving) to Maurten Drink Mix 160 (40g carbs/serving).
+
+Reason:
+  The 320 formulation's 80g serving was incompatible with moderate carb targets
+  (e.g. 40–60g/hr). A single serving consumed over 2 hours would overshoot a
+  moderate target by 20–40g/hr. The 160 formulation's 40g serving fits cleanly
+  into a 1–2h section for most runners and allows the engine to add a serving
+  without blowing the section's carb budget.
+
+Change:
+  src/lib/storage.ts — SEED_FUEL_ITEMS drink_mix entry updated:
+    productName: "Maurten Drink Mix 160"  (was "Maurten Drink Mix 320")
+    carbsPerServing: 40                   (was 80)
+    sodiumPerServingMg: 250               (was 500, halved proportionally)
+    caloriesPerServing: 160               (was 320)
+    servingSizeG: 40                      (was 80)
+    quantityAvailable: 6                  (was 4, increased to maintain ~same total carb pool)
+
+  No version bump — this is a data-only seed change that only affects new users
+  or users who clear their localStorage. Existing saved inventories are unchanged.
+
+
 ================================================================================
 13. DEVELOPMENT NOTES
 ================================================================================
