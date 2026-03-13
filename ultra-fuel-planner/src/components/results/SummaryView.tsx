@@ -297,7 +297,7 @@ function buildCarbTargetExplanation(
     : racePriority === "completion" ? " Kept conservative — completion-focused approach."
     : "";
 
-  return `Practical target for a ${hours}-hour ${durationContext}, ${toleranceLabel}, and ${strategyLabel} strategy.${priorityNote}`;
+  return `Working target for a ${hours}-hour ${durationContext}, based on current endurance fuelling guidance. Adjusted for ${toleranceLabel} and a ${strategyLabel} approach.${priorityNote} Practise your fuelling strategy in training before race day.`;
 }
 
 // ─── Confidence card ──────────────────────────────────────────────────────────

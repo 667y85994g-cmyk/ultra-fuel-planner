@@ -106,8 +106,9 @@ export default function HomePage() {
                 How much to eat per hour
               </h3>
               <p className="text-sm text-stone-400 leading-relaxed">
-                A carb target calibrated from your past runs — not a generic
-                recommendation. Adjusted for your route and race length.
+                A recommended range based on your race duration and prior runs —
+                not a number from a generic table. The planner selects a working
+                target within that range to build your schedule around.
               </p>
             </div>
             <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
@@ -278,7 +279,7 @@ export default function HomePage() {
 
               {/* Card footer */}
               <div className="pt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
-                <span>Ultra Fuel Planner v2.15</span>
+                <span>Ultra Fuel Planner v2.16</span>
                 <span>All times are estimates</span>
               </div>
             </div>
@@ -364,7 +365,7 @@ export default function HomePage() {
               },
               {
                 title: "Reads your GPX file",
-                desc: "Your elevation profile tells the planner where the climbs, descents and flat sections are. It adjusts fuel format per terrain — gels on climbs, solids on flats, nothing on technical descents.",
+                desc: "Your elevation profile tells the planner where the route gets hard — long climbs, technical descents, remote sections with no aid. Format recommendations adjust to what's practical on each terrain.",
               },
               {
                 title: "Uses your actual products",
@@ -401,9 +402,9 @@ export default function HomePage() {
             Race day is not the time to figure out fuelling.
           </h2>
           <p className="mb-8 text-stone-400 leading-relaxed">
-            Build a practical plan from your own data. Know what to carry,
-            when to eat, and what to restock at each aid station — before
-            you toe the line.
+            Build a practical race strategy from your own data and your actual
+            course. Know what to carry, where fuelling gets harder, and what to
+            restock at each checkpoint — before you toe the line.
           </p>
           <Link href="/planner">
             <Button size="lg" className="gap-2">

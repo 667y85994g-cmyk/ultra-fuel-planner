@@ -391,6 +391,25 @@ Tab 1: Summary (SummaryView.tsx)
   - Energy expenditure shown only as a contextual footnote, not a headline metric
   - All section labels avoid scientific precision framing
 
+  Target terminology (consistent across all views):
+  - Recommended range  — the sensible carb range for this runner and race duration
+  - Working target     — the target selected for this plan within that range
+  - Planned average    — what the generated schedule actually delivers
+  Never blur these three; never use "optimal", "precise requirement", or
+  "calculated need" to describe any of them.
+
+  Positioning principles (v2.16+):
+  - The product is a route-aware fuelling strategy tool, not a nutrition calculator
+  - Speak like a coach: practical, grounded, runner-first; not like a lab report
+  - Reinforce route differentiation: "where fuelling gets harder on your course",
+    "adjusted to what's practical on each terrain", not prescribed rules
+  - Trust language to use: "based on current endurance fuelling guidance",
+    "working target", "recommended range", "practise in training",
+    "often easier to tolerate", "individual tolerance varies"
+  - Language to avoid: "optimised", "precise requirement", "scientifically
+    calculated", "minimises gut stress", "gut tolerance is highest",
+    "gels on climbs, solids on flats" (too prescriptive)
+
 Tab 2: Timeline (TimelineView.tsx)
   - Schedule entries grouped by hour
   - Each entry: time, icon, action, terrain badge, carbs
@@ -1816,6 +1835,135 @@ v2.15 — Drink Mix Over-Allocation Fix (Context-Gated Scheduling)
     DRINK_MIX_MIN_SCORE / DRINK_MIX_MIN_GAP_MINUTES constants (new)
   UNCHANGED: carb-target-engine.ts, calibration-engine.ts, carry plan, aid station logic,
     terrain rules, discrete event cadence solver, product scoring, UI components
+
+
+v2.16 — Section-Level Fuel Format Budget
+
+  Problem: Even after the v2.15 drink-mix context gate, discrete event selection
+  remained gel-dominant. Chews and bars (heavier, more satisfying formats ideal in
+  early-to-mid race on flat/rolling terrain) were systematically under-selected
+  because the gel base scoring advantage was too large relative to the chew bonus.
+  Additionally, allowChews[late] = false for 12-20h races blocked chews for the
+  last ~8 hours — too binary for medium ultras.
+
+  Fix: Three-part change to discrete fuel selection:
+
+  1. Section format budget (SectionFormatBudget + computeSectionFormatBudget):
+     Each section now computes a soft target for the fraction of discrete slots
+     that should be filled with "quick" (gel) vs "base" (chew/bar) formats:
+
+       Phase early, flat/rolling:   quick 48%, base 46%  (near-even split)
+       Phase mid, flat/rolling:     quick 56%, base 38%
+       Phase early/mid, climb:      quick 65-75%, base 22-32%
+       Descent:                     quick 68%, base 28%
+       Phase late (any terrain):    quick 82%, base 15%
+
+     These fractions drive scoring bonuses/penalties in selectBestFuel:
+       Under target (< 70% of target filled): +12 (quick) or +18 (base)
+       At/over target:                        -18 (quick) or -15 (base)
+
+     "base" gets a larger bonus because chews/bars are harder to select against
+     the gel default — the asymmetry compensates for terrain and preference biases.
+
+  2. Chew base score +5 → +10:
+     In selectBestFuel, the isLongUltra chew bonus was too small to overcome the
+     gel advantage on technical terrain. Doubling it to +10 makes chews competitive
+     in early-to-mid flat/rolling sections without overriding late-race gel preference.
+
+  3. allowChews[late] = true for 12-20h races:
+     The binary exclusion of chews in the late phase of medium ultras was too
+     aggressive. The format budget (quick 82% in late sections) and
+     lateRaceToleranceScore × 8 already de-prioritise chews naturally. Removing
+     the hard gate lets a high-tolerance chew appear occasionally late without
+     forcing it.
+
+  Format tracking:
+    scheduledQuick and scheduledBase counters are incremented after each
+    selectBestFuel call (within the slot loop, per-section). totalSlotsInSection
+    is set once at the start of each section's slot loop. Counters reset to 0
+    at the start of each section.
+
+  Expected change for Race to the Stones profile (early flat sections):
+    Before: all gels in early sections
+    After: roughly 1 chew or bar per 2 gels in early-to-mid flat sections;
+           late sections remain gel-dominant (quickFraction 0.82)
+
+  CHANGED: src/lib/fuelling-engine.ts — SectionFormatBudget interface (new),
+    computeSectionFormatBudget (new), selectBestFuel (4 new params + scoring block #12),
+    slot loop (sectionFmtBudget/scheduledQuick/scheduledBase init + both selectBestFuel
+    calls updated + format count increment after rotation tracking),
+    buildRaceStrategy (allowChews[late] 12-20h: false→true),
+    chew base score +5→+10, architecture comment updated to v2.16
+  UNCHANGED: drink mix gate, cadence solver, carry plan, UI components
+
+
+v2.16 — Site Language and Positioning Update
+
+  Goal: Tighten consumer-facing language so the product feels like a practical
+  race-planning tool rather than a nutrition calculator or lab report.
+
+  Core positioning principle applied:
+    "A route-aware fuelling strategy built around your race, your likely duration
+    and the fuels you actually use."
+
+  Specific changes:
+
+  1. Homepage — "How much to eat per hour" card:
+     Old: "A carb target calibrated from your past runs — not a generic
+          recommendation. Adjusted for your route and race length."
+     New: "A recommended range based on your race duration and prior runs —
+          not a number from a generic table. The planner selects a working target
+          within that range to build your schedule around."
+     Reason: Introduces "recommended range" / "working target" distinction;
+             removes vague "calibrated" language.
+
+  2. Homepage — "Reads your GPX file" bullet:
+     Old: "...It adjusts fuel format per terrain — gels on climbs, solids on
+          flats, nothing on technical descents."
+     New: "...where the route gets hard — long climbs, technical descents, remote
+          sections with no aid. Format recommendations adjust to what's practical
+          on each terrain."
+     Reason: The old copy sounded like rigid rules from a calculator. The new
+             copy frames it as route-awareness and practical adjustment.
+
+  3. Homepage — CTA section body:
+     Old: "Build a practical plan from your own data. Know what to carry, when to
+          eat, and what to restock at each aid station — before you toe the line."
+     New: "Build a practical race strategy from your own data and your actual
+          course. Know what to carry, where fuelling gets harder, and what to
+          restock at each checkpoint — before you toe the line."
+     Reason: Strengthens route-aware angle; "race strategy" vs "plan"; adds
+             "where fuelling gets harder" as a course-specific differentiator.
+
+  4. fuelling-engine.ts — fuelFormatNotes last note:
+     Old: "Solids are scheduled on flat and recovery terrain where gut tolerance
+          is highest."
+     New: "Solids are scheduled on flatter, easier sections where eating is most
+          practical."
+     Reason: "Where gut tolerance is highest" implies a precision claim the
+             engine cannot make. "Where eating is most practical" is accurate
+             and says the same thing without overclaiming.
+
+  5. SummaryView.tsx — buildCarbTargetExplanation output:
+     Old: "Practical target for a 14-hour long ultra, higher fuelling capacity,
+          and long-duration pacing strategy."
+     New: "Working target for a 14-hour long ultra, based on current endurance
+          fuelling guidance. Adjusted for higher fuelling capacity and a
+          long-duration pacing approach. Practise your fuelling strategy in
+          training before race day."
+     Reason: Uses the correct "working target" term (consistent with card label
+             above it); adds explicit trust language ("based on current endurance
+             fuelling guidance"); ends with the training-practice caveat per
+             positioning brief.
+
+  6. Language principles section in APP-DOCUMENTATION.txt (section 5):
+     Added target terminology definitions and positioning principles to guide
+     future copy decisions.
+
+  CHANGED: src/app/page.tsx (3 copy changes),
+    src/lib/fuelling-engine.ts (fuelFormatNotes terrain note),
+    src/components/results/SummaryView.tsx (buildCarbTargetExplanation)
+  UNCHANGED: all algorithm logic, UI components, data models, version number
 
 
 ================================================================================

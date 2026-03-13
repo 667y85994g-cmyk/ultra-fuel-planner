@@ -187,13 +187,13 @@ function buildRaceStrategy(
       "Mixed strategy (12\u201320h): discrete fuelling is the primary rhythm; drink mix used selectively for climbs, late race, and warmer conditions.",
     );
     rationale.push(
-      "Solids in early race only. Chews in early and mid. Late race: liquids and gels only.",
+      "Solids in early race only. Chews permitted throughout — late-race scoring naturally de-prioritises them as gut tolerance decreases.",
     );
     return {
       backbone: "mixed",
       drinkMixSharePct: { early: 25, mid: 35, late: 50 },
       allowSolids:      { early: true,  mid: false, late: false },
-      allowChews:       { early: true,  mid: true,  late: false },
+      allowChews:       { early: true,  mid: true,  late: true  },
       earlyRaceEndPct:  0.25,
       lateRaceStartPct: 0.55,
       rationale,
@@ -892,9 +892,69 @@ function drinkMixContextScore(
   return score;
 }
 
+// ─── Section format budget ────────────────────────────────────────────────────
+//
+// For each section, a format budget sets target proportions of discrete events
+// by fuel role: quick (gels) vs base (chews, bars). The budget is computed once
+// from phase + dominant terrain before slot allocation begins, then enforced via
+// scoring adjustments in selectBestFuel() rather than hard gates.
+//
+// Quick fuel (gels): fast, easy intake regardless of terrain or effort level.
+//   Grows in importance as the race progresses and solids become harder to eat.
+// Base fuel (chews, bars): more variety and texture; best in early/mid on flat terrain.
+//   Naturally reduced by late-race phase scoring but should not disappear entirely
+//   unless the athlete has no base fuel products or terrain forbids chewing.
+
+interface SectionFormatBudget {
+  /** Target fraction of discrete events from quick fuel (gels). */
+  quickFraction: number;
+  /** Target fraction from base fuel (chews, bars). Remaining fraction goes to either. */
+  baseFraction:  number;
+}
+
+/**
+ * Returns the section-level format budget: target fractions of discrete events
+ * that should come from quick (gels) and base (chews/bars) fuel.
+ *
+ * These are soft targets — selectBestFuel() uses them as scoring modifiers, not
+ * hard caps. Under-represented formats get a bonus; over-represented ones get a
+ * penalty. Phase gates and terrain rules still take precedence.
+ */
+function computeSectionFormatBudget(
+  phase: RacePhase,
+  terrain: TerrainType,
+): SectionFormatBudget {
+  const isClimb   = terrain === "steep_climb" || terrain === "sustained_climb";
+  const isDescent = terrain === "technical_descent" || terrain === "runnable_descent";
+
+  // Late race: gels dominate as gut tolerance for solids typically decreases
+  if (phase === "late") {
+    return { quickFraction: 0.82, baseFraction: 0.15 };
+  }
+
+  // Climbs: gels preferred regardless of phase (breathing makes chewing difficult)
+  if (isClimb) {
+    return phase === "early"
+      ? { quickFraction: 0.65, baseFraction: 0.32 }
+      : { quickFraction: 0.75, baseFraction: 0.22 };
+  }
+
+  // Descents: gels fine; solids/bars avoided but chews still OK
+  if (isDescent) {
+    return { quickFraction: 0.68, baseFraction: 0.28 };
+  }
+
+  // Flat, rolling, recovery: best window for base fuel variety
+  if (phase === "early") {
+    return { quickFraction: 0.48, baseFraction: 0.46 };
+  }
+  // mid, flat/rolling/recovery
+  return { quickFraction: 0.56, baseFraction: 0.38 };
+}
+
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.15 — drink mix context gate):
+// Architecture (v2.16 — drink mix context gate + section format budget):
 //
 // TWO LAYER MODEL:
 //   Layer D — Drink mix (context-gated): scheduled only in sections that score ≥
@@ -939,6 +999,9 @@ function drinkMixContextScore(
 //  11. Generate events at sectionStart + (i+1) × snappedCadence
 //  12. Fuel selection: best match per event (terrain, phase, athlete preferences)
 //      Rotation: -30 same product last event, -12 same type, +18 for role alternation.
+//      Format budget: SectionFormatBudget targets quick/base fractions per section;
+//        scoring bonuses (+12/+18) steer selection toward under-represented formats,
+//        penalties (-15/-18) apply when format target is met or exceeded.
 //      Phase gate fallback: if strategy phase gates block all inventory, retry without gates.
 //  13. Post-section sanity check: verify cadence ∈ [15, 40], no event overflow
 //  14. Post-loop: gap-fill guardrail inserts events in gaps > 60 min (with mix) / 45 min
@@ -1186,6 +1249,14 @@ function generateSchedule(
       }
     }
 
+    // ── Section format budget: compute once, track counts during slot iteration ──
+    // Budget determines target proportions of quick (gels) vs base (chews/bars) events.
+    // Counts are reset per section and passed into selectBestFuel() as scoring context.
+    const sectionFmtBudget = computeSectionFormatBudget(phase, getDominantTerrain(section.segments));
+    let scheduledQuick = 0;
+    let scheduledBase  = 0;
+    const totalSlotsInSection = scheduledSlots.length;
+
     for (const slot of scheduledSlots) {
       const slotSeg = findSegmentAtTime(segments, slot.timeMinutes);
       if (!slotSeg) continue;
@@ -1207,6 +1278,7 @@ function generateSchedule(
         phase, strategy,
         /* respectPhaseGates */ true,
         recentFuelIds, recentFuelTypes,
+        sectionFmtBudget, scheduledQuick, scheduledBase, totalSlotsInSection,
       );
 
       // Fallback: if strategy phase gates blocked all suitable fuel (e.g. late race allows only
@@ -1220,6 +1292,7 @@ function generateSchedule(
           phase, strategy,
           /* respectPhaseGates */ false,
           recentFuelIds, recentFuelTypes,
+          sectionFmtBudget, scheduledQuick, scheduledBase, totalSlotsInSection,
         );
       }
 
@@ -1246,6 +1319,11 @@ function generateSchedule(
       if (recentFuelIds.length > 2) recentFuelIds.shift();
       recentFuelTypes.push(selectedFuel.type);
       if (recentFuelTypes.length > 2) recentFuelTypes.shift();
+
+      // Update section format counts for budget adherence tracking.
+      const selectedRole = fuelRole(selectedFuel.type);
+      if (selectedRole === "quick") scheduledQuick++;
+      else if (selectedRole === "base") scheduledBase++;
 
       if (selectedFuel.requiresChewing) solidCarbsSoFar += actualCarbs;
       else liquidCarbsSoFar += actualCarbs;
@@ -1566,6 +1644,10 @@ function selectBestFuel(
   respectPhaseGates = true,
   recentFuelIds: string[] = [],
   recentFuelTypes: string[] = [],
+  sectionFormatBudget: SectionFormatBudget | null = null,
+  scheduledQuick = 0,
+  scheduledBase = 0,
+  totalSlotsInSection = 0,
 ): FuelItem | null {
   const isLateRace = phase === "late" ||
     (athlete.preferences.noSweetAfterHour != null &&
@@ -1617,7 +1699,7 @@ function selectBestFuel(
     // real food rare. Avoids blanket "solid = bad" — chews are a legitimate ultra fuel.
     if (isLongUltra) {
       if (item.type === "gel")        score += 20;
-      else if (item.type === "chew")  score += 5;   // accepted secondary fuel
+      else if (item.type === "chew")  score += 10;  // accepted secondary fuel (boosted to be competitive with rotation)
       else if (item.type === "bar")   score -= 10;  // digestive load, only early sections
       else if (item.type === "real_food") score -= 15; // aid-station only
     } else if (isUltra) {
@@ -1690,6 +1772,24 @@ function selectBestFuel(
     if (item.type === "real_food") {
       if (!isNearAidStation) score -= 35; // very strong: avoids scheduling bananas mid-section
       score -= 8;                          // additional rarity penalty even at aid stations
+    }
+
+    // 12. Section format budget: guide the quick/base split toward phase+terrain targets.
+    // Under-represented formats get a bonus; over-represented ones get a penalty.
+    // These adjustments are additive to (not replacing) the terrain/phase scoring above.
+    // Base fuel gets a stronger bonus because it is historically more likely to be skipped
+    // than gels (gels score +20 from race-distance bias; chews only +10).
+    if (sectionFormatBudget !== null && totalSlotsInSection > 0) {
+      const role = fuelRole(item.type);
+      if (role === "quick") {
+        const targetQuick = Math.max(1, Math.round(totalSlotsInSection * sectionFormatBudget.quickFraction));
+        if (scheduledQuick < Math.round(targetQuick * 0.7)) score += 12; // noticeably under — boost
+        if (scheduledQuick >= targetQuick)                  score -= 18; // over quota — discourage
+      } else if (role === "base") {
+        const targetBase = Math.max(1, Math.round(totalSlotsInSection * sectionFormatBudget.baseFraction));
+        if (scheduledBase < Math.round(targetBase * 0.7)) score += 18; // under quota — stronger boost (base historically underused)
+        if (scheduledBase >= targetBase)                  score -= 15; // over quota — discourage
+      }
     }
 
     return { item, score };
@@ -1789,7 +1889,7 @@ function buildSummary(
 
   if (segments.length > 0) {
     fuelFormatNotes.push(
-      "Solids are scheduled on flat and recovery terrain where gut tolerance is highest. Gels and drinks are prioritised on climbs and in later race stages."
+      "Solids are scheduled on flatter, easier sections where eating is most practical. Gels and drink mix are prioritised on climbs and in the later stages of the race."
     );
   }
 
