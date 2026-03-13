@@ -2405,6 +2405,79 @@ Files changed:
   CHANGED: version strings → v2.21 (5 UI locations)
   UNCHANGED: fuelling engine logic, types, carry plan data, all other UI
 
+----------------------------------------
+v2.22 — iPhone Home Screen App Icon
+
+  Goal: Safari "Add to Home Screen" uses a branded icon instead of a screenshot
+  tile; favicon also updated; PWA manifest added.
+
+  Design: dark warm stone gradient background (#7c2d12 → #1c0a00), white
+  mountain silhouette (double peak on touch icon, single peak on favicon),
+  amber/golden fuel energy dot at the summit. iOS applies its own squircle mask
+  so no rounded corners are baked into the icon.
+
+  Implementation: Next.js App Router special-file conventions with ImageResponse
+  from next/og (built into Next.js 13.4+). No static PNG assets needed — icons
+  generated as edge functions at request time.
+
+  New files:
+    src/app/icon.tsx — 32×32 favicon (edge runtime, ImageResponse)
+    src/app/apple-icon.tsx — 180×180 Apple touch icon (edge runtime, ImageResponse)
+    src/app/manifest.ts — PWA web app manifest (MetadataRoute.Manifest)
+
+  Files changed:
+    src/app/layout.tsx — added Viewport export with themeColor "#92400e";
+      added appleWebApp metadata (capable: true, statusBarStyle:
+      "black-translucent", title: "UltraFuel") to make the saved home screen
+      app launch full-screen without a Safari address bar
+    APP-DOCUMENTATION.txt — this entry
+  UNCHANGED: all engine logic, planner UI, results, print page
+
+----------------------------------------
+v2.23 — A4 Printable Race Document (Pagination + Satellite Map)
+
+  Goal: the print view now produces a clean 3-page A4 document and the course
+  map uses real satellite imagery instead of a blank background.
+
+  Pagination fix:
+  - Added PRINT_CSS constant injected via <style dangerouslySetInnerHTML> —
+    contains @page { size: A4 portrait; margin: 12mm 15mm 13mm 15mm; } plus
+    @media print rules for print-color-adjust, break-before, break-inside,
+    thead/tr behaviour
+  - Replaced single outer wrapper div (padding that bled across page breaks)
+    with separate <div className="ufp-page"> for each page — top-level siblings
+    inside a <div className="ufp-wrapper">
+  - Pages 2 and 3 get className="ufp-page ufp-break" → break-before: page
+  - @media screen gives each page a white card + shadow — clean preview layout
+  - ufp-nobreak class on carry cards, overview cards, section table, satellite
+    map block, elevation block — prevents mid-element page splits
+
+  Satellite map:
+  - New async renderSatelliteMap() function (client-side canvas, ~150 lines)
+  - Uses Esri World Imagery tiles — free, no API key, CORS-enabled
+    URL: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
+         MapServer/tile/{z}/{y}/{x}   (note: y before x — differs from OSM)
+  - chooseBestZoom() selects highest zoom where tile count ≤56
+  - Web Mercator projection (mercY = ln(tan(π/4 + lat·π/180/2))) matches tiles
+    exactly — no distortion or seams at tile boundaries
+  - Failed tiles draw a grey fallback so canvas never taints on partial failure
+  - Route drawn on top: dark shadow stroke (5.5px) + coloured terrain stroke
+    (3px) for contrast on varied satellite backgrounds
+  - Markers: start (green S), finish (red F), aid stations (orange),
+    drink mix sections (blue), discrete gels/chews (amber/green), carry section
+    boundaries (amber diamonds)
+  - Result embedded as PNG data URL — no network dependency in the saved PDF
+  - SvgRouteFallback component renders vector map if satellite tiles fail
+  - window.print() gated behind mapReady state — fires only after tile loading
+    completes (or fails); loading overlay shown during render
+
+  Files changed:
+    src/app/print/page.tsx — complete rewrite (satellite map + pagination CSS +
+      ufp-* class system + SvgRouteFallback + mapReady gate)
+  CHANGED: version strings → v2.23 (5 UI locations)
+  CHANGED: src/lib/fuelling-engine.ts — architecture comment updated to v2.23
+  UNCHANGED: fuelling engine, carry plan, all other UI components
+
 
 ================================================================================
 13. DEVELOPMENT NOTES

@@ -1123,7 +1123,7 @@ function computeSectionFormatBudget(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.21 — best-in-class printable race strategy PDF with SVG map + elevation):
+// Architecture (v2.23 — iPhone home screen app icon + PWA manifest):
 //
 // TWO LAYER MODEL:
 //   Layer D — Drink mix (context-gated, budget-first):
