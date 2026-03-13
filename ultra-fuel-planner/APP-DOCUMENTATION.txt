@@ -2333,6 +2333,79 @@ Files changed:
   UNCHANGED: types, UI components, carry plan, print page, timeline
 
 
+────────────────────────────────────────────────────────────────────────────────
+v2.21 — Best-in-Class Printable Race Strategy PDF
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Complete redesign of src/app/print/page.tsx into a 3-page race strategy
+  document. The output now contains a race overview, full execution plan,
+  and course strategy page with inline SVG map + elevation chart.
+
+Structure:
+
+  Page 1 — Race Overview
+    - Header: race name, distance, total ascent/descent, generated date
+    - Summary metrics strip: Duration · Carbs/hr · Fluid/hr · Electrolytes
+    - Two-column layout:
+        Left: Strategy Overview — carb target (g/hr and total g), primary
+          fuels (derived from plan), drink mix usage (section count + context,
+          or "Not used" when absent), event count, checkpoint count,
+          hydration + electrolyte inline notes
+        Right: Total Items Required — grouped by type (Gels / Chews / Bars /
+          Drink Mix / Capsules / Other) with per-item quantity and carb total
+
+  Page 2 — Race Execution
+    - Sub-header with race name, duration, carb rate
+    - Fuelling Schedule table:
+        Time · km · Fuel/Action (fuel type icon) · Terrain · Carbs
+        Drink mix rows: blue left border + background, ≋ prefix,
+          "sip steadily throughout section"
+        Aid station rows: amber background
+        Discrete events: alternating white/off-white
+    - Carry Plan (2-column grid):
+        Each section: from→to, km range, duration, ↑Xm ↓Xm, terrain,
+          fluid target, carb total, ≋ indicator, items list, warnings
+
+  Page 3 — Course Strategy (only if GPX route data present)
+    - Sub-header with race name, distance/ascent
+    - SVG Route Map (720×260, inline, no Leaflet, no network requests):
+        Equirectangular projection with mercator cos-correction for AR
+        Route polyline coloured by terrain type
+        Start (S, green) / Finish (F, red) / Aid (orange) markers
+        Drink mix section starts (blue circles)
+        Discrete fuel events (tiny coloured dots by type)
+        Carry section boundaries (brown diamonds)
+        Terrain colour legend
+    - SVG Elevation Profile (720×160, inline, no Recharts):
+        Elevation area fill + brown stroke line
+        Terrain type colour bands (3px) at chart top
+        Carry section dashed vertical boundaries
+        Drink mix section blue bands
+        Aid station and fuel event tick marks below x-axis (by type colour)
+        Y-axis (elevation m) + x-axis (distance km) labels
+        Profile legend
+    - Section Overview table:
+        Section · Distance · Duration · Elevation · Terrain · Fuel Strategy
+        Terrain colour-coded; Fuel Strategy derived from actual schedule
+
+Technical notes:
+  - All SVG inline — reliable at print time, zero network dependency
+  - Route points subsampled to max 600; elevation to max 400
+  - PrintRouteMap and PrintElevationProfile are module-level functions
+  - terrainColorPrint() is print-specific (lighter than dark-mode palette)
+  - pageBreakBefore: "always" on page 2 and page 3 wrappers
+  - Auto-print delay increased from 500ms to 600ms
+
+Files changed:
+  CHANGED: src/app/print/page.tsx — complete rewrite (3-page document,
+    inline SVG map + elevation, strategy overview, grouped items, carry grid,
+    section overview table, improved schedule table with type icons)
+  CHANGED: src/lib/fuelling-engine.ts — architecture comment updated to v2.21
+  CHANGED: version strings → v2.21 (5 UI locations)
+  UNCHANGED: fuelling engine logic, types, carry plan data, all other UI
+
+
 ================================================================================
 13. DEVELOPMENT NOTES
 ================================================================================

@@ -1123,7 +1123,7 @@ function computeSectionFormatBudget(
 
 // ─── Schedule generation ──────────────────────────────────────────────────────
 //
-// Architecture (v2.20 — drink mix eligibility: elevation signals + narrative accuracy):
+// Architecture (v2.21 — best-in-class printable race strategy PDF with SVG map + elevation):
 //
 // TWO LAYER MODEL:
 //   Layer D — Drink mix (context-gated, budget-first):
