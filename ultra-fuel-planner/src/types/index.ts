@@ -21,6 +21,14 @@ export interface GuidedProfile {
 }
 export type EventType = "trail_marathon" | "ultra_50k" | "ultra_50m" | "ultra_100k" | "ultra_100m" | "mountain_ultra" | "other";
 
+/**
+ * The intent of this planning session.
+ *   race_day          — full race-day execution plan
+ *   training_run      — simpler fuelling, lower demands, no ultra-specific restrictions
+ *   fuelling_practice — training session with deliberate race-fuelling rehearsal
+ */
+export type EventIntent = "race_day" | "training_run" | "fuelling_practice";
+
 export interface AthleteProfile {
   name?: string;
   bodyweightKg: number;
@@ -154,6 +162,10 @@ export interface EventPlan {
   assumptions: PlannerAssumptions;
   priorEfforts: PriorEffort[];
   calibration?: CalibrationResult;
+  /** Intent of this planning session — governs how aggressively race-day rules apply. */
+  eventIntent?: EventIntent;
+  /** Whether the athlete has fuelled before the session start. Delays the first in-run event. */
+  preRunFuelled?: boolean;
 }
 
 // ─── Route & Segments ─────────────────────────────────────────────────────────
@@ -364,6 +376,7 @@ export interface PlanSummary {
   fuelFormatNotes?: string[];
   hydrationGuidance?: HydrationGuidance;
   electrolyteGuidance?: ElectrolyteGuidance;
+  recoveryGuidance?: RecoveryGuidance;
 }
 
 // ─── Hydration & Electrolyte Guidance ────────────────────────────────────────
@@ -381,6 +394,16 @@ export interface ElectrolyteGuidance {
   tier: ElectrolyteTier;
   label: string;                     // e.g. "Moderate electrolyte support recommended"
   note: string;                      // contextual advice
+}
+
+// ─── Recovery Guidance ────────────────────────────────────────────────────────
+// Shown for training_run and fuelling_practice sessions.
+
+export interface RecoveryGuidance {
+  immediateWindow: string;   // Actions within ~30 minutes of finishing
+  twoHourWindow: string;     // Next 1–2 hours
+  dayWindow: string;         // Rest-of-day guidance
+  sodiumNote?: string;       // Electrolyte replacement note (warm/long sessions)
 }
 
 export interface SegmentRecommendation {
@@ -446,4 +469,6 @@ export interface StoredPlannerState {
   parsedRoute?: ParsedRoute;
   priorEfforts?: PriorEffort[];
   lastPlannerOutput?: PlannerOutput;
+  eventIntent?: EventIntent;
+  preRunFuelled?: boolean;
 }

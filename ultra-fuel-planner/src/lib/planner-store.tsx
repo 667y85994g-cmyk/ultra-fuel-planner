@@ -18,6 +18,7 @@ import type {
   PriorEffort,
   EventType,
   RacePriority,
+  EventIntent,
   FinishTimeEstimation,
   GuidedProfile,
 } from "@/types";
@@ -42,7 +43,7 @@ type PlannerAction =
   | { type: "SET_STEP"; step: number }
   | { type: "SET_ATHLETE"; athlete: AthleteProfile }
   | { type: "SET_GUIDED_PROFILE"; profile: GuidedProfile }
-  | { type: "SET_EVENT_META"; eventName: string; eventType?: EventType; racePriority?: RacePriority; raceStartTime?: string; expectedTemperatureC?: number; targetDistanceKm?: number; targetFinishTimeMinutes?: number }
+  | { type: "SET_EVENT_META"; eventName: string; eventType?: EventType; racePriority?: RacePriority; raceStartTime?: string; expectedTemperatureC?: number; targetDistanceKm?: number; targetFinishTimeMinutes?: number; eventIntent?: EventIntent; preRunFuelled?: boolean }
   | { type: "SET_ROUTE"; route: ParsedRoute }
   | { type: "CLEAR_ROUTE" }
   | { type: "SET_FUEL_INVENTORY"; items: FuelItem[] }
@@ -83,6 +84,8 @@ function plannerReducer(state: PlannerState, action: PlannerAction): PlannerStat
         expectedTemperatureC: action.expectedTemperatureC,
         targetDistanceKm: action.targetDistanceKm,
         targetFinishTimeMinutes: action.targetFinishTimeMinutes,
+        eventIntent: action.eventIntent,
+        preRunFuelled: action.preRunFuelled,
         isDirty: true,
       };
 
@@ -223,11 +226,15 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         expectedTemperatureC: state.expectedTemperatureC,
         targetDistanceKm: state.targetDistanceKm,
         targetFinishTimeMinutes: state.targetFinishTimeMinutes,
+        eventIntent: state.eventIntent,
+        preRunFuelled: state.preRunFuelled,
         fuelInventory: state.fuelInventory,
         aidStations: state.aidStations,
         parsedRoute: state.parsedRoute,
         priorEfforts: state.priorEfforts,
-        lastPlannerOutput: state.lastPlannerOutput,
+        lastPlannerOutput: state.lastPlannerOutput
+          ? { ...state.lastPlannerOutput, eventPlan: { ...state.lastPlannerOutput.eventPlan, route: undefined } }
+          : undefined,
       });
     }, 500);
     return () => clearTimeout(timer);
@@ -314,6 +321,8 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       aidStations: state.aidStations ?? [],
       assumptions: DEFAULT_ASSUMPTIONS,
       priorEfforts: state.priorEfforts ?? [],
+      eventIntent: state.eventIntent,
+      preRunFuelled: state.preRunFuelled,
     };
 
     const output = generatePlan(eventPlan);
@@ -325,7 +334,11 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     }
 
     dispatch({ type: "SET_PLAN_OUTPUT", output });
-    saveState({ lastPlannerOutput: output });
+    // Strip eventPlan.route before persisting — it duplicates parsedRoute and
+    // can push the localStorage payload over the 5 MB browser quota, causing
+    // a silent setItem failure and a "No plan found" error on the print page.
+    // The print page reconstructs the route from parsedRoute on load.
+    saveState({ lastPlannerOutput: { ...output, eventPlan: { ...output.eventPlan, route: undefined } } });
     return output;
   };
 

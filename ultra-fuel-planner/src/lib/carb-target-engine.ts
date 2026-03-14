@@ -37,6 +37,7 @@
 import type {
   ExperienceLevel,
   RacePriority,
+  EventIntent,
   CarbTargetRecommendation,
   CarbTargetRationale,
 } from "@/types";
@@ -132,12 +133,14 @@ const EXPERIENCE_ADJUSTMENTS: Record<ExperienceLevel, number> = {
  * @param durationMinutes  Estimated race duration in minutes (use planning time)
  * @param racePriority     How the athlete is approaching this event
  * @param maxCarbsPerHour  Individual gut tolerance ceiling — acts as a hard cap
+ * @param eventIntent      Session intent — training runs use reduced race-day carb demands
  */
 export function recommendCarbTarget(
   experienceLevel: ExperienceLevel,
   durationMinutes: number | undefined,
   racePriority: RacePriority | undefined,
   maxCarbsPerHour: number,
+  eventIntent?: EventIntent,
 ): CarbTargetRecommendation {
   const targetHours = (durationMinutes ?? 360) / 60; // default 6h if unknown
   const band = getBand(targetHours);
@@ -147,8 +150,24 @@ export function recommendCarbTarget(
   // Band midpoint — the neutral starting point for this duration
   const bandMid = (band.baseLow + band.baseHigh) / 2;
 
+  // Apply event intent adjustment.
+  // Training runs: carb demands are lower — race-day fuelling intensity is not needed.
+  // Fuelling practice: treat like race day (deliberate rehearsal of full targets).
+  // The adjustment is only meaningful for shorter sessions (<8h); longer training
+  // sessions already sit within a lower duration band and need no further reduction.
+  let intentAdj = 0;
+  if (eventIntent === "training_run") {
+    if (targetHours < 5) {
+      intentAdj = -8;
+      notes.push("Training run (<5h): carb target reduced — race-day demands don't apply to this session.");
+    } else if (targetHours < 8) {
+      intentAdj = -5;
+      notes.push("Training run (5–8h): carb target slightly reduced from race-day level.");
+    }
+  }
+
   // Apply experience adjustment
-  const adjustedMid = bandMid + expAdj;
+  const adjustedMid = bandMid + expAdj + intentAdj;
   if (expAdj !== 0) {
     const direction = expAdj > 0 ? "increased" : "decreased";
     const levelLabel = experienceLevel.charAt(0).toUpperCase() + experienceLevel.slice(1);

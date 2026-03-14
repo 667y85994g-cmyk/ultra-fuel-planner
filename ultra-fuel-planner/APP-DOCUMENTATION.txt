@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.27 | March 2026
+Version 2.28 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -2779,6 +2779,104 @@ Files changed:
     isValidEffortForFTE(), buildFallbackFinishEstimate();
     estimateFinishTime() refactored into 9-step hardened pipeline
   UNCHANGED: fuelling engine, UI components, print page, types
+
+
+v2.28 — Event Intent, Simpler Short-Run Logic, and Recovery Guidance
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Introduced the EventIntent model — a first-class session type field that
+  determines how aggressively race-day fuelling rules apply. Three intents are
+  supported: race_day (default, unchanged behaviour), training_run (reduced
+  targets, no food restrictions, recovery guidance), and fuelling_practice
+  (race-day targets, with recovery guidance).
+
+  Seven behaviour changes:
+
+  1. EVENT INTENT FIELD
+     A 3-option "Session type" selector added to the Your Event page before
+     event type. Options: Race day / Training run / Fuelling practice.
+     Stored in state as EventIntent, passed to EventPlan and propagated
+     throughout the engine.
+
+  2. DURATION-AWARE SHORT-RUN CARB REDUCTION (training_run only)
+     Training runs apply a carb target reduction based on session length:
+       < 5 hours: −8 g/hr from band midpoint
+       5–8 hours: −5 g/hr from band midpoint
+     Applied in both carb-target-engine.ts (recommendCarbTarget) and
+     fuelling-engine.ts (deriveTargets). Fuelling practice sessions receive
+     full race-day carb targets.
+
+  3. PRACTICAL END-OF-RUN CUTOFF
+     FINISH_CUTOFF_MINS = 15. No discrete fuelling events are scheduled
+     within 15 minutes of the estimated finish. Prevents pointless final-
+     kilometre gel entries that would not be consumed.
+
+  4. NO LATE-ULTRA FOOD RESTRICTIONS ON TRAINING RUNS
+     The late-race solid food penalty (score -= 12) in selectBestFuel() is
+     now gated on: isLateRace AND totalRaceHours >= 5 AND eventIntent !== "training_run".
+     Training runs of any length can have bars, chews, and real food throughout.
+     The buildRaceStrategy() function also overrides allowSolids and allowChews
+     to { early: true, mid: true, late: true } for training_run intent.
+
+  5. PRE-RUN FUELLED HANDLING
+     New boolean field preRunFuelled on EventPlan. When true, discrete
+     fuelling events in the first PRE_RUN_FUELLED_GRACE_MINS (25) minutes
+     are suppressed. A "Pre-run fuelled" toggle added to Preferences card in
+     the UI. Delays first in-run fuelling after a pre-session meal.
+
+  6. RECOVERY GUIDANCE
+     buildRecoveryGuidance() added to fuelling-engine.ts. Returns a
+     RecoveryGuidance object for training_run and fuelling_practice intents
+     (skipped for race_day and sessions < 45 minutes).
+     Guidance covers three windows: within 30 minutes / 1–2 hours / rest of day.
+     An optional sodiumNote is added for warm (>=22°C) or long (>=2.5h) sessions.
+     Shown in SummaryView.tsx as a green RecoveryCard at the bottom of results.
+     Shown in print/page.tsx as a PrintRecoveryGuidance block at the end of
+     the Execution Plan page (Page 2).
+
+  7. SESSION TYPE LABELLING THROUGHOUT
+     Results page title changes: "Race Plan" / "Training Plan" / "Fuelling
+     Practice Plan". A colour badge (blue/purple) appears for non-race-day
+     sessions. Print page subtitle changes from "Race Day Nutrition Card" to
+     the appropriate session label.
+
+New types (src/types/index.ts):
+  EventIntent = "race_day" | "training_run" | "fuelling_practice"
+  RecoveryGuidance { immediateWindow, twoHourWindow, dayWindow, sodiumNote? }
+  EventPlan: added eventIntent?, preRunFuelled?
+  StoredPlannerState: added eventIntent?, preRunFuelled?
+  PlanSummary: added recoveryGuidance?: RecoveryGuidance
+
+New constants (src/lib/fuelling-engine.ts):
+  FINISH_CUTOFF_MINS        = 15
+  PRE_RUN_FUELLED_GRACE_MINS = 25
+
+Files changed:
+  CHANGED: src/types/index.ts —
+    EventIntent type, RecoveryGuidance interface, EventPlan fields, PlanSummary field
+  CHANGED: src/lib/carb-target-engine.ts —
+    recommendCarbTarget() extended with eventIntent param; training_run reductions
+  CHANGED: src/lib/fuelling-engine.ts —
+    buildRaceStrategy() + eventIntent override; generateSchedule() cutoff + grace;
+    selectBestFuel() late-solid gate; buildSummary() recovery guidance;
+    new buildRecoveryGuidance() function; fixed duplicate else-branch syntax error
+  CHANGED: src/lib/planner-store.tsx —
+    EventIntent imported; SET_EVENT_META extended; reducer stores both fields;
+    debounced save persists them; eventPlan constructed with them
+  CHANGED: src/components/planner/StepAthlete.tsx —
+    EVENT_INTENT_OPTIONS constant; eventIntent and preRunFuelled state;
+    Session type selector (3-button grid) in Event Details; preRunFuelled
+    toggle in Preferences card; handleSubmit dispatches both fields
+  CHANGED: src/components/results/SummaryView.tsx —
+    RecoveryGuidance and EventIntent imported; title reflects intent;
+    session-type badge for non-race-day; RecoveryCard component;
+    intentPlanLabel() helper
+  CHANGED: src/app/print/page.tsx —
+    RecoveryGuidance and EventIntent imported; printIntentLabel() helper;
+    Page 1 subtitle reflects intent; PrintRecoveryGuidance block on Page 2
+  UNCHANGED: GPX parsing, terrain segmentation, carry plan structure,
+    calibration engine, carry plan UI, timeline view, guided-profile mapping
 
 
 ================================================================================

@@ -19,6 +19,8 @@ import type {
   CalibrationResult,
   HydrationGuidance,
   ElectrolyteGuidance,
+  EventIntent,
+  RecoveryGuidance,
 } from "@/types";
 import { getCumulativeTimeMinutes, terrainLabel } from "./segmentation";
 import { caloricBurnRate } from "./energy-model";
@@ -141,8 +143,11 @@ const PHASE_LOAD_FACTOR: Record<RacePhase, number> = {
 function buildRaceStrategy(
   totalRaceHours: number,
   athlete: AthleteProfile,
+  eventIntent?: EventIntent,
 ): RaceStrategyPlan {
   const rationale: string[] = [];
+
+  let basePlan: RaceStrategyPlan;
 
   if (totalRaceHours < 6) {
     rationale.push(
@@ -151,7 +156,7 @@ function buildRaceStrategy(
     rationale.push(
       "Solids permitted in early race only. Chews throughout. No bars or solids after early phase.",
     );
-    return {
+    basePlan = {
       backbone: "discrete_heavy",
       // drinkMixSharePct: used when drink mix IS scheduled (context gate controls frequency).
       // Lower values = drink mix contributes a smaller share of each approved section.
@@ -162,16 +167,14 @@ function buildRaceStrategy(
       lateRaceStartPct: 0.65,
       rationale,
     };
-  }
-
-  if (totalRaceHours < 12) {
+  } else if (totalRaceHours < 12) {
     rationale.push(
       "Mixed fuelling strategy (6\u201312h): gels and chews are the primary rhythm; drink mix used selectively on climbs and in later sections.",
     );
     rationale.push(
       "Solids permitted on easy terrain in early and mid race. No bars or solids in late race.",
     );
-    return {
+    basePlan = {
       backbone: "mixed",
       drinkMixSharePct: { early: 20, mid: 30, late: 35 },
       allowSolids:      { early: true,  mid: true,  late: false },
@@ -180,16 +183,14 @@ function buildRaceStrategy(
       lateRaceStartPct: 0.60,
       rationale,
     };
-  }
-
-  if (totalRaceHours < 20) {
+  } else if (totalRaceHours < 20) {
     rationale.push(
       "Mixed strategy (12\u201320h): discrete fuelling is the primary rhythm; drink mix used selectively for climbs, late race, and warmer conditions.",
     );
     rationale.push(
       "Solids in early race only. Chews permitted throughout — late-race scoring naturally de-prioritises them as gut tolerance decreases.",
     );
-    return {
+    basePlan = {
       backbone: "mixed",
       drinkMixSharePct: { early: 25, mid: 35, late: 50 },
       allowSolids:      { early: true,  mid: false, late: false },
@@ -198,28 +199,41 @@ function buildRaceStrategy(
       lateRaceStartPct: 0.55,
       rationale,
     };
+  } else {
+    // 20h+ ultra
+    rationale.push(
+      "Drink-led strategy (20h+): drink mix and gels are the primary carb sources throughout.",
+    );
+    rationale.push(
+      "Solids in the first quarter of the race only. Late race: liquids and gels only.",
+    );
+
+    // Respect drinkHeavy preference — no change needed, already the most drink-led path
+    void athlete; // athlete context available for future adjustments
+
+    basePlan = {
+      backbone: "drink_led",
+      drinkMixSharePct: { early: 30, mid: 40, late: 55 },
+      allowSolids:      { early: true,  mid: false, late: false },
+      allowChews:       { early: true,  mid: false, late: false },
+      earlyRaceEndPct:  0.25,
+      lateRaceStartPct: 0.50,
+      rationale,
+    };
   }
 
-  // 20h+ ultra
-  rationale.push(
-    "Drink-led strategy (20h+): drink mix and gels are the primary carb sources throughout.",
-  );
-  rationale.push(
-    "Solids in the first quarter of the race only. Late race: liquids and gels only.",
-  );
+  // Training runs: remove late-phase solid/chew restrictions.
+  // "Simplify to gels in the late race" is a long-ultra strategy for managing gut
+  // fatigue over many hours — it does not belong in training sessions or shorter runs.
+  if (eventIntent === "training_run") {
+    basePlan.allowSolids = { early: true, mid: true, late: true };
+    basePlan.allowChews  = { early: true, mid: true, late: true };
+    basePlan.rationale.push(
+      "Training run: solid food and chew restrictions removed — late-race format simplification is not needed for this session."
+    );
+  }
 
-  // Respect drinkHeavy preference — no change needed, already the most drink-led path
-  void athlete; // athlete context available for future adjustments
-
-  return {
-    backbone: "drink_led",
-    drinkMixSharePct: { early: 30, mid: 40, late: 55 },
-    allowSolids:      { early: true,  mid: false, late: false },
-    allowChews:       { early: true,  mid: false, late: false },
-    earlyRaceEndPct:  0.25,
-    lateRaceStartPct: 0.50,
-    rationale,
-  };
+  return basePlan;
 }
 
 /** Returns the current race phase for a given elapsed time. */
@@ -316,10 +330,30 @@ function deriveTargets(
     });
   }
 
+  // Apply event intent carb adjustment.
+  // Training runs use a reduced carb target — the full race-day demand is not warranted.
+  // Fuelling practice sessions keep race-day targets deliberately (that's the point).
+  let finalCarbTarget = carbTarget;
+  if (plan.eventIntent === "training_run") {
+    const targetHours = (plan.targetFinishTimeMinutes ?? 360) / 60;
+    if (targetHours < 5) {
+      finalCarbTarget = Math.max(30, carbTarget - 8);
+    } else if (targetHours < 8) {
+      finalCarbTarget = Math.max(35, carbTarget - 5);
+    }
+    if (finalCarbTarget !== carbTarget) {
+      warnings.push({
+        type: "info",
+        code: "TRAINING_RUN_CARB_ADJ",
+        message: `Training run: carb target adjusted to ${finalCarbTarget}g/hr — full race-day demands are not needed for this session.`,
+      });
+    }
+  }
+
   return {
     effectiveAthlete: {
       ...plan.athlete,
-      carbTargetPerHour: carbTarget,
+      carbTargetPerHour: finalCarbTarget,
       fluidTargetPerHourMl: fluidTarget,
     },
     calibration,
@@ -365,14 +399,14 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
   const segmentRecommendations = generateSegmentRecommendations(segments, athlete, totalRaceHours);
 
   // ── Race Strategy Layer: determine strategy before product allocation ─────
-  const strategy = buildRaceStrategy(totalRaceHours, plan.athlete);
+  const strategy = buildRaceStrategy(totalRaceHours, plan.athlete, plan.eventIntent);
   for (const note of strategy.rationale) {
     warnings.push({ type: "info", code: "RACE_STRATEGY", message: note });
   }
 
   const schedule = generateSchedule(
     segments, fuelInventory, aidStations, athlete, assumptions, totalRaceMinutes, strategy, warnings,
-    plan.expectedTemperatureC,
+    plan.expectedTemperatureC, plan.eventIntent, plan.preRunFuelled,
   );
 
   const carryPlans = generateCarryPlans(
@@ -401,7 +435,7 @@ export function generatePlan(plan: EventPlan): PlannerOutput {
     }
   }
 
-  const summary = buildSummary(schedule, fuelInventory, totalRaceMinutes, athlete, segments, avgKcalPerHour, calibration, plan.expectedTemperatureC);
+  const summary = buildSummary(schedule, fuelInventory, totalRaceMinutes, athlete, segments, avgKcalPerHour, calibration, plan.expectedTemperatureC, plan.eventIntent);
 
   // ── Stock shortfall check ──────────────────────────────────────────────────
   // Planning mode generates schedules without stock constraints so the plan shows what is needed.
@@ -1398,6 +1432,14 @@ function computeSectionFormatBudget(
 //   • Event size ∈ [15, 45] g — operationally realistic per-serving amounts
 //   • All events within section duration — guaranteed by floor() in step 9
 
+// Minutes from the finish within which no new fuelling events are scheduled.
+// Fuel taken in the final ~15 min provides no meaningful benefit and clutters the plan.
+const FINISH_CUTOFF_MINS = 15;
+
+// Minutes from the race start within which the first discrete event is suppressed
+// when the runner has fuelled immediately before the session (preRunFuelled = true).
+const PRE_RUN_FUELLED_GRACE_MINS = 25;
+
 function generateSchedule(
   segments: RouteSegment[],
   inventory: FuelItem[],
@@ -1408,6 +1450,8 @@ function generateSchedule(
   strategy: RaceStrategyPlan,
   warnings: PlanWarning[],
   expectedTemperatureC?: number,
+  eventIntent?: EventIntent,
+  preRunFuelled?: boolean,
 ): FuelScheduleEntry[] {
   const schedule: FuelScheduleEntry[] = [];
   const inventoryUsage = new Map<string, number>();
@@ -1665,6 +1709,15 @@ function generateSchedule(
       // Layer F: Skip discrete events on technical descent (sip from bottle only)
       if (slotSeg.terrain === "technical_descent") continue;
 
+      // Finish cutoff: don't schedule fuelling within FINISH_CUTOFF_MINS of the end.
+      // Fuel taken this close to the finish provides no meaningful benefit and clutters the plan.
+      if (totalRaceMinutes - slot.timeMinutes < FINISH_CUTOFF_MINS) continue;
+
+      // Pre-run fuelled grace: if the runner has fuelled immediately before the session,
+      // suppress discrete events in the first PRE_RUN_FUELLED_GRACE_MINS.
+      // The runner is already fuelled; they don't need to eat again right away.
+      if (preRunFuelled && slot.timeMinutes < PRE_RUN_FUELLED_GRACE_MINS) continue;
+
       const nearAid = aidStations.find(
         as => Math.abs(as.distanceKm - slot.distanceKm) < 1.5
       );
@@ -1677,6 +1730,7 @@ function generateSchedule(
         /* respectPhaseGates */ true,
         recentFuelIds, recentFuelTypes,
         sectionFmtBudget, scheduledQuick, scheduledBase, totalSlotsInSection,
+        eventIntent,
       );
 
       // Fallback: if strategy phase gates blocked all suitable fuel (e.g. late race allows only
@@ -1691,6 +1745,7 @@ function generateSchedule(
           /* respectPhaseGates */ false,
           recentFuelIds, recentFuelTypes,
           sectionFmtBudget, scheduledQuick, scheduledBase, totalSlotsInSection,
+          eventIntent,
         );
       }
 
@@ -1844,6 +1899,8 @@ function generateSchedule(
         midPhase, strategy,
         /* respectPhaseGates */ true,
         recentFuelIds, recentFuelTypes,
+        null, 0, 0, 0,
+        eventIntent,
       );
 
       if (!gapFillFuel) {
@@ -2066,6 +2123,7 @@ function selectBestFuel(
   scheduledQuick = 0,
   scheduledBase = 0,
   totalSlotsInSection = 0,
+  eventIntent?: EventIntent,
 ): FuelItem | null {
   const isLateRace = phase === "late" ||
     (athlete.preferences.noSweetAfterHour != null &&
@@ -2133,10 +2191,16 @@ function selectBestFuel(
       if (isSolid) score -= 15;
     }
 
-    // 4. Late-race tolerance
+    // 4. Late-race tolerance.
+    // The solid penalty only applies when gut fatigue is genuinely a concern:
+    // long races (≥5h) on race day. Training runs and shorter sessions don't
+    // benefit from pushing the runner away from solids in the final section.
+    const applyLateSolidPenalty = isLateRace
+      && totalRaceHours >= 5
+      && eventIntent !== "training_run";
     if (isLateRace) {
       score += item.lateRaceToleranceScore * 8;
-      if (isSolid) score -= 12;
+      if (applyLateSolidPenalty && isSolid) score -= 12;
     } else {
       score += (6 - item.sweetnessScore) * 2;
     }
@@ -2225,6 +2289,7 @@ function buildSummary(
   segments: RouteSegment[], avgKcalPerHour: number,
   calibration: CalibrationResult,
   expectedTemperatureC?: number,
+  eventIntent?: EventIntent,
 ): PlanSummary {
   const totalRaceHours = totalRaceMinutes / 60;
 
@@ -2327,6 +2392,7 @@ function buildSummary(
 
   const hydrationGuidance = deriveHydrationGuidance(athlete, expectedTemperatureC, totalRaceHours);
   const electrolyteGuidance = deriveElectrolyteGuidance(athlete, expectedTemperatureC, totalRaceHours);
+  const recoveryGuidance = buildRecoveryGuidance(totalRaceHours, expectedTemperatureC, eventIntent);
 
   return {
     totalRaceDurationMinutes: totalRaceMinutes,
@@ -2343,7 +2409,44 @@ function buildSummary(
     fuelFormatNotes,
     hydrationGuidance,
     electrolyteGuidance,
+    recoveryGuidance,
   };
+}
+
+// ─── Recovery guidance ────────────────────────────────────────────────────────
+//
+// Shown for training_run and fuelling_practice sessions only.
+// Race day has its own post-race context; adding recovery guidance there
+// would clutter the race-day output unnecessarily.
+
+function buildRecoveryGuidance(
+  totalRaceHours: number,
+  temperatureC: number | undefined,
+  eventIntent: EventIntent | undefined,
+): RecoveryGuidance | undefined {
+  // Only shown for training/practice sessions
+  if (!eventIntent || eventIntent === "race_day") return undefined;
+  // Not worth showing for very short sessions (< 45 min)
+  if (totalRaceHours < 0.75) return undefined;
+
+  const isWarm = (temperatureC ?? 15) >= 22;
+  const isLong = totalRaceHours >= 2.5;
+
+  const immediateWindow = isLong
+    ? "Within 30 minutes: aim for ~0.3–0.5g/kg of carbohydrate and 20–30g of protein to begin the recovery window. A recovery drink, milk, or a snack with both works well."
+    : "Within 30 minutes: a small snack combining carbs and protein (e.g. a banana with nut butter, yoghurt, or a glass of milk) supports repair and refuelling.";
+
+  const twoHourWindow =
+    "Over the next 1–2 hours: eat a balanced meal with carbohydrates, protein, and some fat. Keep sipping fluids consistently.";
+
+  const dayWindow =
+    "For the rest of the day: keep hydrating, prioritise sleep if possible, and avoid hard training for at least 24 hours.";
+
+  const sodiumNote = (isWarm || isLong)
+    ? "Sweat losses today were meaningful — add a little extra salt to your food or take electrolytes with fluids to replace what was lost."
+    : undefined;
+
+  return { immediateWindow, twoHourWindow, dayWindow, sodiumNote };
 }
 
 // ─── Hydration guidance ────────────────────────────────────────────────────────

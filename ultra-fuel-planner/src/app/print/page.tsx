@@ -9,6 +9,8 @@ import type {
   RoutePoint,
   ElevationPoint,
   RouteSegment,
+  EventIntent,
+  RecoveryGuidance,
 } from "@/types";
 import { formatTime, formatDuration, fuelTypeIcon } from "@/lib/utils";
 import { terrainLabel } from "@/lib/segmentation";
@@ -717,10 +719,16 @@ export default function PrintPage() {
   const [mapReady, setMapReady]   = useState(false);
   const [mapError, setMapError]   = useState(false);
 
-  // Load persisted plan
+  // Load persisted plan.
+  // eventPlan.route is stripped before saving to avoid localStorage quota
+  // errors on large GPX files (it duplicates parsedRoute). Reconstruct it here.
   useEffect(() => {
     const state = loadState();
-    if (state.lastPlannerOutput) setOutput(state.lastPlannerOutput);
+    let planOutput = state.lastPlannerOutput;
+    if (planOutput && !planOutput.eventPlan.route && state.parsedRoute) {
+      planOutput = { ...planOutput, eventPlan: { ...planOutput.eventPlan, route: state.parsedRoute } };
+    }
+    if (planOutput) setOutput(planOutput);
   }, []);
 
   // Render satellite map asynchronously once output is available
@@ -861,7 +869,7 @@ export default function PrintPage() {
                   {eventPlan.eventName || "Race Plan"}
                 </h1>
                 <p style={{ margin: "4px 0 0", color: "#6b5c4c", fontSize: "11px" }}>
-                  Ultra Fuel Planner · Race Day Nutrition Card
+                  Ultra Fuel Planner · {printIntentLabel(eventPlan.eventIntent)}
                 </p>
               </div>
               <div style={{ textAlign: "right", color: "#6b5c4c", fontSize: "11px", lineHeight: 1.7 }}>
@@ -1171,6 +1179,11 @@ export default function PrintPage() {
             </div>
           )}
 
+          {/* ── Recovery guidance (training & practice sessions only) ── */}
+          {summary.recoveryGuidance && (
+            <PrintRecoveryGuidance guidance={summary.recoveryGuidance} sectionHeadingStyle={sectionHeadingStyle} />
+          )}
+
         </div>{/* /PAGE 2 */}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -1446,5 +1459,62 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
         );
       })()}
     </svg>
+  );
+}
+
+// ── Intent label helpers ───────────────────────────────────────────────────────
+
+function printIntentLabel(intent: EventIntent | undefined): string {
+  switch (intent) {
+    case "training_run":      return "Training Run Plan";
+    case "fuelling_practice": return "Fuelling Practice Plan";
+    default:                  return "Race Day Nutrition Card";
+  }
+}
+
+// ── Recovery guidance block (print) ──────────────────────────────────────────
+
+function PrintRecoveryGuidance({
+  guidance,
+  sectionHeadingStyle,
+}: {
+  guidance: RecoveryGuidance;
+  sectionHeadingStyle: React.CSSProperties;
+}) {
+  const windows: Array<{ label: string; text: string }> = [
+    { label: "Within 30 minutes", text: guidance.immediateWindow },
+    { label: "1–2 hours after",   text: guidance.twoHourWindow },
+    { label: "Rest of day",       text: guidance.dayWindow },
+  ];
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <div style={sectionHeadingStyle}>Post-Session Recovery</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+        {windows.map(({ label, text }) => (
+          <div
+            key={label}
+            style={{
+              border: "1px solid #bbf7d0",
+              borderRadius: "6px",
+              padding: "8px 10px",
+              background: "#f0fdf4",
+            }}
+          >
+            <div style={{ fontSize: "9px", fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>
+              {label}
+            </div>
+            <div style={{ fontSize: "10px", color: "#374151", lineHeight: 1.5 }}>
+              {text}
+            </div>
+          </div>
+        ))}
+      </div>
+      {guidance.sodiumNote && (
+        <div style={{ marginTop: "6px", fontSize: "10px", color: "#1e40af", background: "#eff6ff", borderRadius: "4px", padding: "5px 8px", border: "1px solid #bfdbfe" }}>
+          💧 <strong>Electrolytes:</strong> {guidance.sodiumNote}
+        </div>
+      )}
+    </div>
   );
 }

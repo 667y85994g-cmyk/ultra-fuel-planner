@@ -8,7 +8,7 @@ import {
   CONDITIONS_OPTIONS,
   DEFAULT_GUIDED_PROFILE,
 } from "@/lib/guided-profile";
-import type { AthleteProfile, EventType, RacePriority, GuidedProfile } from "@/types";
+import type { AthleteProfile, EventType, RacePriority, EventIntent, GuidedProfile } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,13 +42,21 @@ const RACE_PRIORITY_OPTIONS: { value: RacePriority; label: string; desc: string 
   { value: "training",   label: "Training run", desc: "Using this as a training effort, not racing" },
 ];
 
+const EVENT_INTENT_OPTIONS: { value: EventIntent; label: string; desc: string }[] = [
+  { value: "race_day",          label: "Race day",          desc: "Full race-day fuelling and execution plan" },
+  { value: "training_run",      label: "Training run",      desc: "Simpler fuelling, lower carb demands, recovery focus" },
+  { value: "fuelling_practice", label: "Fuelling practice", desc: "Rehearsing race-day targets in a training session" },
+];
+
 export function StepAthlete({ onNext }: Props) {
   const { state, dispatch } = usePlanner();
   const athlete = state.athlete!;
   const profile: GuidedProfile = state.guidedProfile ?? DEFAULT_GUIDED_PROFILE;
 
-  const [eventType, setEventType]     = useState<EventType | undefined>(state.eventType);
+  const [eventType, setEventType]       = useState<EventType | undefined>(state.eventType);
   const [racePriority, setRacePriority] = useState<RacePriority | undefined>(state.racePriority);
+  const [eventIntent, setEventIntent]   = useState<EventIntent>(state.eventIntent ?? "race_day");
+  const [preRunFuelled, setPreRunFuelled] = useState<boolean>(state.preRunFuelled ?? false);
   // Temperature is only needed in advanced mode (guided mode derives it from conditions)
   const [temperature, setTemperature] = useState<number | "">(state.expectedTemperatureC ?? "");
 
@@ -85,6 +93,8 @@ export function StepAthlete({ onNext }: Props) {
                                ? Number(fd.get("finishHours") || 0) * 60 +
                                  Number(fd.get("finishMins") || 0)
                                : undefined,
+      eventIntent,
+      preRunFuelled,
     });
     onNext();
   };
@@ -115,6 +125,31 @@ export function StepAthlete({ onNext }: Props) {
                 placeholder="e.g. UTMB, Lakeland 50, Race to the Stones"
                 className="mt-1.5"
               />
+            </div>
+
+            {/* ── Session type / intent ──────────────────────────────── */}
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-sm font-medium text-stone-200">Session type</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {EVENT_INTENT_OPTIONS.map(({ value, label, desc }) => {
+                  const selected = eventIntent === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setEventIntent(value)}
+                      className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
+                        selected
+                          ? "border-amber-700/60 bg-amber-900/20"
+                          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-stone-200">{label}</span>
+                      <span className="text-xs text-stone-500">{desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
@@ -539,6 +574,12 @@ export function StepAthlete({ onNext }: Props) {
               description="Prefers savoury or mild flavours"
               checked={athlete.preferences.lowSweetnessTolerance}
               onChange={(v) => updatePref("lowSweetnessTolerance", v)}
+            />
+            <ToggleOption
+              label="Already fuelled before start"
+              description="Had a meal or snack before — delays first in-run fuelling by ~25 min"
+              checked={preRunFuelled}
+              onChange={setPreRunFuelled}
             />
             <div>
               <Label htmlFor="noSweetAfter">Avoid sweet foods after hour</Label>

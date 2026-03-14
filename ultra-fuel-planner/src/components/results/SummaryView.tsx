@@ -1,9 +1,9 @@
 "use client";
 
-import type { PlannerOutput, PlanConfidence, FinishTimeEstimation, HydrationGuidance, ElectrolyteGuidance } from "@/types";
+import type { PlannerOutput, PlanConfidence, FinishTimeEstimation, HydrationGuidance, ElectrolyteGuidance, RecoveryGuidance, EventIntent } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
-import { Droplets, FlaskConical, Coffee, Package, Info, ShieldCheck, ShieldAlert, Clock, MapPin } from "lucide-react";
+import { Droplets, FlaskConical, Coffee, Package, Info, ShieldCheck, ShieldAlert, Clock, MapPin, Zap } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
@@ -21,11 +21,22 @@ export function SummaryView({ output }: Props) {
 
       {/* ── Race overview ──────────────────────────────────────────────────── */}
       <div>
-        <h2 className="text-xl font-bold text-stone-50">
-          {eventPlan.eventName || "Race"} — Race Plan
-        </h2>
+        <div className="flex items-center flex-wrap gap-2">
+          <h2 className="text-xl font-bold text-stone-50">
+            {eventPlan.eventName || "Race"} — {intentPlanLabel(eventPlan.eventIntent)}
+          </h2>
+          {eventPlan.eventIntent && eventPlan.eventIntent !== "race_day" && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              eventPlan.eventIntent === "training_run"
+                ? "bg-blue-900/30 text-blue-400"
+                : "bg-purple-900/30 text-purple-400"
+            }`}>
+              {eventPlan.eventIntent === "training_run" ? "Training run" : "Fuelling practice"}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm text-stone-400">
-          Estimated race duration:{" "}
+          Estimated {eventPlan.eventIntent === "race_day" ? "race" : "session"} duration:{" "}
           <span className="font-medium text-stone-200">
             {formatDuration(summary.totalRaceDurationMinutes)}
           </span>
@@ -243,8 +254,23 @@ export function SummaryView({ output }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Recovery guidance (training & practice sessions only) ───────────── */}
+      {summary.recoveryGuidance && (
+        <RecoveryCard guidance={summary.recoveryGuidance} />
+      )}
     </div>
   );
+}
+
+// ─── Intent plan label ────────────────────────────────────────────────────────
+
+function intentPlanLabel(intent: EventIntent | undefined): string {
+  switch (intent) {
+    case "training_run":      return "Training Plan";
+    case "fuelling_practice": return "Fuelling Practice Plan";
+    default:                  return "Race Plan";
+  }
 }
 
 // ─── Experience label ─────────────────────────────────────────────────────────
@@ -483,6 +509,43 @@ function CaffeineCard({ totalMg, limitMg }: { totalMg: number; limitMg?: number 
               />
             </div>
             <p className="text-xs text-stone-600 mt-1">{pct}% of limit</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Recovery guidance card ───────────────────────────────────────────────────
+
+function RecoveryCard({ guidance }: { guidance: RecoveryGuidance }) {
+  const windows = [
+    { label: "Within 30 minutes",  text: guidance.immediateWindow },
+    { label: "1–2 hours after",    text: guidance.twoHourWindow },
+    { label: "Rest of day",        text: guidance.dayWindow },
+  ];
+
+  return (
+    <Card className="border-green-800/30 bg-green-950/10">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm text-green-400 flex items-center gap-2">
+          <Zap className="h-4 w-4" />
+          Post-session recovery
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {windows.map(({ label, text }) => (
+          <div key={label}>
+            <p className="text-xs font-semibold text-stone-300 mb-0.5">{label}</p>
+            <p className="text-xs text-stone-400 leading-relaxed">{text}</p>
+          </div>
+        ))}
+        {guidance.sodiumNote && (
+          <div className="rounded-lg border border-blue-800/30 bg-blue-950/10 px-3 py-2">
+            <p className="text-xs text-blue-300 leading-relaxed">
+              <span className="font-semibold">Electrolytes: </span>
+              {guidance.sodiumNote}
+            </p>
           </div>
         )}
       </CardContent>
