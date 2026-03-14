@@ -253,13 +253,54 @@ function buildFallbackCalibration(
 // ─── Finish time estimation ──────────────────────────────────────────────────
 
 /**
- * Estimates finish time for a target event by anchoring on the most similar
- * prior effort. Same-distance efforts are the strongest anchors. Only modest
- * adjustments are applied for elevation, race priority, and distance scaling.
+ * Guardrail constants for finish-time estimation.
  *
- * When no target finish time is explicitly provided by the user, this function
- * prevents the planner from defaulting to a generic 6.5 min/km flat pace
- * (which produces wildly optimistic estimates for slower ultra runners).
+ * MAX_SCALE_RATIO  — maximum allowed ratio between target and reference distance.
+ *                    Prevents a 1 km effort being used as an anchor for a 26 km run.
+ * MIN_EFFORT_KM    — efforts shorter than this are ignored (likely malformed data).
+ * MIN_EFFORT_MINS  — efforts shorter than this are ignored.
+ * MIN/MAX_PACE     — implied pace bounds for sanity-checking both inputs and outputs.
+ */
+const FTE_MAX_SCALE_RATIO     = 4.0;   // e.g. 26 km target → rejects anything outside 6.5–104 km
+const FTE_MIN_EFFORT_KM       = 2.0;
+const FTE_MIN_EFFORT_MINS     = 10;
+const FTE_MIN_PACE_MIN_PER_KM = 2.5;  // sub-2:30/km is physically impossible for any meaningful distance
+const FTE_MAX_PACE_MIN_PER_KM = 22.0; // slower than this is walking, not running
+
+/** Broad distance class used to prefer distance-appropriate reference efforts. */
+type DistanceClass = "short" | "long" | "ultra";
+
+function classifyDistance(km: number): DistanceClass {
+  if (km < 15) return "short";
+  if (km < 40) return "long";
+  return "ultra";
+}
+
+/**
+ * Returns true if a prior effort has plausible distance, duration, and pace.
+ * Filters out malformed localStorage entries before they can contaminate estimates.
+ */
+function isValidEffortForFTE(effort: PriorEffort): boolean {
+  if (effort.distanceKm < FTE_MIN_EFFORT_KM) return false;
+  if (effort.durationMinutes < FTE_MIN_EFFORT_MINS) return false;
+  const pace = effort.durationMinutes / effort.distanceKm;
+  if (pace < FTE_MIN_PACE_MIN_PER_KM) return false;  // faster than world record — bad data
+  if (pace > FTE_MAX_PACE_MIN_PER_KM) return false;  // this is walking not running
+  return true;
+}
+
+/**
+ * Estimates finish time for a target event by anchoring on the most similar
+ * valid prior effort. Hardened against malformed data and extreme distance
+ * mismatches that would produce nonsensical results.
+ *
+ * Layers of protection:
+ *   1. Validate all prior efforts — reject implausible distance/duration/pace values
+ *   2. Filter by MAX_SCALE_RATIO — reject reference efforts that are too dissimilar
+ *      in distance to scale from reliably
+ *   3. Prefer distance-class-matched efforts (short/long/ultra)
+ *   4. Sanity-check the final estimate — if implied pace is outside realistic
+ *      endurance bounds, discard and fall back to conservative default pace
  */
 export function estimateFinishTime(
   efforts: PriorEffort[],
@@ -270,67 +311,87 @@ export function estimateFinishTime(
 ): FinishTimeEstimation {
   const explanation: string[] = [];
 
-  if (efforts.length === 0) {
-    // No prior data — use conservative experience-based pace
-    const defaultPace = conservativeDefaultPace(targetDistanceKm, athlete);
-    const baseMins = Math.round(targetDistanceKm * defaultPace);
-    const eleAdj = routeAscentM ? Math.round(routeAscentM / 100 * 1.0) : 0;
-    const estimated = baseMins + eleAdj;
-    const range: [number, number] = [Math.round(estimated * 0.85), Math.round(estimated * 1.20)];
-    explanation.push("No prior effort data — using conservative pace estimate based on distance and experience level.");
-    explanation.push(`Planning time: ${formatHrsMins(estimated)} (range: ${formatHrsMins(range[0])} – ${formatHrsMins(range[1])}).`);
-    return {
-      estimatedMinutes: estimated,
-      rangeMinutes: range,
-      confidence: "low",
-      method: "fallback",
-      explanation,
-    };
+  // ── 1. Validate prior efforts ─────────────────────────────────────────────
+  const validEfforts = efforts.filter(isValidEffortForFTE);
+  const rejectedCount = efforts.length - validEfforts.length;
+  if (rejectedCount > 0) {
+    explanation.push(
+      `${rejectedCount} prior effort${rejectedCount > 1 ? "s" : ""} excluded — distance, duration or pace data was implausible.`
+    );
   }
 
-  // Score efforts by distance similarity to target
-  const scored = efforts.map(e => {
-    const similarity = Math.min(e.distanceKm, targetDistanceKm) /
-      Math.max(e.distanceKm, targetDistanceKm);
-    return { effort: e, similarity };
-  }).sort((a, b) => b.similarity - a.similarity);
+  if (validEfforts.length === 0) {
+    return buildFallbackFinishEstimate(targetDistanceKm, routeAscentM, athlete, racePriority, explanation);
+  }
 
-  const anchorEffort = scored[0].effort;
-  const distSimilarity = scored[0].similarity;
+  // ── 2. Filter by scale ratio ──────────────────────────────────────────────
+  // A reference distance too far from the target produces unreliable scaling.
+  // e.g. a 1 km effort should never anchor a 26 km estimate (ratio = 26 >> 4).
+  const withinRatio = validEfforts.filter(e =>
+    Math.max(targetDistanceKm, e.distanceKm) / Math.min(targetDistanceKm, e.distanceKm) <= FTE_MAX_SCALE_RATIO
+  );
 
-  // Base estimate: scale from anchor pace
+  // ── 3. Prefer distance-class-matched efforts ──────────────────────────────
+  const targetClass = classifyDistance(targetDistanceKm);
+  let candidates = withinRatio.filter(e => classifyDistance(e.distanceKm) === targetClass);
+
+  if (candidates.length === 0) {
+    const adjacentClasses: DistanceClass[] =
+      targetClass === "short" ? ["long"]          :
+      targetClass === "long"  ? ["short", "ultra"] :
+      /* ultra */               ["long"];
+    candidates = withinRatio.filter(e => adjacentClasses.includes(classifyDistance(e.distanceKm)));
+  }
+  if (candidates.length === 0) {
+    candidates = withinRatio; // any within-ratio effort
+  }
+  if (candidates.length === 0) {
+    // No valid effort is close enough in distance to scale from reliably
+    explanation.push(
+      `No prior effort within ${FTE_MAX_SCALE_RATIO}× of target distance (${targetDistanceKm.toFixed(0)} km) — using fallback pace estimate.`
+    );
+    return buildFallbackFinishEstimate(targetDistanceKm, routeAscentM, athlete, racePriority, explanation);
+  }
+
+  // ── 4. Select best anchor (closest distance match) ────────────────────────
+  const scored = candidates
+    .map(e => ({
+      effort: e,
+      similarity: Math.min(e.distanceKm, targetDistanceKm) / Math.max(e.distanceKm, targetDistanceKm),
+    }))
+    .sort((a, b) => b.similarity - a.similarity);
+
+  const { effort: anchorEffort, similarity: distSimilarity } = scored[0];
   const anchorPaceMinPerKm = anchorEffort.durationMinutes / anchorEffort.distanceKm;
   let estimatedPace = anchorPaceMinPerKm;
 
+  // ── 5. Scale pace for distance difference ─────────────────────────────────
   if (distSimilarity >= 0.80) {
-    // Close/exact distance match — use anchor pace directly
     explanation.push(
-      `Anchored on "${anchorEffort.label}" (${anchorEffort.distanceKm}km in ${formatHrsMins(anchorEffort.durationMinutes)}) — similar distance to target.`
+      `Anchored on "${anchorEffort.label}" (${anchorEffort.distanceKm} km in ${formatHrsMins(anchorEffort.durationMinutes)}) — close distance match.`
     );
   } else {
-    // Significant distance difference — apply pace scaling
     const distRatio = targetDistanceKm / anchorEffort.distanceKm;
     if (distRatio > 1) {
-      // Target is longer → pace will degrade
-      const extraFraction = distRatio - 1;
-      const degradation = 1 + extraFraction * 0.10;
+      // Target is longer → pace degrades with distance
+      const degradation = 1 + (distRatio - 1) * 0.10;
       estimatedPace *= degradation;
       explanation.push(
-        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm}km) to ${targetDistanceKm}km. Pace adjusted +${Math.round((degradation - 1) * 100)}% for longer distance.`
+        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm} km) to ${targetDistanceKm} km — pace adjusted +${Math.round((degradation - 1) * 100)}% for longer distance.`
       );
     } else {
       // Target is shorter → pace slightly faster
       const reduction = 1 - (1 - distRatio) * 0.05;
       estimatedPace *= reduction;
       explanation.push(
-        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm}km) to ${targetDistanceKm}km. Pace adjusted slightly for shorter distance.`
+        `Scaled from "${anchorEffort.label}" (${anchorEffort.distanceKm} km) to ${targetDistanceKm} km — pace adjusted slightly for shorter distance.`
       );
     }
   }
 
   let estimatedMins = Math.round(targetDistanceKm * estimatedPace);
 
-  // Elevation adjustment — only when both route and anchor have elevation data
+  // ── 6. Elevation adjustment ───────────────────────────────────────────────
   if (routeAscentM && anchorEffort.elevationGainM && anchorEffort.elevationGainM > 0) {
     const eleRatio = routeAscentM / anchorEffort.elevationGainM;
     if (eleRatio > 1.20) {
@@ -346,7 +407,7 @@ export function estimateFinishTime(
     }
   }
 
-  // Race priority adjustment — modest
+  // ── 7. Race priority adjustment ───────────────────────────────────────────
   if (racePriority === "a_race") {
     estimatedMins = Math.round(estimatedMins * 0.97);
     explanation.push("A-race effort: small pace improvement assumed (~3%).");
@@ -355,9 +416,19 @@ export function estimateFinishTime(
     explanation.push("Completion focus: conservative pacing assumed (+5%).");
   }
 
-  // Add 2% conservative bias — better to plan for slightly longer
-  const planningMins = Math.round(estimatedMins * 1.02);
+  // ── 8. Sanity check — reject if implied pace is outside realistic bounds ──
+  // This is the last line of defence: even if an effort passed the earlier
+  // filters, the scaled result could still be nonsensical.
+  const impliedPaceMinPerKm = estimatedMins / targetDistanceKm;
+  if (impliedPaceMinPerKm < FTE_MIN_PACE_MIN_PER_KM || impliedPaceMinPerKm > FTE_MAX_PACE_MIN_PER_KM) {
+    explanation.push(
+      `Estimated pace (${impliedPaceMinPerKm.toFixed(1)} min/km) is outside plausible endurance range — falling back to conservative estimate.`
+    );
+    return buildFallbackFinishEstimate(targetDistanceKm, routeAscentM, athlete, racePriority, explanation);
+  }
 
+  // ── 9. Apply 2% conservative bias and build result ────────────────────────
+  const planningMins = Math.round(estimatedMins * 1.02);
   const confidence: ConfidenceLevel = distSimilarity >= 0.80 ? "moderate" : "low";
   const rangeFactor = confidence === "moderate" ? 0.10 : 0.15;
   const range: [number, number] = [
@@ -379,8 +450,55 @@ export function estimateFinishTime(
 }
 
 /**
- * Conservative default pace when no prior effort data is available.
- * Returns min/km based on experience level and target distance.
+ * Shared fallback path used when no valid/comparable prior effort can be found.
+ * Produces a conservative estimate from experience level + distance class only.
+ */
+function buildFallbackFinishEstimate(
+  targetDistanceKm: number,
+  routeAscentM: number | undefined,
+  athlete: AthleteProfile,
+  racePriority: RacePriority | undefined,
+  explanation: string[],
+): FinishTimeEstimation {
+  const pace = conservativeDefaultPace(targetDistanceKm, athlete);
+  let estimatedMins = Math.round(targetDistanceKm * pace);
+
+  if (routeAscentM && routeAscentM > 0) {
+    const eleAdj = Math.round(routeAscentM / 100);
+    estimatedMins += eleAdj;
+  }
+
+  if (racePriority === "a_race") {
+    estimatedMins = Math.round(estimatedMins * 0.97);
+  } else if (racePriority === "completion") {
+    estimatedMins = Math.round(estimatedMins * 1.05);
+  }
+
+  const planningMins = Math.round(estimatedMins * 1.02);
+  const range: [number, number] = [
+    Math.round(estimatedMins * 0.85),
+    Math.round(estimatedMins * 1.20),
+  ];
+
+  explanation.push(
+    `Using conservative pace (${pace.toFixed(1)} min/km) based on ${athlete.experienceLevel} experience and ${targetDistanceKm.toFixed(0)} km distance class.`
+  );
+  explanation.push(
+    `Planning time: ${formatHrsMins(planningMins)} (range: ${formatHrsMins(range[0])} – ${formatHrsMins(range[1])}).`
+  );
+
+  return {
+    estimatedMinutes: planningMins,
+    rangeMinutes: range,
+    confidence: "low",
+    method: "fallback",
+    explanation,
+  };
+}
+
+/**
+ * Conservative default pace when no comparable prior effort data is available.
+ * Returns min/km based on experience level and target distance class.
  */
 function conservativeDefaultPace(distanceKm: number, athlete: AthleteProfile): number {
   const basePace: Record<ExperienceLevel, number> = {
