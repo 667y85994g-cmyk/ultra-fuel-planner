@@ -315,6 +315,8 @@ export interface CarryPlan {
   descentM: number;
   /** Time-weighted dominant terrain type for this section. */
   dominantTerrain: TerrainType;
+  /** Human-readable section character label, e.g. "Runnable start", "Long gradual climb". */
+  sectionCharacter: string;
   itemsToCarry: CarryItem[];
   refillInstructions?: string;
   warnings: string[];

@@ -14,26 +14,16 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(145deg, #7c2d12 0%, #431407 100%)",
+          background: "#0c0c0c",
           borderRadius: 6,
         }}
       >
-        {/* Mountain peak — simple triangle */}
-        <svg width="28" height="28" viewBox="0 0 28 28">
-          {/* Main peak */}
+        {/* Double-peak M-mountain — matches site logo, scaled to 32×32 */}
+        <svg width="22" height="17" viewBox="0 0 120 90">
           <polygon
-            points="14,4 24,22 4,22"
-            fill="white"
-            fillOpacity="0.92"
+            points="0,90 30,8 52,42 74,20 120,90"
+            fill="#f5a623"
           />
-          {/* Snow cap highlight */}
-          <polygon
-            points="14,4 18,11 10,11"
-            fill="#fef3c7"
-            fillOpacity="0.6"
-          />
-          {/* Amber fuel dot at summit */}
-          <circle cx="14" cy="5.5" r="2.5" fill="#f59e0b" />
         </svg>
       </div>
     ),

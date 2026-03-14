@@ -607,7 +607,7 @@ const PRINT_CSS = `
 `;
 
 // ── Main print page ────────────────────────────────────────────────────────────
-// Architecture (v2.23 — A4 pagination fix + satellite tile map via canvas):
+// Architecture (v2.24 — terrain-led sectioning; sectionCharacter replaces terrainLabel in carry table):
 export default function PrintPage() {
   const [output, setOutput]       = useState<PlannerOutput | null>(null);
   const [mapDataUrl, setMapDataUrl] = useState<string | null>(null);
@@ -1026,7 +1026,7 @@ export default function PrintPage() {
                         {" · "}~{formatDuration(plan.estimatedDurationMinutes)}
                         {plan.ascentM > 20 && <span> · ↑{plan.ascentM}m</span>}
                         {plan.descentM > 20 && <span> ↓{plan.descentM}m</span>}
-                        {" · "}{terrainLabel(plan.dominantTerrain)}
+                        {" · "}{plan.sectionCharacter}
                       </div>
 
                       {/* Fluid + carbs */}
@@ -1175,7 +1175,7 @@ export default function PrintPage() {
                           {plan.ascentM <= 10 && plan.descentM <= 10 ? "—" : ""}
                         </td>
                         <td style={{ padding: "4px 7px", color: terrainColorPrint(plan.dominantTerrain), fontWeight: 600 }}>
-                          {terrainLabel(plan.dominantTerrain)}
+                          {plan.sectionCharacter}
                         </td>
                         <td style={{ padding: "4px 7px", color: "#4a3a2a" }}>
                           {sectionStrategyLabel(plan.fromKm, plan.toKm, schedule, fuelInventory)}
@@ -1189,7 +1189,7 @@ export default function PrintPage() {
 
             {/* Footer — inside page 3 so it prints on the last page */}
             <div style={{ marginTop: "20px", paddingTop: "9px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-              <span>Ultra Fuel Planner v2.23 · ultrafuelplanner.com</span>
+              <span>Ultra Fuel Planner v2.24 · ultrafuelplanner.com</span>
               <span>All times are estimates. Adjust based on real conditions on the day.</span>
             </div>
 
@@ -1199,7 +1199,7 @@ export default function PrintPage() {
         {/* Footer for no-route plans (appears on page 2) */}
         {!hasRoute && (
           <div style={{ maxWidth: "800px", margin: "0 auto", padding: "0 28px", paddingTop: "12px", paddingBottom: "8px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-            <span>Ultra Fuel Planner v2.23 · ultrafuelplanner.com</span>
+            <span>Ultra Fuel Planner v2.24 · ultrafuelplanner.com</span>
             <span>All times are estimates. Adjust based on real conditions on the day.</span>
           </div>
         )}

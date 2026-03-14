@@ -677,7 +677,108 @@ function hasUpcomingClimb(
 // ─── Section architecture ─────────────────────────────────────────────────────
 //
 // The schedule is structured around sections (aid-station-to-aid-station).
-// If no aid stations are defined, sections are inferred every ~120 minutes.
+// If no aid stations are defined, sections are inferred from terrain transitions
+// and fatigue-phase boundaries (see inferTerrainSections).
+
+/** Minimum section duration in minutes (prevents overly short sections). */
+const MIN_SECTION_MINS = 65;
+/** Maximum section duration in minutes (forces a split if exceeded). */
+const MAX_SECTION_MINS = 150;
+/** Maximum section distance in km (forces a split if exceeded). */
+const MAX_SECTION_KM = 16;
+
+/** Broad terrain category used for transition detection. */
+type BroadTerrain = "easy" | "rolling" | "climbing" | "descending";
+
+function broadTerrain(t: TerrainType): BroadTerrain {
+  if (t === "flat_runnable" || t === "recovery") return "easy";
+  if (t === "rolling") return "rolling";
+  if (t === "sustained_climb" || t === "steep_climb") return "climbing";
+  if (t === "runnable_descent" || t === "technical_descent") return "descending";
+  return "easy";
+}
+
+/**
+ * Returns true when two consecutive terrain segments represent a meaningful
+ * change in section character. flat↔rolling is excluded as a minor variation.
+ */
+function isSignificantTerrainTransition(a: TerrainType, b: TerrainType): boolean {
+  const ba = broadTerrain(a);
+  const bb = broadTerrain(b);
+  if (ba === bb) return false;
+  if ((ba === "easy" && bb === "rolling") || (ba === "rolling" && bb === "easy")) return false;
+  return true;
+}
+
+/**
+ * Derives a human-readable character label for a section based on its terrain
+ * composition, ascent density, race position, and fatigue phase.
+ *
+ * Examples: "Runnable start", "Long gradual climb", "Rolling with big climbs",
+ *           "Late-race rolling", "Technical descent", "Final push".
+ */
+function computeSectionCharacter(
+  sectionSegments: RouteSegment[],
+  fromKm: number,
+  toKm: number,
+  totalKm: number,
+): string {
+  if (sectionSegments.length === 0) return "Route section";
+
+  const sectionKm  = toKm - fromKm;
+  const startPct   = fromKm / totalKm;
+  const endPct     = toKm   / totalKm;
+  const isFinal    = endPct   > 0.94;
+  const isEarly    = startPct < 0.25;
+  const isLate     = startPct >= 0.60;
+
+  // Time-weighted breakdown by broad terrain category
+  const totalMins  = sectionSegments.reduce((s, seg) => s + seg.estimatedDurationMinutes, 0);
+  const byBroad: Record<BroadTerrain, number> = { easy: 0, rolling: 0, climbing: 0, descending: 0 };
+  for (const seg of sectionSegments) {
+    byBroad[broadTerrain(seg.terrain)] += seg.estimatedDurationMinutes;
+  }
+
+  const climbingPct    = totalMins > 0 ? byBroad.climbing    / totalMins : 0;
+  const descendingPct  = totalMins > 0 ? byBroad.descending  / totalMins : 0;
+  const easyPct        = totalMins > 0 ? byBroad.easy        / totalMins : 0;
+
+  const ascentM        = sectionSegments.reduce((s, seg) => s + seg.ascentM, 0);
+  const ascentPerKm    = sectionKm > 0 ? ascentM / sectionKm : 0;
+  const hasSteepClimb  = sectionSegments.some(seg => seg.terrain === "steep_climb");
+  const hasTechnical   = sectionSegments.some(seg => seg.terrain === "technical_descent");
+
+  if (isFinal) return "Final push";
+
+  if (climbingPct >= 0.45) {
+    if (hasSteepClimb) {
+      return isLate ? "Late-race steep climb" : isEarly ? "Opening steep climb" : "Steep climb";
+    }
+    if (ascentPerKm >= 25) {
+      return isLate ? "Late-race long climb" : isEarly ? "Long opening climb" : "Long gradual climb";
+    }
+    return isLate ? "Late climb" : isEarly ? "Opening climb" : "Sustained climb";
+  }
+
+  if (descendingPct >= 0.45) {
+    if (hasTechnical) {
+      return isLate ? "Late-race technical descent" : "Technical descent";
+    }
+    return isLate ? "Late-race descent" : isEarly ? "Opening descent" : "Runnable descent";
+  }
+
+  // Flat / rolling — differentiated by ascent density
+  if (ascentPerKm >= 30) {
+    return isLate ? "Late-race rolling with big climbs" : "Rolling with big climbs";
+  }
+  if (ascentPerKm >= 15 || climbingPct >= 0.25) {
+    return isLate ? "Late-race rolling with climbs" : isEarly ? "Rolling with climbs" : "Rolling with climbs";
+  }
+  if (easyPct >= 0.55) {
+    return isEarly ? "Runnable start" : isLate ? "Late-race runnable" : "Easier runnable section";
+  }
+  return isEarly ? "Rolling start" : isLate ? "Late-race rolling" : "Rolling section";
+}
 
 interface Section {
   fromLabel: string;
@@ -724,36 +825,146 @@ function buildSections(
     });
   }
 
-  return inferSections(segments, totalRaceMinutes);
+  return inferTerrainSections(segments, totalRaceMinutes);
 }
 
 /**
- * When no aid stations are defined, divides the race into sections of
- * approximately 90–150 minutes each (targeting ~120 min per section).
+ * Terrain-led section inference.
+ *
+ * Creates section boundaries at significant terrain transitions and fatigue-phase
+ * waypoints (25 %, 60 %, 85 % of total distance), subject to guardrails:
+ *   • min section duration: MIN_SECTION_MINS (65 min)
+ *   • max section duration: MAX_SECTION_MINS (150 min)
+ *   • max section distance: MAX_SECTION_KM  (16 km)
+ *
+ * Replaces the previous equal-time-bucket approach which produced uniform sections
+ * that obscured meaningful course features.
  */
-function inferSections(segments: RouteSegment[], totalRaceMinutes: number): Section[] {
-  const numSections = Math.max(1, Math.round(totalRaceMinutes / 120));
-  const minsPerSection = totalRaceMinutes / numSections;
+function inferTerrainSections(segments: RouteSegment[], totalRaceMinutes: number): Section[] {
+  if (segments.length === 0) return [];
 
+  const totalKm = segments[segments.length - 1].endKm;
+
+  // ── 1. Collect candidate boundary km positions ───────────────────────────
+  const candidateSet = new Set<number>();
+
+  // Significant terrain transitions
+  for (let i = 1; i < segments.length; i++) {
+    if (isSignificantTerrainTransition(segments[i - 1].terrain, segments[i].terrain)) {
+      candidateSet.add(segments[i].startKm);
+    }
+  }
+
+  // Fatigue-phase waypoints
+  for (const pct of [0.25, 0.60, 0.85]) {
+    candidateSet.add(pct * totalKm);
+  }
+
+  const candidates = Array.from(candidateSet).sort((a, b) => a - b);
+
+  // ── 2. Greedy forward pass — accept boundaries that respect min length ───
+  const accepted: number[] = [0];
+
+  for (const candKm of candidates) {
+    if (candKm <= 0 || candKm >= totalKm) continue;
+
+    const lastKm      = accepted[accepted.length - 1];
+    const fromMins    = getTimeAtKm(segments, lastKm);
+    const candMins    = getTimeAtKm(segments, candKm);
+    const sectionMins = candMins - fromMins;
+    const remaining   = totalRaceMinutes - candMins;
+
+    // Accept only if this section is long enough AND enough time remains
+    // for at least one more valid section after this boundary.
+    if (sectionMins >= MIN_SECTION_MINS && remaining >= MIN_SECTION_MINS) {
+      accepted.push(candKm);
+    }
+  }
+
+  accepted.push(totalKm);
+
+  // ── 3. Split any section that exceeds MAX_SECTION_MINS or MAX_SECTION_KM ─
+  const refined: number[] = [accepted[0]];
+
+  for (let i = 1; i < accepted.length; i++) {
+    const fromKm     = accepted[i - 1];
+    const toKm       = accepted[i];
+    const sectionKm  = toKm - fromKm;
+    const fromMins   = getTimeAtKm(segments, fromKm);
+    const toMins     = getTimeAtKm(segments, toKm);
+    const sectionMin = toMins - fromMins;
+
+    if (sectionMin > MAX_SECTION_MINS || sectionKm > MAX_SECTION_KM) {
+      // Prefer a terrain transition in the middle third of the section
+      const midLow  = fromKm + sectionKm * 0.35;
+      const midHigh = fromKm + sectionKm * 0.65;
+
+      let splitKm: number | null = null;
+
+      for (let j = 1; j < segments.length; j++) {
+        const sk = segments[j].startKm;
+        if (sk > midLow && sk < midHigh &&
+            isSignificantTerrainTransition(segments[j - 1].terrain, segments[j].terrain)) {
+          splitKm = sk;
+          break;
+        }
+      }
+
+      // Fall back to any segment boundary in the middle third
+      if (splitKm === null) {
+        for (const seg of segments) {
+          if (seg.startKm > midLow && seg.startKm < midHigh) {
+            splitKm = seg.startKm;
+            break;
+          }
+        }
+      }
+
+      // Last resort: geometric midpoint
+      if (splitKm === null) splitKm = (fromKm + toKm) / 2;
+
+      refined.push(splitKm);
+    }
+
+    refined.push(toKm);
+  }
+
+  // De-duplicate, sort, and remove boundaries that are too close together
+  const finalBoundaries = Array.from(new Set(refined))
+    .sort((a, b) => a - b)
+    .filter((km, idx, arr) => idx === 0 || (km - arr[idx - 1]) >= 0.5);
+
+  // ── 4. Build Section objects ─────────────────────────────────────────────
   const sections: Section[] = [];
-  for (let i = 0; i < numSections; i++) {
-    const fromMins = Math.round(i * minsPerSection);
-    const toMins = i === numSections - 1
-      ? totalRaceMinutes
-      : Math.round((i + 1) * minsPerSection);
-    const fromKm = getKmAtTime(segments, fromMins);
-    const toKm = getKmAtTime(segments, toMins);
+  const n = finalBoundaries.length;
+
+  for (let i = 0; i < n - 1; i++) {
+    const fromKm   = finalBoundaries[i];
+    const toKm     = finalBoundaries[i + 1];
+    const fromMins = i === 0 ? 0 : getTimeAtKm(segments, fromKm);
+    const toMins   = i === n - 2 ? totalRaceMinutes : getTimeAtKm(segments, toKm);
+
     sections.push({
-      fromLabel: i === 0 ? "Start" : `~km\u00a0${Math.round(fromKm)}`,
-      toLabel: i === numSections - 1 ? "Finish" : `~km\u00a0${Math.round(toKm)}`,
+      fromLabel: i === 0     ? "Start"  : `~km\u00a0${Math.round(fromKm)}`,
+      toLabel:   i === n - 2 ? "Finish" : `~km\u00a0${Math.round(toKm)}`,
       fromKm,
       toKm,
       fromMinutes: fromMins,
-      toMinutes: toMins,
-      segments: segments.filter(s => s.endKm > fromKm && s.startKm < toKm),
-      isInferred: true,
+      toMinutes:   toMins,
+      segments:    segments.filter(s => s.endKm > fromKm && s.startKm < toKm),
+      isInferred:  true,
     });
   }
+
+  if (sections.length === 0) {
+    return [{
+      fromLabel: "Start", toLabel: "Finish",
+      fromKm: 0, toKm: totalKm,
+      fromMinutes: 0, toMinutes: totalRaceMinutes,
+      segments, isInferred: true,
+    }];
+  }
+
   return sections;
 }
 
@@ -1727,8 +1938,9 @@ function generateCarryPlans(
   _assumptions: PlannerAssumptions,
 ): CarryPlan[] {
   const totalRaceMinutes = segments.reduce((a, s) => a + s.estimatedDurationMinutes, 0);
+  const totalKm = segments.length > 0 ? segments[segments.length - 1].endKm : 0;
   const sections = buildSections(segments, aidStations, totalRaceMinutes);
-  return sections.map(section => buildCarryPlan(section, schedule, inventory, athlete));
+  return sections.map(section => buildCarryPlan(section, schedule, inventory, athlete, totalKm));
 }
 
 function buildCarryPlan(
@@ -1736,6 +1948,7 @@ function buildCarryPlan(
   schedule: FuelScheduleEntry[],
   inventory: FuelItem[],
   athlete: AthleteProfile,
+  totalKm: number,
 ): CarryPlan {
   const durationMins = section.toMinutes - section.fromMinutes;
   const durationHours = durationMins / 60;
@@ -1792,6 +2005,9 @@ function buildCarryPlan(
   const ascentM = Math.round(section.segments.reduce((sum, seg) => sum + seg.ascentM, 0));
   const descentM = Math.round(section.segments.reduce((sum, seg) => sum + seg.descentM, 0));
   const dominantTerrain = getDominantTerrain(section.segments);
+  const sectionCharacter = computeSectionCharacter(
+    section.segments, section.fromKm, section.toKm, totalKm,
+  );
 
   return {
     sectionId: `${section.fromKm.toFixed(1)}-${section.toKm.toFixed(1)}`,
@@ -1805,6 +2021,7 @@ function buildCarryPlan(
     ascentM,
     descentM,
     dominantTerrain,
+    sectionCharacter,
     itemsToCarry: items,
     warnings,
   };

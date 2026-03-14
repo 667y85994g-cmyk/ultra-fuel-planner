@@ -3,7 +3,6 @@
 import type { PlannerOutput, CarryPlan } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDuration, fuelTypeIcon } from "@/lib/utils";
-import { terrainLabel } from "@/lib/segmentation";
 import { Droplets, Zap, MapPin, AlertTriangle, Package } from "lucide-react";
 
 interface Props {
@@ -83,7 +82,7 @@ export function CarryView({ output }: Props) {
                     <span className="ml-1 text-stone-500">↓{plan.descentM}m</span>
                   )}
                   {" · "}
-                  <span className="text-stone-500">{terrainLabel(plan.dominantTerrain)}</span>
+                  <span className="text-stone-500">{plan.sectionCharacter}</span>
                 </p>
               </div>
               <div className="text-right text-xs text-stone-500">
