@@ -98,12 +98,12 @@ function tileYToLat(y: number, z: number): number {
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
 }
 function chooseBestZoom(minLat: number, maxLat: number, minLon: number, maxLon: number): number {
-  // Find highest zoom where tile count stays manageable (≤56 tiles)
+  // Find highest zoom where tile count stays manageable (≤80 tiles)
   for (let z = 14; z >= 7; z--) {
     const tileCount =
       (lonToTileX(maxLon, z) - lonToTileX(minLon, z) + 1) *
       (latToTileY(minLat, z) - latToTileY(maxLat, z) + 1);
-    if (tileCount <= 56) return z;
+    if (tileCount <= 80) return z;
   }
   return 7;
 }
@@ -121,12 +121,20 @@ async function loadTile(url: string): Promise<HTMLImageElement> {
 /**
  * Render the GPX route onto a satellite tile base using Esri World Imagery.
  * Returns a PNG data URL suitable for embedding in the print document.
- * Esri World Imagery tiles are free, require no API key, and support CORS.
+ *
+ * v2.25 improvements:
+ *   - 2× DPI canvas (render at 2× logical size) for crisp print output
+ *   - Tighter framing: 5% padding so the route fills the map frame
+ *   - Stronger route: white halo (10px) + terrain colour (5px), drawn in two
+ *     passes so halo never cuts across adjacent segment colour fills
+ *   - All markers have explicit white halos for legibility on any background
+ *   - Canvas-embedded legend in bottom-left corner
+ *   - Tile limit raised to 80 (handled in chooseBestZoom)
  */
 async function renderSatelliteMap(
   output: PlannerOutput,
-  canvasW = 750,
-  canvasH = 420,
+  canvasW = 880,
+  canvasH = 480,
 ): Promise<string | null> {
   const route = output.eventPlan.route;
   if (!route || route.points.length < 2) return null;
@@ -137,9 +145,9 @@ async function renderSatelliteMap(
   const rawMinLat = Math.min(...lats), rawMaxLat = Math.max(...lats);
   const rawMinLon = Math.min(...lons), rawMaxLon = Math.max(...lons);
 
-  // Pad bounds 12% so the route isn't clipped to the canvas edge
-  const latPad = Math.max((rawMaxLat - rawMinLat) * 0.12, 0.005);
-  const lonPad = Math.max((rawMaxLon - rawMinLon) * 0.12, 0.005);
+  // Tight padding (5%) so the route fills the frame without clipping
+  const latPad = Math.max((rawMaxLat - rawMinLat) * 0.05, 0.003);
+  const lonPad = Math.max((rawMaxLon - rawMinLon) * 0.05, 0.004);
   const bMinLat = rawMinLat - latPad;
   const bMaxLat = rawMaxLat + latPad;
   const bMinLon = rawMinLon - lonPad;
@@ -164,7 +172,7 @@ async function renderSatelliteMap(
   const latTop   = tileYToLat(ty0, zoom);
   const latBot   = tileYToLat(ty1 + 1, zoom);
 
-  // Mercator projection (matches tile coordinate system exactly)
+  // Mercator projection — matches tile coordinate system exactly
   const mercY = (lat: number) =>
     Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 180 / 2));
   const mTop = mercY(latTop);
@@ -174,16 +182,18 @@ async function renderSatelliteMap(
     ((mTop - mercY(lat)) / (mTop - mBot)) * canvasH,
   ];
 
+  // 2× DPI canvas for crisp print/export output
   const canvas = document.createElement("canvas");
-  canvas.width = canvasW;
-  canvas.height = canvasH;
+  canvas.width  = canvasW * 2;
+  canvas.height = canvasH * 2;
   const ctx = canvas.getContext("2d")!;
+  ctx.scale(2, 2); // all subsequent draw calls use logical (canvasW×canvasH) space
 
   // Dark fallback background
   ctx.fillStyle = "#374151";
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  // ── Fetch and composite satellite tiles ────────────────────────────────────
+  // ── Fetch and composite satellite tiles ─────────────────────────────────────
   // Esri World Imagery: tile URL format is /tile/{z}/{y}/{x} (y before x)
   const tileJobs: Promise<void>[] = [];
   for (let ty = ty0; ty <= ty1; ty++) {
@@ -195,7 +205,6 @@ async function renderSatelliteMap(
         loadTile(url)
           .then((img) => ctx.drawImage(img, px, py, tileW, tileH))
           .catch(() => {
-            // Failed tile — draw a muted grey placeholder so canvas stays valid
             ctx.fillStyle = "#4b5563";
             ctx.fillRect(px, py, tileW, tileH);
           }),
@@ -204,139 +213,137 @@ async function renderSatelliteMap(
   }
   await Promise.all(tileJobs);
 
-  // Subtle dark vignette overlay so route lines pop on bright imagery
-  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  // Dark vignette overlay — helps route lines pop against bright satellite imagery
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   const inv = output.eventPlan.fuelInventory;
 
-  // ── Route segments coloured by terrain ────────────────────────────────────
-  if (route.segments.length > 0) {
-    for (const seg of route.segments) {
-      const segPts = subsample(
-        points.filter(
-          (p) =>
-            p.distanceFromStartKm >= seg.startKm &&
-            p.distanceFromStartKm <= seg.endKm,
-        ),
-        200,
-      );
-      if (segPts.length < 2) continue;
-      // White shadow for contrast on varied satellite backgrounds
-      ctx.save();
-      ctx.strokeStyle = "rgba(0,0,0,0.5)";
-      ctx.lineWidth = 5.5;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      const [sx0, sy0] = project(segPts[0].lat, segPts[0].lon);
-      ctx.moveTo(sx0, sy0);
-      for (let i = 1; i < segPts.length; i++) {
-        const [x, y] = project(segPts[i].lat, segPts[i].lon);
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.strokeStyle = terrainColorPrint(seg.terrain);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(sx0, sy0);
-      for (let i = 1; i < segPts.length; i++) {
-        const [x, y] = project(segPts[i].lat, segPts[i].lon);
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-  } else {
-    // Fallback: single amber route
-    const pts2 = subsample(points, 400);
+  // ── Route rendering ─────────────────────────────────────────────────────────
+  // Two-pass approach: draw all white halos first, then all coloured lines.
+  // This prevents a segment's colour from being obscured by an adjacent halo.
+  function strokePath(pts: RoutePoint[], lineW: number, style: string) {
+    const sub = subsample(pts, 400);
+    if (sub.length < 2) return;
     ctx.save();
-    ctx.strokeStyle = "rgba(0,0,0,0.5)";
-    ctx.lineWidth = 5.5;
+    ctx.strokeStyle = style;
+    ctx.lineWidth = lineW;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.beginPath();
-    const [sx, sy] = project(pts2[0].lat, pts2[0].lon);
-    ctx.moveTo(sx, sy);
-    for (let i = 1; i < pts2.length; i++) {
-      const [x, y] = project(pts2[i].lat, pts2[i].lon);
-      ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = "#f59e0b";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    for (let i = 1; i < pts2.length; i++) {
-      const [x, y] = project(pts2[i].lat, pts2[i].lon);
+    const [x0, y0] = project(sub[0].lat, sub[0].lon);
+    ctx.moveTo(x0, y0);
+    for (let i = 1; i < sub.length; i++) {
+      const [x, y] = project(sub[i].lat, sub[i].lon);
       ctx.lineTo(x, y);
     }
     ctx.stroke();
     ctx.restore();
   }
 
-  // ── Carry section boundary diamonds (amber) ───────────────────────────────
+  if (route.segments.length > 0) {
+    // Pass 1: white halo beneath every segment
+    for (const seg of route.segments) {
+      const segPts = points.filter(
+        (p) => p.distanceFromStartKm >= seg.startKm && p.distanceFromStartKm <= seg.endKm,
+      );
+      strokePath(segPts, 10, "rgba(255,255,255,0.92)");
+    }
+    // Pass 2: terrain-coloured line on top
+    for (const seg of route.segments) {
+      const segPts = points.filter(
+        (p) => p.distanceFromStartKm >= seg.startKm && p.distanceFromStartKm <= seg.endKm,
+      );
+      strokePath(segPts, 5, terrainColorPrint(seg.terrain));
+    }
+  } else {
+    // No segments — single amber line
+    strokePath(points, 10, "rgba(255,255,255,0.92)");
+    strokePath(points, 5, "#f59e0b");
+  }
+
+  // ── Discrete fuel event dots ─────────────────────────────────────────────────
+  for (const e of output.schedule.filter(
+    (ev) => !ev.isContinuous && ev.action !== "refill_at_aid" && ev.action !== "restock_carry",
+  )) {
+    const rp = closestRoutePoint(points, e.distanceKm);
+    const [cx, cy] = project(rp.lat, rp.lon);
+    const item = inv.find((f) => f.id === e.fuelItemId);
+    const color =
+      item?.type === "gel"       ? "#fbbf24" :
+      item?.type === "chew"      ? "#34d399" :
+      item?.type === "bar"       ? "#c084fc" :
+      item?.type === "real_food" ? "#f97316" : "#d1d5db";
+    ctx.save();
+    // White halo
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fill();
+    // Coloured fill
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Carry section boundary diamonds (amber) ──────────────────────────────────
   for (const c of output.carryPlans.filter((cp) => cp.fromKm > 0)) {
     const rp = closestRoutePoint(points, c.fromKm);
     const [cx, cy] = project(rp.lat, rp.lon);
+    const S = 7; // half-size in logical px
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(Math.PI / 4);
+    // White halo
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillRect(-(S + 2.5), -(S + 2.5), (S + 2.5) * 2, (S + 2.5) * 2);
+    // Amber fill
     ctx.fillStyle = "#fbbf24";
-    ctx.strokeStyle = "white";
+    ctx.fillRect(-S, -S, S * 2, S * 2);
+    ctx.strokeStyle = "#92400e";
     ctx.lineWidth = 1.5;
-    ctx.fillRect(-5, -5, 10, 10);
-    ctx.strokeRect(-5, -5, 10, 10);
+    ctx.strokeRect(-S, -S, S * 2, S * 2);
     ctx.restore();
   }
 
-  // ── Drink mix section start circles (blue) ────────────────────────────────
+  // ── Drink mix section start circles (blue) ───────────────────────────────────
   for (const e of output.schedule.filter(
     (ev) => ev.isContinuous && inv.find((f) => f.id === ev.fuelItemId)?.type === "drink_mix",
   )) {
     const rp = closestRoutePoint(points, e.distanceKm);
     const [cx, cy] = project(rp.lat, rp.lon);
     ctx.save();
+    // White halo
     ctx.beginPath();
-    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#60a5fa";
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.fill();
-    ctx.strokeStyle = "white";
+    // Blue fill
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "#3b82f6";
+    ctx.fill();
+    ctx.strokeStyle = "#1d4ed8";
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
   }
 
-  // ── Discrete fuel event dots ───────────────────────────────────────────────
-  for (const e of output.schedule.filter(
-    (ev) =>
-      !ev.isContinuous && ev.action !== "refill_at_aid" && ev.action !== "restock_carry",
-  )) {
-    const rp = closestRoutePoint(points, e.distanceKm);
-    const [cx, cy] = project(rp.lat, rp.lon);
-    const item = inv.find((f) => f.id === e.fuelItemId);
-    const color =
-      item?.type === "gel"  ? "#fbbf24" :
-      item?.type === "chew" ? "#34d399" :
-      item?.type === "bar"  ? "#c084fc" : "#d1d5db";
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.45)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // ── Aid station circles (orange) ──────────────────────────────────────────
+  // ── Aid station circles (orange) ─────────────────────────────────────────────
   for (const aid of output.eventPlan.aidStations) {
     const rp = closestRoutePoint(points, aid.distanceKm);
     const [cx, cy] = project(rp.lat, rp.lon);
     ctx.save();
+    // White halo
     ctx.beginPath();
-    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fill();
+    // Orange fill
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
     ctx.fillStyle = "#fb923c";
     ctx.fill();
     ctx.strokeStyle = "#c2410c";
@@ -345,49 +352,127 @@ async function renderSatelliteMap(
     ctx.restore();
   }
 
-  // ── Start marker (green S) ────────────────────────────────────────────────
+  // ── Start marker ─────────────────────────────────────────────────────────────
   {
     const [sx, sy] = project(points[0].lat, points[0].lon);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+    ctx.arc(sx, sy, 15, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 11, 0, Math.PI * 2);
     ctx.fillStyle = "#22c55e";
     ctx.fill();
-    ctx.strokeStyle = "white";
+    ctx.strokeStyle = "#15803d";
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.fillStyle = "white";
-    ctx.font = "bold 10px Arial, sans-serif";
+    ctx.font = "bold 11px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("S", sx, sy);
     ctx.restore();
   }
 
-  // ── Finish marker (red F) ─────────────────────────────────────────────────
+  // ── Finish marker ─────────────────────────────────────────────────────────────
   {
     const last = points[points.length - 1];
     const [fx, fy] = project(last.lat, last.lon);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(fx, fy, 10, 0, Math.PI * 2);
+    ctx.arc(fx, fy, 15, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(fx, fy, 11, 0, Math.PI * 2);
     ctx.fillStyle = "#ef4444";
     ctx.fill();
-    ctx.strokeStyle = "white";
+    ctx.strokeStyle = "#b91c1c";
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.fillStyle = "white";
-    ctx.font = "bold 10px Arial, sans-serif";
+    ctx.font = "bold 11px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("F", fx, fy);
     ctx.restore();
   }
 
+  // ── Legend overlay (bottom-left corner) ──────────────────────────────────────
+  {
+    const hasDrinkMix = output.schedule.some(
+      (ev) => ev.isContinuous && inv.find((f) => f.id === ev.fuelItemId)?.type === "drink_mix",
+    );
+    const legendItems: Array<{ color: string; label: string; shape: "circle" | "diamond" }> = [
+      { color: "#22c55e", label: "Start",  shape: "circle" },
+      { color: "#ef4444", label: "Finish", shape: "circle" },
+      ...(output.eventPlan.aidStations.length > 0
+        ? [{ color: "#fb923c", label: "Aid station", shape: "circle" as const }] : []),
+      ...(hasDrinkMix
+        ? [{ color: "#3b82f6", label: "Drink mix",   shape: "circle" as const }] : []),
+      { color: "#fbbf24", label: "Fuel event", shape: "circle" },
+      { color: "#fbbf24", label: "Carry section", shape: "diamond" },
+    ];
+
+    const LX = 8, LY = canvasH - 8 - legendItems.length * 14 - 8;
+    const boxW = 118, boxH = legendItems.length * 14 + 10;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.60)";
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 0.75;
+    // Rounded rect background
+    const r = 4;
+    ctx.beginPath();
+    ctx.moveTo(LX + r, LY);
+    ctx.lineTo(LX + boxW - r, LY);
+    ctx.arcTo(LX + boxW, LY, LX + boxW, LY + r, r);
+    ctx.lineTo(LX + boxW, LY + boxH - r);
+    ctx.arcTo(LX + boxW, LY + boxH, LX + boxW - r, LY + boxH, r);
+    ctx.lineTo(LX + r, LY + boxH);
+    ctx.arcTo(LX, LY + boxH, LX, LY + boxH - r, r);
+    ctx.lineTo(LX, LY + r);
+    ctx.arcTo(LX, LY, LX + r, LY, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    legendItems.forEach((item, i) => {
+      const iy = LY + 8 + i * 14;
+      const ix = LX + 12;
+      ctx.save();
+      if (item.shape === "diamond") {
+        ctx.translate(ix, iy);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = item.color;
+        ctx.fillRect(-4, -4, 8, 8);
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineWidth = 0.75;
+        ctx.strokeRect(-4, -4, 8, 8);
+      } else {
+        ctx.beginPath();
+        ctx.arc(ix, iy, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = item.color;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineWidth = 0.75;
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.fillStyle = "rgba(255,255,255,0.90)";
+      ctx.font = "9px Arial, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(item.label, LX + 22, iy);
+    });
+    ctx.restore();
+  }
+
   try {
     return canvas.toDataURL("image/png");
   } catch {
-    // Canvas tainted (CORS failure on at least one tile) — return null
+    // Canvas tainted by CORS failure — return null so fallback SVG is shown
     return null;
   }
 }
@@ -607,7 +692,7 @@ const PRINT_CSS = `
 `;
 
 // ── Main print page ────────────────────────────────────────────────────────────
-// Architecture (v2.24 — terrain-led sectioning; sectionCharacter replaces terrainLabel in carry table):
+// Architecture (v2.25 — map rendering: 2× DPI, tighter crop, stronger route line, white-halo markers, legend):
 export default function PrintPage() {
   const [output, setOutput]       = useState<PlannerOutput | null>(null);
   const [mapDataUrl, setMapDataUrl] = useState<string | null>(null);
@@ -1189,7 +1274,7 @@ export default function PrintPage() {
 
             {/* Footer — inside page 3 so it prints on the last page */}
             <div style={{ marginTop: "20px", paddingTop: "9px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-              <span>Ultra Fuel Planner v2.24 · ultrafuelplanner.com</span>
+              <span>Ultra Fuel Planner v2.25 · ultrafuelplanner.com</span>
               <span>All times are estimates. Adjust based on real conditions on the day.</span>
             </div>
 
@@ -1199,7 +1284,7 @@ export default function PrintPage() {
         {/* Footer for no-route plans (appears on page 2) */}
         {!hasRoute && (
           <div style={{ maxWidth: "800px", margin: "0 auto", padding: "0 28px", paddingTop: "12px", paddingBottom: "8px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-            <span>Ultra Fuel Planner v2.24 · ultrafuelplanner.com</span>
+            <span>Ultra Fuel Planner v2.25 · ultrafuelplanner.com</span>
             <span>All times are estimates. Adjust based on real conditions on the day.</span>
           </div>
         )}
