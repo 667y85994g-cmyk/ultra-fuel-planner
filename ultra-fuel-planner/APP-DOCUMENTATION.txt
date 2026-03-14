@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.15 | March 2026
+Version 2.27 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -235,12 +235,43 @@ Process:
      NOTE: burn rate does NOT drive carb targets — it informs timing only
   6. Produce confidence level based on number and quality of efforts
 
-Finish time estimation:
-  - Finds the prior effort most similar in distance
-  - Scales to target distance using pace ratio
-  - Applies elevation adjustment (+/- for more/less ascent)
-  - Applies race priority adjustment (completion = more conservative)
-  - Confidence based on distance similarity and data quality
+Finish time estimation (hardened v2.27):
+  Three-layer protection pipeline:
+
+  Layer 1 — Input validation (isValidEffortForFTE):
+    - Rejects efforts with distanceKm < 2.0 or durationMinutes < 10
+    - Rejects efforts with implied pace outside 2.5–22.0 min/km
+    - Catches malformed data (e.g. stored distanceKm=1 producing 720 min/km pace)
+
+  Layer 2 — Scale ratio filter:
+    - FTE_MAX_SCALE_RATIO = 4.0: rejects efforts where
+      max(target/reference, reference/target) > 4.0
+    - Prevents 160km effort being used as anchor for a 26km target (ratio 6.15)
+    - After filtering, prefers same distance class (short/long/ultra), then
+      adjacent class, then any remaining within-ratio effort
+
+  Layer 3 — Output sanity check:
+    - After scaling + adjustments, verifies implied pace is within [2.5, 22.0] min/km
+    - Falls back to buildFallbackFinishEstimate() if output is out of range
+
+  Fallback:
+    - buildFallbackFinishEstimate() uses conservativeDefaultPace (derived from
+      experience level) when no valid anchor exists or all layers fail
+    - Returns low confidence + "no comparable prior effort" explanation
+
+  Distance classes:
+    short: < 15 km
+    long:  15–40 km
+    ultra: > 40 km
+
+  Happy path (when valid effort found):
+    1. Select best anchor (closest distance match from filtered candidates)
+    2. Scale pace for distance difference
+    3. Apply elevation adjustment (+/- for more/less ascent than reference)
+    4. Apply race priority adjustment (completion = more conservative)
+    5. Output sanity check
+    6. Apply 2% conservative bias
+    7. Return result with confidence based on distance similarity + data quality
 
 
 5d. ENERGY MODEL (energy-model.ts) — Layer 3 execution timing only
@@ -264,7 +295,7 @@ Use recommendCarbTarget() from carb-target-engine.ts instead.
 
 5e. FUELLING ENGINE (fuelling-engine.ts)
 ────────────────────────────────────────
-The main plan generator. ~950 lines. Key components:
+The main plan generator. ~1050 lines. Key components:
 
 TERRAIN_RULES: A lookup table mapping each TerrainType to:
   - preferred fuel types (ordered by priority)
@@ -295,11 +326,35 @@ Schedule generation:
   - Inserts aid station refill events at correct distances
   - Applies early-race / late-race phase adjustments
 
+Section inference (terrain-led, v2.24):
+  inferTerrainSections() replaces the old equal-time-bucket approach:
+  1. Collect candidate boundaries: terrain-transition points (where broad
+     terrain category changes — easy/rolling/climbing/descending) plus
+     fatigue-phase waypoints at 25%, 60%, 85% of total distance
+  2. Greedy forward pass: accept a boundary only if the resulting section
+     is ≥ MIN_SECTION_MINS (65 min) AND enough race remains for at least
+     one more MIN_SECTION_MINS section
+  3. Split oversized sections (> MAX_SECTION_MINS=150min or > MAX_SECTION_KM=16km)
+     at the best terrain transition in the middle third of that section
+  4. Build Section objects with accumulated segment durations
+
+  isSignificantTerrainTransition(): flat↔rolling is excluded (minor), all
+  other broad-category changes (easy↔climbing, rolling↔descending, etc.) accepted.
+
+  computeSectionCharacter(): returns a human-readable label for each section:
+    - Race position ("start", "mid", "late", "final push")
+    - Terrain composition (climb density, descent density, runnable proportion)
+    - Ascent density (>40 m/km = "big climb", 20–40 = "gradual climb")
+    - Labels: "Runnable start", "Long gradual climb", "Technical descent",
+      "Late-race rolling", "Final push", "Runnable mid-section", etc.
+
 Carry plan generation:
   - Groups schedule entries between aid stations
   - Sums fluid and carb needs per section
   - Lists specific items to carry
   - Adds practical warnings (heavy section, long gap, etc.)
+  - Each section includes sectionCharacter (human-readable label from
+    computeSectionCharacter) replacing the old dominantTerrain label
 
 Hydration guidance (v1.6):
   - Derives a practical range from athlete's fluid baseline
@@ -444,24 +499,46 @@ Tab 5: Map (RouteMapView.tsx)
 8. PRINT / RACE CARD (print/page.tsx)
 ================================================================================
 
-Opens in new browser tab via window.print().
+Opens in new browser tab via window.print(). 3-page A4 document.
 
 Layout:
-  - Header: event name, date, distance/ascent
-  - Summary strip: duration, carbs/hr, hydration range, electrolyte tier
-  - Fuelling schedule table: time, km, action, terrain, carbs (no fluid column)
-  - Hydration reminder box (blue): range + plain-English advice
-  - Carry plan: section-by-section with ~rounded fluid, exact carbs, item list
-  - Total items needed: grid of products with quantities
-  - Footer: version, disclaimer
+  Page 1 — Race Overview
+    - Header: event name, date, distance/ascent
+    - Summary metrics strip: duration, carbs/hr, fluid/hr, electrolytes
+    - Two-column: Strategy Overview (carb target, primary fuels, drink mix usage,
+      hydration/electrolyte notes) + Total Items Required (grouped by type)
 
-Design principles (v1.6):
-  - No decimal precision on fluid
+  Page 2 — Race Execution
+    - Fuelling schedule table: time, km, fuel icon, terrain, carbs
+    - Drink mix rows: blue left border; aid station rows: amber background
+    - Carry plan grid: from→to, km range, duration, ↑m ↓m, section character,
+      fluid target, carb total, items list, warnings
+
+  Page 3 — Course Strategy (only when GPX loaded)
+    - Satellite map: Esri World Imagery tiles on 2× DPI canvas (720×400 logical px)
+      - Basemap muted: ctx.filter = "saturate(0.30) brightness(0.55) contrast(0.90)"
+      - Radial vignette: createRadialGradient (transparent center → 68% black edge)
+      - Route: single brand-orange line (#f97316) as visual hero — not terrain-segmented
+      - Carry boundaries: white rings (r=9) with inner dot
+      - Gel: orange dot #f97316; Chew: blue dot #60a5fa; Bar: violet #a78bfa
+      - Drink mix: purple diamond #a855f7 (rotated rect)
+      - Aid stations: orange circle #fb923c r=9, white border
+      - Start: green #22c55e r=13 "S" label; Finish: red #ef4444 r=13 "F" label
+      - Z-order: basemap → vignette → route halo → route line → carry rings →
+                 fuel dots → drink mix diamonds → aid stations → start/finish
+    - Elevation profile (SVG, inline): area fill, terrain bands, carry boundaries,
+      drink mix bands, aid/fuel tick marks, y-axis (m) + x-axis (km) labels
+    - Section overview table: section, distance, duration, elevation, terrain, strategy
+
+Design principles:
+  - No decimal precision on fluid; ~ prefix throughout
   - No sodium mg/hr values
   - Carbs remain precise (they're inventory-based)
   - Fluid is approximate (ranges, ~ prefix)
   - Electrolytes are contextual (tier labels)
   - Clean enough to glance at during a race
+  - Print CSS: @page A4 portrait, 12/15/13mm margins, print-color-adjust: exact
+  - window.print() gated behind mapReady state (fires after tiles load or fail)
 
 
 ================================================================================
@@ -525,7 +602,10 @@ FuelScheduleEntry:
 
 CarryPlan:
   fromKm, toKm, fromLabel, toLabel, estimatedDurationMinutes,
-  fluidToCarryMl, carbsToCarryG, itemsToCarry (CarryItem[]), warnings
+  ascentM, descentM, dominantTerrain (TerrainType),
+  sectionCharacter (human-readable label, e.g. "Runnable start"),
+  fluidToCarryMl, carbsToCarryG, itemsToCarry (CarryItem[]),
+  sectionId, warnings, refillInstructions
 
 PlannerOutput:
   eventPlan, summary (PlanSummary), schedule (FuelScheduleEntry[]),
@@ -2477,6 +2557,228 @@ v2.23 — A4 Printable Race Document (Pagination + Satellite Map)
   CHANGED: version strings → v2.23 (5 UI locations)
   CHANGED: src/lib/fuelling-engine.ts — architecture comment updated to v2.23
   UNCHANGED: fuelling engine, carry plan, all other UI components
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.24 — Terrain-Led Sectioning Model
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Replaced the equal-time-bucket section generator (inferSections) with a
+  hybrid terrain-led, aid-station-aware, fatigue-aware model. Sections now
+  represent meaningful course features — terrain transitions, fatigue-phase
+  shifts, and natural climb/descent groupings — instead of arbitrary ~2h buckets.
+
+Problem:
+  inferSections() used Math.round(totalRaceMinutes / 120) to create equal-
+  duration time buckets. Race to the Stones produced ~6 sections all at
+  ~1h 58min regardless of route character. Section labels said "terrain type"
+  but carried no narrative meaning.
+
+New algorithm — inferTerrainSections():
+
+  Stage 1: Collect candidate boundaries
+    - Terrain-transition points: where broadTerrain() output changes
+      (easy → climbing, rolling → descending, etc.) between consecutive segments
+    - Fatigue-phase waypoints at 25%, 60%, 85% of totalDistanceKm
+      (boundary forced at each fatigue-phase distance regardless of terrain)
+
+  Stage 2: Greedy forward pass
+    - Walk candidates in order, accept a boundary if:
+      (a) current section would be ≥ MIN_SECTION_MINS (65 min), AND
+      (b) remaining race is ≥ MIN_SECTION_MINS (can form at least one more section)
+    - Unaccepted candidates are skipped (section extends further)
+    - Final section is whatever remains after last accepted boundary
+
+  Stage 3: Split oversized sections
+    - Any section > MAX_SECTION_MINS (150 min) OR > MAX_SECTION_KM (16 km)
+      is split at the best terrain-transition candidate in its middle third
+    - "Best" = largest broadTerrain category change; if tie, pick midpoint
+    - Produces at most one additional section per oversized original
+
+  Stage 4: Build Section objects
+    - Each section has: fromKm, toKm, segments[], fromMinutes, toMinutes
+    - Duration derived from sum of included segment.estimatedDurationMinutes
+
+  broadTerrain(t: TerrainType) → BroadTerrain:
+    flat_runnable, gentle_incline → "easy"
+    rolling_mixed                → "rolling"
+    sustained_climb, steep_climb → "climbing"
+    technical_descent            → "descending"
+
+  isSignificantTerrainTransition(a, b):
+    flat ↔ rolling: NOT significant (minor effort change, avoid over-splitting)
+    all other broad-category changes: significant
+
+  computeSectionCharacter(sectionSegments, fromKm, toKm, totalKm) → string:
+    Derives a human-readable label from:
+    - Race position: first 20% → "start", last 10% → "final push" or "final descent",
+      last 30% → "late-race", otherwise "" (no position prefix)
+    - Terrain composition: if climb share > 40% → climb label with ascent density;
+      if descent share > 40% → "technical descent" or "descent";
+      otherwise → "runnable" or "rolling"
+    - Ascent density: > 40 m/km → "big climb"; 20–40 m/km → "gradual climb";
+      < 20 m/km → "rolling" or "runnable"
+    - Combined examples: "Runnable start", "Long gradual climb", "Big climb",
+      "Technical descent", "Late-race rolling", "Final push", "Runnable mid-section"
+
+sectionCharacter field:
+  Added to CarryPlan interface. Displayed in:
+  - CarryView.tsx: replaces dominantTerrain label in section metadata row
+  - print/page.tsx: replaces terrainLabel(plan.dominantTerrain) in carry grid
+
+Guard rails:
+  MIN_SECTION_MINS = 65
+  MAX_SECTION_MINS = 150
+  MAX_SECTION_KM   = 16
+
+Files changed:
+  CHANGED: src/types/index.ts —
+    CarryPlan interface: added `sectionCharacter: string` field
+  CHANGED: src/lib/fuelling-engine.ts —
+    Added constants MIN_SECTION_MINS, MAX_SECTION_MINS, MAX_SECTION_KM,
+    type BroadTerrain, broadTerrain(), isSignificantTerrainTransition(),
+    computeSectionCharacter(), inferTerrainSections();
+    generateCarryPlans() passes totalKm to buildCarryPlan();
+    buildCarryPlan() signature extended with totalKm: number;
+    buildCarryPlan() return: sectionCharacter populated;
+    architecture comment updated to v2.24
+  CHANGED: src/components/results/CarryView.tsx —
+    Removed terrainLabel import; section metadata uses plan.sectionCharacter
+  CHANGED: src/app/print/page.tsx —
+    Two carry section terrain displays → plan.sectionCharacter;
+    architecture comment updated to v2.24; version strings → v2.24
+  UNCHANGED: segmentation.ts, TimelineView, fuelling intervals, fuel scoring
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.26 — Strava-Style PDF Map Rendering
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Complete overhaul of the satellite map in print/page.tsx. The map now feels
+  premium and deliberate: muted dark basemap, route as the dominant visual hero
+  (single brand-orange line), radial vignette, print-friendly per-type markers,
+  and correct z-ordering.
+
+  (v2.25 in a prior session added 2× DPI canvas and tighter crop; v2.26 applies
+  the full Strava-style editorial treatment on top of that foundation.)
+
+Basemap muting:
+  ctx.filter = "saturate(0.30) brightness(0.55) contrast(0.90)"
+  Applied before the tileJobs Promise.all(); reset to "none" after.
+  JavaScript is single-threaded: all tile .then() callbacks run while the
+  filter is active (before the reset line executes), so no race condition.
+
+Radial vignette:
+  createRadialGradient at canvas center, extending to max(w, h) × 0.75.
+  Stops: rgba(0,0,0,0) at 0.55 → rgba(0,0,0,0.68) at 1.0.
+  Applied after tile draw (ctx.filter = "none" first), before route + markers.
+  Pulls the eye toward the route and away from the map periphery.
+
+Route rendering:
+  Single brand-orange line #f97316 (not terrain-segmented).
+  Shadow: 5px black halo for contrast on varied basemap.
+  Route is the dominant visual — all other elements are secondary.
+
+Markers (redesigned for print legibility):
+  Carry section boundaries: white ring r=9 (stroke only) + small inner dot r=3
+  Gel:        filled orange circle #f97316 r=5
+  Chew:       filled blue circle #60a5fa r=5
+  Bar:        filled violet circle #a78bfa r=5
+  Drink mix:  purple diamond #a855f7 (7×7 rotated rect) — distinct shape
+  Aid station: orange filled circle #fb923c r=9, white border 2px
+  Start:      green #22c55e r=13, white "S" label
+  Finish:     red #ef4444 r=13, white "F" label
+
+Z-ordering (bottom to top):
+  1. Muted basemap tiles
+  2. Radial vignette
+  3. Route shadow halo (5px black)
+  4. Route line (3px orange #f97316)
+  5. Carry boundary rings (white)
+  6. Gel / chew / bar dots
+  7. Drink mix diamonds
+  8. Aid station circles
+  9. Start / finish circles + labels
+
+Legend:
+  White ring shape for carry boundaries; purple diamond shape for drink mix.
+  All markers described in plain print-friendly text.
+
+Files changed:
+  CHANGED: src/app/print/page.tsx —
+    renderSatelliteMap() rewritten with basemap filter, vignette, single-colour
+    route, redesigned markers, z-order; legend updated; carry section labels now
+    use plan.sectionCharacter (v2.24); version strings → v2.26
+  CHANGED: src/lib/fuelling-engine.ts —
+    architecture comment updated to v2.26
+  UNCHANGED: fuelling engine logic, carry plan data, all UI components
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.27 — Finish Time Estimator Hardening
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Three independent protection layers added to estimateFinishTime() in
+  calibration-engine.ts to prevent nonsensical finish time estimates when
+  prior efforts contain malformed data or are inappropriate anchors for
+  the target race distance.
+
+Failure mode that prompted this:
+  User selected "Race to the Stones" prior effort as reference for a 26km
+  planning run. Stored distanceKm = 1 (corrupted entry). Engine scaled
+  26km from a 1km reference → planning time of 1579 hours. No guard existed.
+
+Layer 1 — isValidEffortForFTE(effort: PriorEffort): boolean
+  Rejects an effort from being used as an FTE anchor if:
+    - distanceKm < FTE_MIN_EFFORT_KM (2.0)
+    - durationMinutes < FTE_MIN_EFFORT_MINS (10)
+    - implied pace (durationMinutes / distanceKm) < FTE_MIN_PACE_MIN_PER_KM (2.5)
+    - implied pace > FTE_MAX_PACE_MIN_PER_KM (22.0)
+  Catches corrupted entries (distanceKm=1, durationMinutes=720 → pace 720 min/km).
+
+Layer 2 — Scale ratio filter
+  After layer 1 validation, filter efforts where:
+    max(targetKm/referenceKm, referenceKm/targetKm) > FTE_MAX_SCALE_RATIO (4.0)
+  A 160km effort is not a valid anchor for a 26km target (ratio 6.15 > 4.0).
+  A 100km effort is also rejected for a 10km target (ratio 10.0 > 4.0).
+  After filtering, candidates are ranked by distance class match:
+    1. Same class (short/long/ultra) — preferred
+    2. Adjacent class — fallback
+    3. Any within-ratio — last resort
+  Best anchor = closest distance match within winning tier.
+
+Layer 3 — Output sanity check
+  After scaling + elevation + priority adjustments, verify:
+    implied pace of the estimate is within [2.5, 22.0] min/km
+  If outside bounds: discard result, fall back to buildFallbackFinishEstimate().
+
+buildFallbackFinishEstimate() — shared fallback
+  Extracted from the old "no efforts" path. Uses conservativeDefaultPace
+  derived from experience level. Returns low confidence + explanation string
+  (e.g. "No comparable prior effort found — estimate based on experience level").
+
+Distance classification:
+  classifyDistance(km): "short" | "long" | "ultra"
+    short: < 15 km
+    long:  15–40 km
+    ultra: > 40 km
+
+New constants:
+  FTE_MAX_SCALE_RATIO       = 4.0
+  FTE_MIN_EFFORT_KM         = 2.0
+  FTE_MIN_EFFORT_MINS       = 10
+  FTE_MIN_PACE_MIN_PER_KM   = 2.5
+  FTE_MAX_PACE_MIN_PER_KM   = 22.0
+
+Files changed:
+  CHANGED: src/lib/calibration-engine.ts —
+    Added constants, type DistanceClass, classifyDistance(),
+    isValidEffortForFTE(), buildFallbackFinishEstimate();
+    estimateFinishTime() refactored into 9-step hardened pipeline
+  UNCHANGED: fuelling engine, UI components, print page, types
 
 
 ================================================================================
