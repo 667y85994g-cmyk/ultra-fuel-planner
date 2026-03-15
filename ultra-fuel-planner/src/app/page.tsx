@@ -179,107 +179,107 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Mock race card — realistic Lakeland 50 example */}
-            <div className="rounded-xl border border-stone-700 bg-white p-5 text-stone-900 shadow-2xl shadow-black/40">
-              {/* Card header */}
-              <div className="flex items-center justify-between mb-3 pb-3 border-b-2 border-amber-700">
+            {/* Mock race card — faithful to current v2.28 print Page 1 layout */}
+            <div className="rounded-xl border border-stone-700 bg-white p-5 text-stone-900 shadow-2xl shadow-black/40 text-[11px]">
+
+              {/* ── Card header ─────────────────────────────────────── */}
+              <div className="flex items-start justify-between pb-3 mb-3 border-b-[3px] border-amber-700">
                 <div>
-                  <h3 className="text-base font-bold text-stone-900">
+                  <h3 className="text-[18px] font-extrabold leading-tight text-stone-900">
                     Lakeland 50
                   </h3>
-                  <p className="text-[10px] text-stone-500">
-                    Race Day Card
+                  <p className="text-[10px] text-stone-500 mt-0.5">
+                    Ultra Fuel Planner · Race Day Nutrition Card
                   </p>
                 </div>
-                <div className="text-right text-[10px] text-stone-500">
-                  <div>82km · ↑2,800m</div>
+                <div className="text-right text-[10px] text-stone-500 leading-relaxed">
+                  <div className="font-semibold">19 Jul 2025</div>
+                  <div>82.0 km</div>
+                  <div>↑2,800 m · ↓2,800 m</div>
                 </div>
               </div>
 
-              {/* Summary strip */}
-              <div className="grid grid-cols-3 gap-2 mb-4 bg-amber-50 rounded-md p-3">
-                <div className="text-center">
-                  <div className="text-sm font-bold text-amber-800">~14h 30m</div>
-                  <div className="text-[9px] text-stone-500 uppercase">Duration</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-bold text-amber-800">60g</div>
-                  <div className="text-[9px] text-stone-500 uppercase">Carbs/hr</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-bold text-blue-700">450–650 ml/hr</div>
-                  <div className="text-[9px] text-stone-500 uppercase">Hydration</div>
-                </div>
-              </div>
-
-              {/* Section header */}
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
-                  Section 1 of 6
-                </p>
-                <div className="flex-1 h-px bg-stone-200" />
-              </div>
-              <div className="flex items-center gap-1.5 mb-3 text-[11px]">
-                <span className="font-semibold text-stone-800">Start</span>
-                <span className="text-stone-400">→</span>
-                <span className="font-semibold text-stone-800">CP1 Howtown</span>
-                <span className="text-stone-400 ml-auto">km 0–22 · ~3h</span>
-              </div>
-
-              {/* Schedule — first section, realistic density */}
-              <div className="space-y-0 text-[11px] mb-3">
+              {/* ── 4-column metrics strip ──────────────────────────── */}
+              <div className="grid grid-cols-4 gap-1.5 mb-3">
                 {[
-                  { time: "06:35", km: "5.2", action: "Gel: SIS Isotonic", terrain: "Rolling", carbs: "22g", aid: false },
-                  { time: "07:00", km: "8.5", action: "Drink: Maurten 320", terrain: "Flat", carbs: "40g", aid: false },
-                  { time: "07:25", km: "12.0", action: "Chew: Torq Energy", terrain: "Flat", carbs: "30g", aid: false },
-                  { time: "07:50", km: "14.5", action: "Gel: SIS Isotonic", terrain: "Climb", carbs: "22g", aid: false },
-                  { time: "08:15", km: "18.0", action: "Drink: Maurten 320", terrain: "Rolling", carbs: "40g", aid: false },
-                  { time: "08:40", km: "20.8", action: "Gel: SIS Caffeine", terrain: "Climb", carbs: "22g", aid: false },
-                  { time: "09:00", km: "22.0", action: "🏁 CP1 Howtown — restock", terrain: "", carbs: "", aid: true },
-                ].map((row, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded ${
-                      row.aid ? "bg-amber-50" : i % 2 === 0 ? "bg-stone-50" : ""
-                    }`}
-                  >
-                    <span className="w-9 flex-shrink-0 font-mono text-stone-400">{row.time}</span>
-                    <span className="w-7 flex-shrink-0 text-stone-400">{row.km}</span>
-                    <span className={`flex-1 font-medium ${row.aid ? "text-amber-700" : "text-stone-700"}`}>
-                      {row.action}
-                    </span>
-                    {row.terrain && (
-                      <span className="text-[9px] text-stone-400">{row.terrain}</span>
-                    )}
-                    {row.carbs && (
-                      <span className="w-8 text-right text-amber-800 font-medium">{row.carbs}</span>
-                    )}
+                  { value: "14h 30m", label: "Est. Duration",  color: "text-amber-800" },
+                  { value: "60 g/hr",  label: "Carbs / hr",    color: "text-amber-800" },
+                  { value: "500–650 ml", label: "Fluid / hr",  color: "text-blue-700"  },
+                  { value: "High",     label: "Electrolytes",  color: "text-green-700" },
+                ].map(({ value, label, color }) => (
+                  <div key={label} className="text-center bg-amber-50 rounded p-1.5 border border-amber-100">
+                    <div className={`text-[11px] font-bold ${color}`}>{value}</div>
+                    <div className="text-[8px] text-stone-500 uppercase tracking-wide mt-0.5">{label}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Carry plan for section 1 */}
-              <div className="bg-stone-50 rounded-md p-3 mb-3">
-                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
-                  Carry — Start to CP1 Howtown
-                </p>
-                <div className="flex gap-4 text-[11px] mb-1">
-                  <span className="text-blue-700 font-medium">~1.5L fluid</span>
-                  <span className="text-amber-800 font-medium">176g carbs</span>
+              {/* ── Two-column body: Strategy + Items ──────────────── */}
+              <div className="grid grid-cols-2 gap-2">
+
+                {/* Strategy overview */}
+                <div className="border border-stone-200 rounded p-2.5">
+                  <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wider mb-2 pb-1 border-b border-stone-200">
+                    Strategy Overview
+                  </div>
+                  <table className="w-full text-[10px]">
+                    <tbody className="[&>tr>td]:py-0.5">
+                      <tr>
+                        <td className="text-stone-500 w-[45%]">Carb target</td>
+                        <td className="font-semibold">60 g/hr · 522g total</td>
+                      </tr>
+                      <tr>
+                        <td className="text-stone-500">Primary fuels</td>
+                        <td className="font-semibold">Gels + Chews</td>
+                      </tr>
+                      <tr>
+                        <td className="text-stone-500">Drink mix</td>
+                        <td className="font-semibold text-blue-700">3 sections</td>
+                      </tr>
+                      <tr>
+                        <td className="text-stone-500">Fuel events</td>
+                        <td className="font-semibold">41 scheduled</td>
+                      </tr>
+                      <tr>
+                        <td className="text-stone-500">Checkpoints</td>
+                        <td className="font-semibold">6 aid stations</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="mt-2 text-[9px] text-blue-700 bg-blue-50 rounded px-1.5 py-1">
+                    💧 500–650 ml/hr · Warm conditions
+                  </div>
+                  <div className="mt-1 text-[9px] text-green-700 bg-green-50 rounded px-1.5 py-1">
+                    ⚡ High sodium — electrolyte tabs recommended
+                  </div>
                 </div>
-                <div className="text-[10px] text-stone-500">
-                  2× SIS gel · 1× Caffeine gel · 1× Torq chew · Maurten 320 bottle
+
+                {/* Total items required */}
+                <div className="border border-stone-200 rounded p-2.5">
+                  <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wider mb-2 pb-1 border-b border-stone-200">
+                    Total Items Required
+                  </div>
+                  {[
+                    { type: "Gels", items: [{ name: "SIS Isotonic", qty: 10, carbs: "220g" }, { name: "SIS Caffeine", qty: 5, carbs: "110g" }] },
+                    { type: "Chews", items: [{ name: "Torq Energy", qty: 6, carbs: "180g" }] },
+                    { type: "Drink Mix", items: [{ name: "Maurten 320", qty: 3, carbs: "243g" }] },
+                  ].map(({ type, items }) => (
+                    <div key={type} className="mb-1.5">
+                      <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wide mb-0.5">{type}</div>
+                      {items.map((item) => (
+                        <div key={item.name} className="flex justify-between text-[10px]">
+                          <span className="text-stone-700">{item.name}</span>
+                          <span className="text-stone-500">×{item.qty} · {item.carbs}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Full plan note */}
-              <div className="text-center text-[10px] text-stone-400 mb-3">
-                41 fuelling events across 6 sections · full schedule and carry plan generated
-              </div>
-
-              {/* Card footer */}
-              <div className="pt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
-                <span>Ultra Fuel Planner v2.23</span>
+              {/* ── Card footer ─────────────────────────────────────── */}
+              <div className="pt-2 mt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
+                <span>Ultra Fuel Planner v2.28 · ultrafuelplanner.com</span>
                 <span>All times are estimates</span>
               </div>
             </div>
