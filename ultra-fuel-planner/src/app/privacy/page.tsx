@@ -109,8 +109,28 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold text-stone-200 mb-3">Analytics</h2>
             <p>
-              We do not currently use analytics tools or advertising trackers in
-              the planner. If this changes, this page will be updated.
+              This site uses Google Analytics 4 to collect anonymised usage data —
+              for example, which pages are visited and how the planner is used. This
+              data is collected via the{" "}
+              <span className="text-stone-300">gtag.js</span> script and sent to
+              Google. No personally identifiable information (name, email, planner
+              inputs) is included in these events.
+            </p>
+            <p className="mt-3">
+              Google Analytics may set cookies in your browser. You can opt out
+              using the{" "}
+              <a
+                href="https://tools.google.com/dlpage/gaoptout"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-stone-300 hover:text-stone-100 transition-colors"
+              >
+                Google Analytics opt-out browser add-on
+              </a>
+              , or by using a browser extension that blocks analytics scripts.
+            </p>
+            <p className="mt-3">
+              We do not use advertising networks or sell any data to third parties.
             </p>
           </section>
 
