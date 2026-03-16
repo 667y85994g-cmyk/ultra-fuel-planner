@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.31 | March 2026
+Version 2.32 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -3276,6 +3276,50 @@ Files changed:
   CHANGED: version strings → v2.31
 UNCHANGED: print CSS, satellite map, carry plan, schedule table, all engine
   logic, fuelling algorithm, carry plan data, analytics
+
+────────────────────────────────────────────────────────────────────────────────
+v2.32 — Export Map Visual Alignment (Match In-App RouteMapView)
+────────────────────────────────────────────────────────────────────────────────
+
+Goal: bring the export/print satellite map into the same visual design language
+as the in-app Leaflet RouteMapView so both surfaces feel like the same product.
+
+Changes:
+  1. Basemap muting: reduced from saturate(0.30) brightness(0.55) to
+     saturate(0.55) brightness(0.72) — lighter, less oppressive, closer to how
+     the OSM basemap reads in-app.
+
+  2. Vignette: dramatically reduced from 0.68 edge opacity to 0.18 — a barely-
+     there hint. In-app Leaflet map has zero vignette; export retains a trace
+     for print legibility but stops fighting the route colour.
+
+  3. Route rendering: replaced single brand-orange (#f97316) line + white halo
+     with terrain-segmented coloring using terrainColor() from @/lib/utils —
+     the exact same color function used by RouteMapView.tsx. Each RouteSegment
+     gets its own color (flat=green, climb=orange/red, descent=blue/purple).
+     Halo pass retained but changed from white 0.88 to dark rgba(0,0,0,0.40)
+     at 7px, with terrain color at 4.5px on top — better contrast without the
+     bright-white-ribbon look that dominated the satellite imagery.
+     Fallback (no segments): amber #f59e0b instead of #f97316.
+
+  4. Fuel markers: unified all food types to amber #f59e0b (matching in-app
+     where all food = amber). Fluid stays blue #3b82f6, capsule violet #a78bfa.
+     Previously: gel was orange #f97316 (same as route), chew blue, bar violet,
+     food amber — confusing because gel matched route exactly.
+
+  5. Legend: updated to reflect new marker language:
+     - "Gel" and "Chew" entries merged into single "Fuel / food" (amber)
+     - Added "Fluid" (blue) and "Capsule" (violet) as conditional entries
+     - Removed per-type food entries that assumed separate colors
+
+CHANGED: src/app/print/page.tsx
+  - Import: added terrainColor to @/lib/utils import
+  - renderSatelliteMap(): basemap filter, vignette, route rendering,
+    fuel marker colors, legend items — all updated as above
+CHANGED: src/components/LegalFooter.tsx — version string → v2.32
+CHANGED: APP-DOCUMENTATION.txt — header → v2.32, this entry added
+UNCHANGED: schedule table, carry plan, elevation profile, engine logic,
+  fuelling algorithm, analytics, SEO, QR code, all other features
 
 
 ================================================================================

@@ -12,7 +12,7 @@ import type {
   EventIntent,
   RecoveryGuidance,
 } from "@/types";
-import { formatTime, formatDuration, fuelTypeIcon } from "@/lib/utils";
+import { formatTime, formatDuration, fuelTypeIcon, terrainColor } from "@/lib/utils";
 import { terrainLabel } from "@/lib/segmentation";
 import { trackPlanPrinted } from "@/lib/analytics";
 import { QRCodeSVG } from "qrcode.react";
@@ -203,7 +203,7 @@ async function renderSatelliteMap(
   // Setting ctx.filter BEFORE the Promise.all means every tile's .then() draws
   // with the muted filter. Filter is safe with async because JS is single-threaded
   // and the reset only happens after await Promise.all resolves.
-  ctx.filter = "saturate(0.30) brightness(0.55) contrast(0.90)";
+  ctx.filter = "saturate(0.55) brightness(0.72) contrast(0.85)";
   const tileJobs: Promise<void>[] = [];
   for (let ty = ty0; ty <= ty1; ty++) {
     for (let tx = tx0; tx <= tx1; tx++) {
@@ -223,16 +223,15 @@ async function renderSatelliteMap(
   await Promise.all(tileJobs);
   ctx.filter = "none";
 
-  // ── 2. Radial vignette — dark at edges, clear at centre ─────────────────────
-  // Pulls the eye inward and increases perceived contrast of the route.
+  // ── 2. Subtle vignette — very light edge fade only ──────────────────────────
+  // Matches in-app map feel: almost no darkening at edges.
   {
     const vig = ctx.createRadialGradient(
-      canvasW / 2, canvasH / 2, Math.min(canvasW, canvasH) * 0.20,
-      canvasW / 2, canvasH / 2, Math.max(canvasW, canvasH) * 0.78,
+      canvasW / 2, canvasH / 2, Math.min(canvasW, canvasH) * 0.35,
+      canvasW / 2, canvasH / 2, Math.max(canvasW, canvasH) * 0.82,
     );
     vig.addColorStop(0,   "rgba(0,0,0,0)");
-    vig.addColorStop(0.6, "rgba(0,0,0,0.20)");
-    vig.addColorStop(1,   "rgba(0,0,0,0.68)");
+    vig.addColorStop(1,   "rgba(0,0,0,0.18)");
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, canvasW, canvasH);
   }
@@ -259,33 +258,29 @@ async function renderSatelliteMap(
     ctx.restore();
   }
 
-  // ── 3. Route — two passes: halo then brand-orange line ──────────────────────
-  // Single bold amber colour, not terrain-segmented, so the route reads as one
-  // dominant element rather than a collection of coloured fragments.
-  const allPts = route.segments.length > 0
-    ? null  // iterate per-segment so halo/line stay globally consistent
-    : points;
-
+  // ── 3. Route — terrain-segmented, matching in-app RouteMapView palette ───────
+  // Two passes per segment: dark halo for legibility on satellite, then the
+  // terrain color on top. Same color language as the in-app Leaflet map.
   if (route.segments.length > 0) {
-    // Pass A: white halo across all segments
+    // Pass A: dark halo across all segments
     for (const seg of route.segments) {
       strokePath(
         points.filter((p) => p.distanceFromStartKm >= seg.startKm && p.distanceFromStartKm <= seg.endKm),
-        11, "rgba(255,255,255,0.88)",
+        7, "rgba(0,0,0,0.40)",
       );
     }
-    // Pass B: brand-orange line
+    // Pass B: terrain color per segment
     for (const seg of route.segments) {
       strokePath(
         points.filter((p) => p.distanceFromStartKm >= seg.startKm && p.distanceFromStartKm <= seg.endKm),
-        5.5, "#f97316",
+        4.5, terrainColor(seg.terrain),
       );
     }
   } else {
-    strokePath(points, 11, "rgba(255,255,255,0.88)");
-    strokePath(points, 5.5, "#f97316");
+    // No segments — fallback to amber (matches in-app no-segment fallback)
+    strokePath(points, 7, "rgba(0,0,0,0.40)");
+    strokePath(points, 4.5, "#f59e0b");
   }
-  void allPts; // suppress unused warning
 
   // ── 4a. Carry section boundaries — white rings ───────────────────────────────
   // Thin rings sit just above the route line without obscuring it.
@@ -307,21 +302,17 @@ async function renderSatelliteMap(
     ctx.restore();
   }
 
-  // ── 4b. Gel events — orange dot ───────────────────────────────────────────────
-  // ── 4c. Chew events — blue dot ────────────────────────────────────────────────
-  // ── 4d. Bar / other — violet dot ─────────────────────────────────────────────
+  // ── 4b. Fuel events — amber for all food, blue for fluid, violet for capsule ──
+  // Matches in-app RouteMapView marker color language exactly.
   for (const e of output.schedule.filter(
     (ev) => !ev.isContinuous && ev.action !== "refill_at_aid" && ev.action !== "restock_carry",
   )) {
     const rp = closestRoutePoint(points, e.distanceKm);
     const [cx, cy] = project(rp.lat, rp.lon);
-    const item = inv.find((f) => f.id === e.fuelItemId);
     const color =
-      item?.type === "gel"       ? "#f97316" :  // orange — matches route colour
-      item?.type === "chew"      ? "#60a5fa" :  // blue
-      item?.type === "bar"       ? "#a78bfa" :  // violet
-      item?.type === "real_food" ? "#fbbf24" :  // amber
-      "#e5e7eb";
+      e.action === "drink_fluid" ? "#3b82f6" :  // blue — fluid
+      e.action === "take_capsule" ? "#a78bfa" : // violet — capsule
+      "#f59e0b";                                // amber — all food (gel/chew/bar/real_food)
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
@@ -410,20 +401,26 @@ async function renderSatelliteMap(
     const hasDrinkMix = output.schedule.some(
       (ev) => ev.isContinuous && inv.find((f) => f.id === ev.fuelItemId)?.type === "drink_mix",
     );
-    const hasChew = output.schedule.some(
-      (ev) => !ev.isContinuous && inv.find((f) => f.id === ev.fuelItemId)?.type === "chew",
+    const hasFluid = output.schedule.some((ev) => ev.action === "drink_fluid");
+    const hasCapsule = output.schedule.some((ev) => ev.action === "take_capsule");
+    const hasFood = output.schedule.some(
+      (ev) => !ev.isContinuous && ev.action !== "refill_at_aid" && ev.action !== "restock_carry"
+        && ev.action !== "drink_fluid" && ev.action !== "take_capsule",
     );
     type LShape = "circle" | "diamond" | "ring";
     const legendItems: Array<{ color: string; label: string; shape: LShape }> = [
-      { color: "#22c55e", label: "Start",   shape: "circle"  },
-      { color: "#ef4444", label: "Finish",  shape: "circle"  },
+      { color: "#22c55e", label: "Start",       shape: "circle"  },
+      { color: "#ef4444", label: "Finish",      shape: "circle"  },
       ...(output.eventPlan.aidStations.length > 0
         ? [{ color: "#fb923c", label: "Aid station", shape: "circle" as LShape }] : []),
       ...(hasDrinkMix
-        ? [{ color: "#a855f7", label: "Drink mix",   shape: "diamond" as LShape }] : []),
-      { color: "#f97316", label: "Gel",     shape: "circle"  },
-      ...(hasChew
-        ? [{ color: "#60a5fa", label: "Chew", shape: "circle" as LShape }] : []),
+        ? [{ color: "#a855f7", label: "Drink mix", shape: "diamond" as LShape }] : []),
+      ...(hasFood
+        ? [{ color: "#f59e0b", label: "Fuel / food", shape: "circle" as LShape }] : []),
+      ...(hasFluid
+        ? [{ color: "#3b82f6", label: "Fluid",      shape: "circle" as LShape }] : []),
+      ...(hasCapsule
+        ? [{ color: "#a78bfa", label: "Capsule",    shape: "circle" as LShape }] : []),
       { color: "rgba(255,255,255,0.85)", label: "Carry section", shape: "ring" },
     ];
 
