@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mountain, ChevronLeft, Printer, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Mountain, ChevronLeft, Download, ThumbsUp, ThumbsDown } from "lucide-react";
 import { usePlanner } from "@/lib/planner-store";
 import { Button } from "@/components/ui/button";
 import { SummaryView } from "@/components/results/SummaryView";
@@ -70,7 +70,7 @@ export default function ResultsPage() {
             <Link href="/" className="flex items-center gap-2 text-stone-400 hover:text-stone-200">
               <Mountain className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium hidden sm:inline">Ultra Fuel Planner</span>
-              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.30</span>
+              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.31</span>
             </Link>
             <span className="text-stone-700">/</span>
             <span className="text-sm text-stone-300 font-medium">
@@ -86,8 +86,8 @@ export default function ResultsPage() {
               </Button>
             </Link>
             <Button size="sm" onClick={handlePrint}>
-              <Printer className="h-4 w-4" />
-              Print
+              <Download className="h-4 w-4" />
+              Export Race Card
             </Button>
           </div>
         </div>

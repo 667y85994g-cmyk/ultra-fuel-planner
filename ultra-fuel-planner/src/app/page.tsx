@@ -290,7 +290,7 @@ export default function HomePage() {
 
               {/* ── Card footer ─────────────────────────────────────── */}
               <div className="pt-2 mt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
-                <span>Ultra Fuel Planner v2.30 · ultrafuelplanner.com</span>
+                <span>Ultra Fuel Planner v2.31 · ultrafuelplanner.com</span>
                 <span>All times are estimates</span>
               </div>
             </div>
