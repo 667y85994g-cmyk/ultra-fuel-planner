@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Mountain,
@@ -12,6 +13,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/LegalFooter";
+
+export const metadata: Metadata = {
+  title:
+    "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners",
+  description:
+    "Upload a GPX route and generate a terrain-aware fuelling strategy for trail and ultra running races. Plan carb intake, carry strategy, and section-based nutrition guidance for endurance events.",
+  alternates: {
+    canonical: "https://ultrafuelplanner.com",
+  },
+};
 
 export default function HomePage() {
   return (
@@ -279,7 +290,7 @@ export default function HomePage() {
 
               {/* ── Card footer ─────────────────────────────────────── */}
               <div className="pt-2 mt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
-                <span>Ultra Fuel Planner v2.29 · ultrafuelplanner.com</span>
+                <span>Ultra Fuel Planner v2.30 · ultrafuelplanner.com</span>
                 <span>All times are estimates</span>
               </div>
             </div>
@@ -415,6 +426,45 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Structured data — SoftwareApplication schema ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "Ultra Fuel Planner",
+            applicationCategory: "SportsApplication",
+            operatingSystem: "Web",
+            url: "https://ultrafuelplanner.com",
+            description:
+              "Terrain-aware fuelling strategy planner for trail and ultramarathon runners. Upload a GPX route to generate carb targets, carry plans, and section-based nutrition guidance.",
+            creator: {
+              "@type": "Organization",
+              name: "Ultra Fuel Planner",
+              url: "https://ultrafuelplanner.com",
+            },
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "GBP",
+            },
+            audience: {
+              "@type": "Audience",
+              audienceType:
+                "Trail runners and ultramarathon athletes",
+            },
+            featureList: [
+              "GPX route upload and terrain segmentation",
+              "Terrain-aware fuelling schedule generation",
+              "Carb target calculation from race duration and experience",
+              "Section-by-section carry plan",
+              "Aid station integration",
+              "Printable race card",
+            ],
+          }),
+        }}
+      />
       <LegalFooter />
     </div>
   );

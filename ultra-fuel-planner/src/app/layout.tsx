@@ -14,10 +14,53 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Ultra Fuel Planner",
+  metadataBase: new URL("https://ultrafuelplanner.com"),
+  title: {
+    template: "%s | Ultra Fuel Planner",
+    default:
+      "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners",
+  },
   description:
-    "Route-aware fuelling plans for ultramarathons. Upload your GPX, add your fuel, get a practical race-day nutrition plan.",
-  keywords: ["ultramarathon", "fuelling", "nutrition", "race plan", "GPX", "endurance"],
+    "Upload a GPX route and generate a terrain-aware fuelling strategy for trail and ultra running races. Plan carb intake, carry strategy, and section-based nutrition guidance for endurance events.",
+  keywords: [
+    "ultramarathon fuelling plan",
+    "ultra running nutrition strategy",
+    "trail running fuelling calculator",
+    "ultra race fuelling planner",
+    "carbs per hour ultramarathon",
+    "trail race fuelling strategy",
+    "GPX route nutrition plan",
+    "endurance fuelling",
+  ],
+  authors: [{ name: "Ultra Fuel Planner" }],
+  creator: "Ultra Fuel Planner",
+  openGraph: {
+    type: "website",
+    locale: "en_GB",
+    url: "https://ultrafuelplanner.com",
+    siteName: "Ultra Fuel Planner",
+    title: "Ultra Fuel Planner",
+    description:
+      "Terrain-aware fuelling plans for trail and ultra running races.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Ultra Fuel Planner — Terrain-aware fuelling strategy for trail and ultra runners",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ultra Fuel Planner",
+    description:
+      "Terrain-aware fuelling plans for trail and ultra running races.",
+    images: ["/opengraph-image"],
+  },
+  alternates: {
+    canonical: "https://ultrafuelplanner.com",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

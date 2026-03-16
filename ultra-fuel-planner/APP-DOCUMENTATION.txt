@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.29 | March 2026
+Version 2.30 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -51,6 +51,11 @@ Infrastructure:
   - Analytics: Google Analytics 4 (client-side only, via gtag.js)
     Measurement ID set via NEXT_PUBLIC_GA_MEASUREMENT_ID env var
     All calls guarded against SSR and missing ID — silent no-op in dev
+  - SEO: Next.js App Router native metadata API (no third-party libraries)
+    OG image: edge-rendered via next/og ImageResponse (opengraph-image.tsx)
+    Sitemap: /sitemap.xml via src/app/sitemap.ts
+    Robots: /robots.txt via src/app/robots.ts
+    Structured data: JSON-LD SoftwareApplication schema on homepage
 
 Node.js: installed at ~/node/bin/ (custom path, not system Node)
 Dev command: export PATH="$HOME/node/bin:$PATH" && npm run dev
@@ -62,16 +67,28 @@ Dev command: export PATH="$HOME/node/bin:$PATH" && npm run dev
 
 src/
 ├── app/
-│   ├── page.tsx                    Homepage (marketing/landing page)
-│   ├── layout.tsx                  Root layout, PlannerProvider wrapper
+│   ├── page.tsx                    Homepage (marketing/landing page +
+│   │                                SoftwareApplication JSON-LD)
+│   ├── layout.tsx                  Root layout, PlannerProvider wrapper,
+│   │                                global metadata (OG, Twitter, canonical)
 │   ├── globals.css                 Tailwind imports + custom styles
+│   ├── opengraph-image.tsx         1200×630 branded OG image (edge runtime,
+│   │                                ImageResponse — auto-used for og:image)
+│   ├── sitemap.ts                  XML sitemap (/sitemap.xml)
+│   ├── robots.ts                   robots.txt (/robots.txt)
 │   ├── planner/
+│   │   ├── layout.tsx              Planner page metadata + canonical
 │   │   └── page.tsx                6-step wizard (planner UI)
 │   ├── results/
+│   │   ├── layout.tsx              Results metadata — noindex/nofollow
 │   │   └── page.tsx                Results page (5 tabs: Summary, Timeline,
 │   │                                Segments, Carry Plan, Map)
 │   ├── print/
+│   │   ├── layout.tsx              Print metadata — noindex/nofollow
 │   │   └── page.tsx                Printable race card (opens in new tab)
+│   ├── how-to-fuel-an-ultra/
+│   │   └── page.tsx                SEO content page — long-form fuelling guide
+│   │                                Targets "how to fuel an ultra" searches
 │   └── api/
 │       └── parse-gpx/
 │           └── route.ts            Server-side GPX parser (regex-based)
@@ -2992,6 +3009,230 @@ Files changed:
   CHANGED: src/app/page.tsx — home screen mock card updated to v2.28 print layout
   CHANGED: version strings → v2.29 (UI locations)
 UNCHANGED: all engine logic, types, carry plan, timeline, segments view
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.30 — Full SEO Foundation + First Discoverability Page
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Complete first-pass SEO layer — metadata, social sharing, structured data,
+  sitemap, robots configuration, canonical URLs, and one long-form indexable
+  content page. No planner functionality changed.
+
+Part 1 — Global Metadata Overhaul (src/app/layout.tsx)
+
+  metadataBase: new URL("https://ultrafuelplanner.com")
+    Required for Next.js to resolve relative OG/Twitter image paths correctly.
+
+  Title template: { template: "%s | Ultra Fuel Planner", default: "..." }
+    Each page now renders "[Page Name] | Ultra Fuel Planner" in the browser
+    tab and search result title. The default (homepage) renders the full
+    keyword-rich title.
+
+  Homepage title:
+    "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners"
+
+  Description (homepage):
+    "Upload a GPX route and generate a terrain-aware fuelling strategy for
+    trail and ultra running races. Plan carb intake, carry strategy, and
+    section-based nutrition guidance for endurance events."
+
+  Keywords expanded to 8 product-aligned terms:
+    ultra running nutrition strategy, trail running fuelling calculator,
+    carbs per hour ultramarathon, trail race fuelling strategy,
+    GPX route nutrition plan, endurance fuelling, etc.
+
+  openGraph block:
+    type: website, locale: en_GB, siteName: Ultra Fuel Planner
+    og:title, og:description, og:url, og:image → /opengraph-image
+
+  twitter block:
+    card: summary_large_image
+    title, description, images: /opengraph-image
+
+  alternates.canonical: https://ultrafuelplanner.com
+
+Part 2 — OG Social Image (src/app/opengraph-image.tsx)
+
+  New edge-runtime file. Auto-used by Next.js as og:image for the root route.
+  Generated via ImageResponse (next/og) — no static PNG asset needed.
+
+  Size: 1200 × 630 px
+  Runtime: edge (renders on demand, CDN-cached)
+
+  Design:
+    Background: #0e0b08 (dark warm stone) + amber radial glow top-right
+    Left panel (580px):
+      - Logo mark (amber square + mountain polygon) + wordmark
+      - Headline: "Plan your fuelling for the route you're running."
+      - Tagline: "Upload your GPX. Get a terrain-aware fuelling plan..."
+      - URL pill: amber badge "ultrafuelplanner.com"
+    Right panel (card):
+      - Dark card with subtle border
+      - Label: "Elevation Profile · 100km · 2,800m ↑"
+      - SVG elevation profile: area fill + orange route line + fuel event
+        dots (orange) + aid station rings (amber) + start/finish markers
+      - Stats strip: Carbs/hr · Events · Sections · Duration
+
+Part 3 — Structured Data (src/app/page.tsx)
+
+  JSON-LD SoftwareApplication schema injected via <script dangerouslySetInnerHTML>
+  in the homepage component (just before <LegalFooter />).
+
+  Fields:
+    @type: SoftwareApplication
+    name: Ultra Fuel Planner
+    applicationCategory: SportsApplication
+    operatingSystem: Web
+    url: https://ultrafuelplanner.com
+    description: (full product description)
+    creator: { @type: Organization, name: Ultra Fuel Planner }
+    offers: { price: "0", priceCurrency: GBP }
+    audience: { audienceType: Trail runners and ultramarathon athletes }
+    featureList: [6 features — GPX upload, schedule generation, carb target
+      calculation, carry plan, aid station integration, printable race card]
+
+Part 4 — Sitemap (src/app/sitemap.ts)
+
+  Generates /sitemap.xml via Next.js MetadataRoute.Sitemap.
+
+  URLs included (3):
+    https://ultrafuelplanner.com                    priority 1.0  weekly
+    https://ultrafuelplanner.com/how-to-fuel-an-ultra  priority 0.9  monthly
+    https://ultrafuelplanner.com/planner            priority 0.8  weekly
+
+  NOT included: /results, /print (user-generated ephemeral state, no indexable
+  content), /api/ (server endpoints)
+
+Part 5 — Robots (src/app/robots.ts)
+
+  Generates /robots.txt via Next.js MetadataRoute.Robots.
+  Allow "/" for all user agents.
+  Disallow "/api/" only (endpoints not intended for crawling).
+  Sitemap pointer: https://ultrafuelplanner.com/sitemap.xml
+
+  /results and /print are handled via noindex metadata (see Part 6), not via
+  robots.txt — this allows crawling while preventing indexing.
+
+Part 6 — Page-Level Metadata and Canonical URLs
+
+  src/app/page.tsx:
+    metadata export added — homepage title (full keyword title), description,
+    alternates.canonical: https://ultrafuelplanner.com
+
+  src/app/planner/layout.tsx (new file):
+    title: "Planner" (renders "Planner | Ultra Fuel Planner")
+    description: planner-specific description
+    alternates.canonical: https://ultrafuelplanner.com/planner
+
+  src/app/results/layout.tsx (new file):
+    title: "Results"
+    robots: { index: false, follow: false }
+    Rationale: results pages are driven by client-side localStorage state;
+    a crawler would see an empty page. noindex prevents wasted crawl budget.
+
+  src/app/print/layout.tsx (new file):
+    title: "Print Race Card"
+    robots: { index: false, follow: false }
+    Same rationale as results.
+
+  Note: "use client" pages (planner/page.tsx, results/page.tsx, print/page.tsx)
+  cannot export metadata directly. The layout.tsx wrapper pattern is the correct
+  Next.js App Router solution — layout is a server component and exports metadata;
+  the client page is a child and receives no metadata change.
+
+Part 7 — Discoverability Content Page (src/app/how-to-fuel-an-ultra/page.tsx)
+
+  New server component. Targets "how to fuel an ultra" and related searches.
+  No "use client" — fully server-rendered for SEO.
+
+  Metadata:
+    title: "How to Fuel an Ultra"
+    description: (fuelling guide description)
+    canonical: https://ultrafuelplanner.com/how-to-fuel-an-ultra
+    og:type: article
+
+  Content (6 sections + CTA):
+    1. The central challenge — calorie vs carb absorption, terrain constraints
+    2. How many carbs per hour? — duration-band table (6 bands: <6h to 36h+)
+       matching the carb-target-engine.ts bands
+    3. Why terrain changes execution — climb / flat / technical descent cards
+    4. How race duration changes strategy — 6h to 24h+ format evolution
+    5. Training vs race day fuelling — reduced targets, gut training, practice
+    6. Why route-aware planning matters — GPX vs generic calculator
+    CTA card — "Build your route-aware fuelling plan" → /planner
+
+  Tone: practical, coach-voice, runner-first. No hype, no lab-report framing.
+  Consistent with the language principles in section 7.
+
+  Design: matches app aesthetic (stone-950 background, amber accents, sticky
+  nav, LegalFooter). Table uses rounded-xl border for carb-band data.
+
+Part 8 — Indexing Strategy
+
+  Indexed pages (in sitemap, no noindex):
+    / (homepage)
+    /how-to-fuel-an-ultra (content page)
+    /planner (entry point to the tool)
+
+  Not indexed (noindex metadata):
+    /results — ephemeral, client-side localStorage state
+    /print — ephemeral, client-side localStorage state
+
+  Not in sitemap / disallowed:
+    /api/* — server endpoints (disallowed in robots.txt)
+
+Files changed:
+  NEW:     src/app/opengraph-image.tsx — branded OG image (edge, 1200×630)
+  NEW:     src/app/sitemap.ts — XML sitemap
+  NEW:     src/app/robots.ts — robots.txt
+  NEW:     src/app/planner/layout.tsx — planner page metadata
+  NEW:     src/app/results/layout.tsx — results noindex
+  NEW:     src/app/print/layout.tsx — print noindex
+  NEW:     src/app/how-to-fuel-an-ultra/page.tsx — content page
+  CHANGED: src/app/layout.tsx — metadataBase, OG, Twitter, title template,
+           expanded keywords, canonical
+  CHANGED: src/app/page.tsx — metadata export + JSON-LD structured data
+  CHANGED: version strings → v2.30
+UNCHANGED: all planner engine logic, fuelling algorithm, types, UI components,
+  carry plan, print page, results tabs, analytics instrumentation
+
+
+================================================================================
+14. SEO REFERENCE
+================================================================================
+
+Indexable pages:
+  https://ultrafuelplanner.com               — homepage
+  https://ultrafuelplanner.com/how-to-fuel-an-ultra — content page
+  https://ultrafuelplanner.com/planner       — tool entry point
+
+Non-indexed pages (noindex metadata):
+  /results, /print
+
+Primary keyword targets:
+  ultra running fuelling plan
+  ultramarathon nutrition strategy
+  trail running fuelling calculator
+  ultra race fuelling planner
+  carbs per hour ultramarathon
+  trail race fuelling strategy
+  how to fuel an ultra
+
+OG image URL: https://ultrafuelplanner.com/opengraph-image
+Sitemap URL:  https://ultrafuelplanner.com/sitemap.xml
+Robots URL:   https://ultrafuelplanner.com/robots.txt
+
+Structured data type: SoftwareApplication (homepage JSON-LD)
+
+Content page /how-to-fuel-an-ultra covers:
+  - Carb targets by race duration (table matching carb-target-engine.ts bands)
+  - Terrain execution (climb / flat / technical descent)
+  - Race duration strategy (6h → 36h+)
+  - Training vs race day fuelling
+  - Route-aware planning vs generic calculator
+  Internal link: → /planner CTA
 
 
 ================================================================================

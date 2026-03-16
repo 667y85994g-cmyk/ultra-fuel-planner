@@ -1306,7 +1306,7 @@ export default function PrintPage() {
 
             {/* Footer — inside page 3 so it prints on the last page */}
             <div style={{ marginTop: "20px", paddingTop: "9px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-              <span>Ultra Fuel Planner v2.29 · ultrafuelplanner.com</span>
+              <span>Ultra Fuel Planner v2.30 · ultrafuelplanner.com</span>
               <span>All times are estimates. Adjust based on real conditions on the day.</span>
             </div>
 
@@ -1316,7 +1316,7 @@ export default function PrintPage() {
         {/* Footer for no-route plans (appears on page 2) */}
         {!hasRoute && (
           <div style={{ maxWidth: "800px", margin: "0 auto", padding: "0 28px", paddingTop: "12px", paddingBottom: "8px", borderTop: "1px solid #d4b896", fontSize: "9px", color: "#9b8b7c", display: "flex", justifyContent: "space-between" }}>
-            <span>Ultra Fuel Planner v2.29 · ultrafuelplanner.com</span>
+            <span>Ultra Fuel Planner v2.30 · ultrafuelplanner.com</span>
             <span>All times are estimates. Adjust based on real conditions on the day.</span>
           </div>
         )}
