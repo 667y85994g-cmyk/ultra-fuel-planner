@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.28 | March 2026
+Version 2.29 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -48,6 +48,9 @@ Infrastructure:
   - No auth — no accounts
   - No server-side state — API route only used for GPX parsing fallback
   - Deployable to Vercel (static export compatible)
+  - Analytics: Google Analytics 4 (client-side only, via gtag.js)
+    Measurement ID set via NEXT_PUBLIC_GA_MEASUREMENT_ID env var
+    All calls guarded against SSR and missing ID — silent no-op in dev
 
 Node.js: installed at ~/node/bin/ (custom path, not system Node)
 Dev command: export PATH="$HOME/node/bin:$PATH" && npm run dev
@@ -93,6 +96,8 @@ src/
 │   │                                localStorage persistence (318 lines)
 │   ├── storage.ts                  localStorage read/write, default athlete
 │   │                                profile, seed fuel inventory (114 lines)
+│   ├── analytics.ts                GA4 event tracking wrapper — SSR-safe,
+│   │                                guarded by NEXT_PUBLIC_GA_MEASUREMENT_ID
 │   └── utils.ts                    Formatting helpers, terrain colours,
 │   │                                fuel type icons (87 lines)
 │
@@ -557,6 +562,8 @@ PlannerStore (planner-store.tsx):
 StoredPlannerState (persisted fields):
   - athlete (AthleteProfile)
   - eventName, eventType, racePriority
+  - eventIntent (EventIntent — race_day | training_run | fuelling_practice)
+  - preRunFuelled (boolean — delays first fuel event by 25 min)
   - raceStartTime
   - expectedTemperatureC
   - targetDistanceKm, targetFinishTimeMinutes
@@ -2877,6 +2884,114 @@ Files changed:
     Page 1 subtitle reflects intent; PrintRecoveryGuidance block on Page 2
   UNCHANGED: GPX parsing, terrain segmentation, carry plan structure,
     calibration engine, carry plan UI, timeline view, guided-profile mapping
+
+
+────────────────────────────────────────────────────────────────────────────────
+v2.29 — Google Analytics 4 Instrumentation + Home Screen Mock Card
+────────────────────────────────────────────────────────────────────────────────
+
+Summary:
+  Two changes in this release: product-analytics instrumentation across the full
+  planning journey, and a home screen mock card that faithfully reflects the
+  current print Page 1 design.
+
+Part 1: Google Analytics 4 Instrumentation
+
+  Goal:
+    Understand the planning journey end-to-end (funnel completion, what kinds of
+    races are planned, how plans are used) without any backend, accounts, or
+    server-side pipelines. Pure client-side gtag.js events.
+
+  Architecture:
+    - GA4 script loaded in src/app/layout.tsx via Next.js <Script strategy="afterInteractive">
+      Two script tags: gtag.js loader + inline initialisation block.
+      Both guarded by `GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID`.
+      If the env var is absent (dev builds without the ID), no script is injected.
+    - src/lib/analytics.ts — new typed wrapper module. All exported functions call
+      through a private gtag() wrapper that:
+        - Returns immediately if typeof window === "undefined" (SSR safety)
+        - Returns immediately if NEXT_PUBLIC_GA_MEASUREMENT_ID is falsy
+        - Delegates to window.gtag(...) if available, otherwise no-op
+
+  Events tracked (6):
+
+    planner_opened
+      Fired once per planner session on /planner page mount (useEffect[]).
+      Top-of-funnel signal — how many people start the wizard.
+      No parameters.
+
+    route_uploaded
+      Fired after successful GPX parse and dispatch in StepRoute.tsx.
+      Parameters: distance_km, elevation_gain_m, file_size_bytes.
+      Indicates route-aware plan intent and file complexity.
+
+    profile_completed
+      Fired in StepAthlete handleSubmit when user clicks Next.
+      Parameters: experience_level, fuelling_level, event_intent, has_prior_efforts.
+      Captures the runner profile for segmentation.
+
+    plan_generated  ← most important event
+      Fired inside runPlanner() in planner-store.tsx after generatePlan() succeeds.
+      Parameters:
+        distance_km, elevation_gain_m — race course dimensions
+        finish_time_minutes — estimated or entered finish time
+        carb_target_min, carb_target_max — recommended range bounds
+        working_carb_target — the target selected for this plan
+        avg_carbs_per_hour — actual planned average delivery
+        fuelling_events — count of discrete (non-continuous, non-refill) events
+        sections — number of carry plan sections
+        drink_mix_used — boolean, whether any drink mix appeared in the schedule
+        event_intent — race_day / training_run / fuelling_practice
+
+    plan_printed
+      Fired before window.print() in print/page.tsx.
+      Intent signal that the runner will physically carry the plan.
+      No parameters.
+
+    plan_feedback_positive / plan_feedback_negative
+      Fired when user clicks Yes / Not really on the results page feedback bar.
+      The feedback bar (rendered between the nav and the plan notes) collapses
+      after a response and shows a thank-you message.
+
+  Environment variable:
+    NEXT_PUBLIC_GA_MEASUREMENT_ID — format G-XXXXXXXXXX.
+    Set in Vercel Environment Variables for production.
+    Set in .env.local for local testing (file NOT committed to source control).
+    .env.local.example committed — shows the variable name with blank value.
+
+  Domain:
+    Production URL: https://ultrafuelplanner.com
+    GA4 Measurement ID: G-Z1CTZ6CB95
+
+Part 2: Home Screen Mock Card
+
+  The homepage hero section includes a mock "plan card" that previews what the
+  product produces. Updated to faithfully reflect the current print Page 1 layout:
+
+  Previous (v2.23): Old schedule-table layout with rows for individual fuel events.
+
+  New (v2.28/v2.29): Matches the actual print Page 1 design:
+    - 4-column metrics strip: Duration · Carbs/hr · Fluid/hr · Electrolytes
+    - Two-column body:
+        Left: Strategy Overview table (carb target, primary fuels, drink mix
+              indicator, event count, checkpoints) + hydration/electrolyte pills
+        Right: Total Items Required grouped by type
+    - Footer: "Ultra Fuel Planner v2.28 · ultrafuelplanner.com"
+    - Header: "Ultra Fuel Planner · Race Day Nutrition Card" subtitle
+
+Files changed:
+  NEW:     src/lib/analytics.ts — GA4 typed wrapper (6 exported track functions)
+  NEW:     .env.local.example   — environment variable template
+  CHANGED: src/app/layout.tsx   — GA4 Script tag pair (afterInteractive)
+  CHANGED: src/app/planner/page.tsx — trackPlannerOpened() in useEffect([])
+  CHANGED: src/components/planner/StepRoute.tsx — trackRouteUploaded() after GPX parse
+  CHANGED: src/components/planner/StepAthlete.tsx — trackProfileCompleted() in handleSubmit
+  CHANGED: src/lib/planner-store.tsx — trackPlanGenerated() in runPlanner()
+  CHANGED: src/app/print/page.tsx — trackPlanPrinted() before window.print()
+  CHANGED: src/app/results/page.tsx — feedback bar UI + trackPlanFeedback()
+  CHANGED: src/app/page.tsx — home screen mock card updated to v2.28 print layout
+  CHANGED: version strings → v2.29 (UI locations)
+UNCHANGED: all engine logic, types, carry plan, timeline, segments view
 
 
 ================================================================================

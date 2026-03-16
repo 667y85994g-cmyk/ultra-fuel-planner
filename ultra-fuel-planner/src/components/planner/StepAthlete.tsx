@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronRight, Settings2 } from "lucide-react";
+import { trackProfileCompleted } from "@/lib/analytics";
 
 interface Props {
   onNext: () => void;
@@ -95,6 +96,12 @@ export function StepAthlete({ onNext }: Props) {
                                : undefined,
       eventIntent,
       preRunFuelled,
+    });
+    trackProfileCompleted({
+      experience_level:  profile.guidedExperience,
+      fuelling_level:    profile.fuellingLevel,
+      event_intent:      eventIntent,
+      has_prior_efforts: (state.priorEfforts?.length ?? 0) > 0,
     });
     onNext();
   };

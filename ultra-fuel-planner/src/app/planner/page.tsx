@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Mountain } from "lucide-react";
 import { usePlanner } from "@/lib/planner-store";
+import { trackPlannerOpened } from "@/lib/analytics";
 import { StepIndicator } from "@/components/planner/StepIndicator";
 import { StepAthlete } from "@/components/planner/StepAthlete";
 import { StepCalibration } from "@/components/planner/StepCalibration";
@@ -27,6 +29,9 @@ export default function PlannerPage() {
   const { state, dispatch, runPlanner } = usePlanner();
   const currentStep = state.currentStep;
 
+  // Measure top-of-funnel — fires once when the planner page loads
+  useEffect(() => { trackPlannerOpened(); }, []);
+
   const goToStep = (step: number) => {
     dispatch({ type: "SET_STEP", step });
   };
@@ -49,7 +54,7 @@ export default function PlannerPage() {
           <Link href="/" className="flex items-center gap-2 text-stone-400 hover:text-stone-200 transition-colors">
             <Mountain className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-medium">Ultra Fuel Planner</span>
-            <span className="text-[10px] text-stone-600">v2.23</span>
+            <span className="text-[10px] text-stone-600">v2.29</span>
           </Link>
 
           <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />

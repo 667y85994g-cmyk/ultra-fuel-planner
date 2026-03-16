@@ -28,6 +28,7 @@ import { segmentRoute } from "./segmentation";
 import { generatePlan } from "./fuelling-engine";
 import { estimateFinishTime } from "./calibration-engine";
 import { DEFAULT_GUIDED_PROFILE, applyGuidedProfile, guidedTemperature } from "./guided-profile";
+import { trackPlanGenerated } from "./analytics";
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -332,6 +333,24 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       output.finishTimeEstimation = finishTimeEstimation;
       output.summary.finishTimeEstimation = finishTimeEstimation;
     }
+
+    // Instrument the most important product event before persisting
+    const drinkMixUsed = output.schedule.some(
+      (e) => e.isContinuous && output.eventPlan.fuelInventory.find((f) => f.id === e.fuelItemId)?.type === "drink_mix"
+    );
+    trackPlanGenerated({
+      distance_km:         output.eventPlan.route?.totalDistanceKm ?? (state.targetDistanceKm ?? 0),
+      elevation_gain_m:    output.eventPlan.route?.totalAscentM ?? 0,
+      finish_time_minutes: output.summary.totalRaceDurationMinutes,
+      carb_target_min:     output.summary.carbTargetRangeGPerHour?.[0] ?? output.summary.workingCarbTarget ?? 0,
+      carb_target_max:     output.summary.carbTargetRangeGPerHour?.[1] ?? output.summary.workingCarbTarget ?? 0,
+      working_carb_target: output.summary.workingCarbTarget ?? output.summary.avgCarbsPerHour,
+      avg_carbs_per_hour:  output.summary.avgCarbsPerHour,
+      fuelling_events:     output.schedule.filter(e => !e.isContinuous && e.action !== "refill_at_aid" && e.action !== "restock_carry").length,
+      sections:            output.carryPlans.length,
+      drink_mix_used:      drinkMixUsed,
+      event_intent:        state.eventIntent ?? "race_day",
+    });
 
     dispatch({ type: "SET_PLAN_OUTPUT", output });
     // Strip eventPlan.route before persisting — it duplicates parsedRoute and

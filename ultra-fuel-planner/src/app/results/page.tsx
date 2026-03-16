@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mountain, ChevronLeft, Printer } from "lucide-react";
+import { Mountain, ChevronLeft, Printer, ThumbsUp, ThumbsDown } from "lucide-react";
 import { usePlanner } from "@/lib/planner-store";
 import { Button } from "@/components/ui/button";
 import { SummaryView } from "@/components/results/SummaryView";
@@ -13,6 +13,7 @@ import { SegmentView } from "@/components/results/SegmentView";
 import { CarryView } from "@/components/results/CarryView";
 import { cn } from "@/lib/utils";
 import { LegalFooter } from "@/components/LegalFooter";
+import { trackPlanFeedback } from "@/lib/analytics";
 
 const RouteMapView = dynamic(
   () => import("@/components/results/RouteMapView").then((m) => ({ default: m.RouteMapView })),
@@ -33,6 +34,12 @@ export default function ResultsPage() {
   const router = useRouter();
   const { state } = usePlanner();
   const [activeTab, setActiveTab] = useState("summary");
+  const [feedback, setFeedback] = useState<"pending" | "positive" | "negative">("pending");
+
+  const handleFeedback = (helpful: boolean) => {
+    trackPlanFeedback(helpful);
+    setFeedback(helpful ? "positive" : "negative");
+  };
 
   const output = state.lastPlannerOutput;
 
@@ -63,7 +70,7 @@ export default function ResultsPage() {
             <Link href="/" className="flex items-center gap-2 text-stone-400 hover:text-stone-200">
               <Mountain className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium hidden sm:inline">Ultra Fuel Planner</span>
-              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.23</span>
+              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.29</span>
             </Link>
             <span className="text-stone-700">/</span>
             <span className="text-sm text-stone-300 font-medium">
@@ -85,6 +92,39 @@ export default function ResultsPage() {
           </div>
         </div>
       </nav>
+
+      {/* Feedback prompt — shown as a slim bar below the nav */}
+      <div className="border-b border-stone-800/50 bg-stone-900/30 no-print">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-2">
+          {feedback === "pending" ? (
+            <>
+              <p className="text-xs text-stone-500">Was this fuelling plan helpful?</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleFeedback(true)}
+                  className="flex items-center gap-1.5 rounded-md border border-stone-700 px-2.5 py-1 text-xs text-stone-400 transition-colors hover:border-green-700/50 hover:bg-green-900/15 hover:text-green-400"
+                >
+                  <ThumbsUp className="h-3 w-3" />
+                  Yes
+                </button>
+                <button
+                  onClick={() => handleFeedback(false)}
+                  className="flex items-center gap-1.5 rounded-md border border-stone-700 px-2.5 py-1 text-xs text-stone-400 transition-colors hover:border-stone-600 hover:text-stone-300"
+                >
+                  <ThumbsDown className="h-3 w-3" />
+                  Not really
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-stone-500">
+              {feedback === "positive"
+                ? "Thanks — glad it was useful."
+                : "Thanks for the feedback — we'll keep improving."}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Plan notes — only surface genuinely useful contextual alerts.
           Suppress noisy diagnostics (CARB_TARGET_SET, KCAL_CONTEXT, RACE_STRATEGY,

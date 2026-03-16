@@ -20,6 +20,7 @@ import type { ParsedRoute } from "@/types";
 import { ElevationChart } from "./ElevationChart";
 import { terrainBgClass } from "@/lib/utils";
 import { terrainLabel } from "@/lib/segmentation";
+import { trackRouteUploaded } from "@/lib/analytics";
 
 interface Props {
   onBack: () => void;
@@ -66,7 +67,13 @@ export function StepRoute({ onBack, onNext }: Props) {
           return;
         }
 
-        dispatch({ type: "SET_ROUTE", route: data.route as ParsedRoute });
+        const parsedRoute = data.route as ParsedRoute;
+        dispatch({ type: "SET_ROUTE", route: parsedRoute });
+        trackRouteUploaded({
+          distance_km:      parsedRoute.totalDistanceKm,
+          elevation_gain_m: parsedRoute.totalAscentM,
+          file_size_bytes:  file.size,
+        });
       } catch {
         setError("Network error — could not parse GPX.");
       } finally {
