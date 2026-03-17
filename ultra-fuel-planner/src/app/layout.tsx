@@ -21,7 +21,7 @@ export const metadata: Metadata = {
       "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
   },
   description:
-    "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
+    "Build a practical fuelling plan for your ultra. Upload your route, use data from your runs, and know exactly what to eat and when on race day.",
   keywords: [
     "ultramarathon fuelling plan",
     "ultra running nutrition strategy",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "Ultra Fuel Planner",
     title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
     description:
-      "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
+      "Build a practical fuelling plan for your ultra. Upload your route, use data from your runs, and know exactly what to eat and when on race day.",
     images: [
       {
         url: "/opengraph-image",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
     description:
-      "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
+      "Build a practical fuelling plan for your ultra. Upload your route, use data from your runs, and know exactly what to eat and when on race day.",
     images: ["/opengraph-image"],
   },
   alternates: {

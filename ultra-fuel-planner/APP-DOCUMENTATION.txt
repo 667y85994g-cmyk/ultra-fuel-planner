@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.33 | March 2026
+Version 2.34 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -3357,6 +3357,44 @@ CHANGED: src/app/privacy/page.tsx — Analytics section updated with accurate
   GA4 disclosure
 CHANGED: APP-DOCUMENTATION.txt — header → v2.33, this entry added
 UNCHANGED: all core functionality, fuelling engine, route processing, UI
+
+
+v2.34 — Homepage Value Proposition & SEO Alignment
+────────────────────────────────────────────────────────────────────────────────
+
+Goal: shift homepage messaging from "what this is" (technical description) to
+"why it matters" (outcome-led). A first-time visitor should immediately
+understand what they do, how, and what they get.
+
+Changes:
+
+  1. Hero subheadline: replaced technical product description with the new
+     core line:
+       "Upload your route, use data from your previous runs, and build a
+        fuelling plan you can actually follow on race day."
+     Previous: "Upload your GPX file, enter your past race data, and add the
+     fuel products you'll carry. The planner builds a fuelling schedule
+     matched to your route and a carry plan between each checkpoint."
+
+  2. Meta description (page.tsx + layout.tsx default): updated to align with
+     new tone:
+       "Build a practical fuelling plan for your ultra. Upload your route, use
+        data from your runs, and know exactly what to eat and when on race day."
+     Previous: "...set your targets..."
+
+  3. OG description (og:description + twitter:description in layout.tsx):
+     updated to match new meta description — all three description fields now
+     consistent across page, layout, OG and Twitter.
+
+  4. Content consistency: no conflicting "terrain-aware" or overly technical
+     copy exists on the homepage outside of the JSON-LD structured data
+     (machine-readable, intentionally retained for schema accuracy).
+
+CHANGED: src/app/page.tsx — hero subheadline + meta description updated
+CHANGED: src/app/layout.tsx — default description, og:description,
+  twitter:description updated (replace_all — all three were identical strings)
+CHANGED: APP-DOCUMENTATION.txt — header → v2.34, this entry added
+UNCHANGED: h1 headline, badge, all other sections, fuelling engine, all features
 
 
 ================================================================================

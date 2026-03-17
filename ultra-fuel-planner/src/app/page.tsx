@@ -17,7 +17,7 @@ import { LegalFooter } from "@/components/LegalFooter";
 export const metadata: Metadata = {
   title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
   description:
-    "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
+    "Build a practical fuelling plan for your ultra. Upload your route, use data from your runs, and know exactly what to eat and when on race day.",
   alternates: {
     canonical: "https://ultrafuelplanner.com",
   },
@@ -78,9 +78,8 @@ export default function HomePage() {
             </h1>
 
             <p className="mb-8 max-w-xl text-lg leading-relaxed text-stone-400">
-              Upload your GPX file, enter your past race data, and add the fuel
-              products you&apos;ll carry. The planner builds a fuelling schedule
-              matched to your route and a carry plan between each checkpoint.
+              Upload your route, use data from your previous runs, and build a
+              fuelling plan you can actually follow on race day.
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
