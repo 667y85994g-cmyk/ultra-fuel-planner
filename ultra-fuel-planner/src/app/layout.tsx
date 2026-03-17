@@ -18,10 +18,10 @@ export const metadata: Metadata = {
   title: {
     template: "%s | Ultra Fuel Planner",
     default:
-      "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners",
+      "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
   },
   description:
-    "Upload a GPX route and generate a terrain-aware fuelling strategy for trail and ultra running races. Plan carb intake, carry strategy, and section-based nutrition guidance for endurance events.",
+    "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
   keywords: [
     "ultramarathon fuelling plan",
     "ultra running nutrition strategy",
@@ -39,23 +39,23 @@ export const metadata: Metadata = {
     locale: "en_GB",
     url: "https://ultrafuelplanner.com",
     siteName: "Ultra Fuel Planner",
-    title: "Ultra Fuel Planner",
+    title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
     description:
-      "Terrain-aware fuelling plans for trail and ultra running races.",
+      "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
     images: [
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Ultra Fuel Planner — Terrain-aware fuelling strategy for trail and ultra runners",
+        alt: "Ultra Fuel Planner — Build a fuelling plan for your ultra marathon",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ultra Fuel Planner",
+    title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
     description:
-      "Terrain-aware fuelling plans for trail and ultra running races.",
+      "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
     images: ["/opengraph-image"],
   },
   alternates: {

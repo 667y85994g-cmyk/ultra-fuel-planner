@@ -15,10 +15,9 @@ import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata: Metadata = {
-  title:
-    "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners",
+  title: "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon",
   description:
-    "Upload a GPX route and generate a terrain-aware fuelling strategy for trail and ultra running races. Plan carb intake, carry strategy, and section-based nutrition guidance for endurance events.",
+    "Build a practical fuelling plan for your ultra. Upload your route, set your targets, and know exactly what to eat and when on race day.",
   alternates: {
     canonical: "https://ultrafuelplanner.com",
   },

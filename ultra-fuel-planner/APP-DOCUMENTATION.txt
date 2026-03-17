@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.32 | March 2026
+Version 2.33 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -3320,6 +3320,43 @@ CHANGED: src/components/LegalFooter.tsx — version string → v2.32
 CHANGED: APP-DOCUMENTATION.txt — header → v2.32, this entry added
 UNCHANGED: schedule table, carry plan, elevation profile, engine logic,
   fuelling algorithm, analytics, SEO, QR code, all other features
+
+
+v2.33 — SEO Title & Meta Description Update
+────────────────────────────────────────────────────────────────────────────────
+
+Goal: improve search click-through by replacing the technical title/description
+with outcome-focused copy that matches how runners search for fuelling help.
+
+Previous title:
+  "Ultra Fuel Planner | Terrain-Aware Fuelling Strategy for Trail & Ultra Runners"
+
+New title:
+  "Ultra Fuel Planner | Build a Fuelling Plan for Your Ultra Marathon"
+
+Previous description:
+  "Upload a GPX route and generate a terrain-aware fuelling strategy for trail
+  and ultra running races. Plan carb intake, carry strategy, and section-based
+  nutrition guidance for endurance events."
+
+New description:
+  "Build a practical fuelling plan for your ultra. Upload your route, set your
+  targets, and know exactly what to eat and when on race day."
+
+Same copy applied to og:title, og:description, and twitter:title/description
+to ensure consistent share card appearance on LinkedIn, WhatsApp, etc.
+
+Also updated privacy policy Analytics section: replaced "we do not currently
+use analytics tools" (now incorrect) with accurate GA4 disclosure — what is
+collected (anonymised usage data), how (gtag.js), and opt-out instructions.
+
+CHANGED: src/app/page.tsx — title + description metadata updated
+CHANGED: src/app/layout.tsx — default title, OG title/description,
+  Twitter title/description updated
+CHANGED: src/app/privacy/page.tsx — Analytics section updated with accurate
+  GA4 disclosure
+CHANGED: APP-DOCUMENTATION.txt — header → v2.33, this entry added
+UNCHANGED: all core functionality, fuelling engine, route processing, UI
 
 
 ================================================================================
