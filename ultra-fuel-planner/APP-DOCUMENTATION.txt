@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.34 | March 2026
+Version 2.35 | March 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -89,6 +89,11 @@ src/
 │   ├── how-to-fuel-an-ultra/
 │   │   └── page.tsx                SEO content page — long-form fuelling guide
 │   │                                Targets "how to fuel an ultra" searches
+│   ├── log/
+│   │   ├── page.tsx                The Log index — article hub
+│   │   └── how-i-fueled-100km-ultra/
+│   │       └── page.tsx            Article — Race to the Stones personal account
+│   │                                Targets "100km ultra fuelling" searches
 │   └── api/
 │       └── parse-gpx/
 │           └── route.ts            Server-side GPX parser (regex-based)
@@ -3397,6 +3402,60 @@ CHANGED: APP-DOCUMENTATION.txt — header → v2.34, this entry added
 UNCHANGED: h1 headline, badge, all other sections, fuelling engine, all features
 
 
+v2.35 — The Log (Content Layer)
+────────────────────────────────────────────────────────────────────────────────
+
+Goal: introduce a lightweight, static content layer called "The Log" to create
+SEO entry points, support organic discovery, build credibility through
+real-world experience, and drive users into the planner. Homepage and planner
+experience unchanged.
+
+New routes:
+
+  /log
+    The Log index page. Minimal article hub with dark-card grid layout.
+    Page header: "The Log" / "Notes from the trail. What works, what doesn't,
+    and what's worth knowing when it matters."
+    One article tile (title + excerpt + read time + date), with amber hover CTA.
+    Server component — metadata exported directly (no layout wrapper needed).
+    SEO: title "The Log | Ultra Fuel Planner".
+
+  /log/how-i-fueled-100km-ultra
+    Article page — personal account of Race to the Stones 100km (July 2025).
+    Single-column, max-width 2xl (~672px), generous line spacing, 17px body text.
+    Content: Race to the Stones narrative — heat (33°C), 18h finish, blisters,
+    support crew refuel pattern every 10km, three watch prompts (15-min drink,
+    ~300 kcal fuel, HR cap 145), hydration 1L/hr half:half with electrolytes,
+    Maurten gels/bars/drink mix, prior events (D2W Canoe Race, 24h hikes, DNFs),
+    Ultra Fuel Planner origin story.
+    Two InlineCTA components — after paragraph 3 (intro) and at article end.
+    Nav shows breadcrumb: Ultra Fuel Planner / ← The Log.
+    Server component — metadata exported directly.
+    SEO: title "How I Fueled a 100km Ultra Marathon | Ultra Fuel Planner"
+         description: "A real-world look at fuelling strategy for a 100km ultra
+         marathon. Learn what actually works and how to build a plan you can
+         follow on race day."
+         canonical: /log/how-i-fueled-100km-ultra
+
+Navigation:
+  Homepage nav updated: "The Log" text link added between logo and "Start
+  planning" CTA. Hidden on mobile (hidden sm:block) to preserve compact layout.
+  Link: href="/log", text-stone-400 hover:text-stone-200.
+
+Sitemap:
+  /log added (priority 0.8, monthly)
+  /log/how-i-fueled-100km-ultra added (priority 0.7, monthly)
+
+CHANGED: src/app/page.tsx — nav updated with "The Log" link
+ADDED:   src/app/log/page.tsx — The Log index
+ADDED:   src/app/log/how-i-fueled-100km-ultra/page.tsx — article
+CHANGED: src/app/sitemap.ts — /log and /log/how-i-fueled-100km-ultra added
+CHANGED: src/components/LegalFooter.tsx — version → v2.35
+CHANGED: APP-DOCUMENTATION.txt — header → v2.35, file structure, SEO
+  reference, this entry added
+UNCHANGED: homepage layout, planner, results, all core functionality
+
+
 ================================================================================
 14. SEO REFERENCE
 ================================================================================
@@ -3405,6 +3464,8 @@ Indexable pages:
   https://ultrafuelplanner.com               — homepage
   https://ultrafuelplanner.com/how-to-fuel-an-ultra — content page
   https://ultrafuelplanner.com/planner       — tool entry point
+  https://ultrafuelplanner.com/log           — The Log index
+  https://ultrafuelplanner.com/log/how-i-fueled-100km-ultra — article
 
 Non-indexed pages (noindex metadata):
   /results, /print
@@ -3423,6 +3484,16 @@ Sitemap URL:  https://ultrafuelplanner.com/sitemap.xml
 Robots URL:   https://ultrafuelplanner.com/robots.txt
 
 Structured data type: SoftwareApplication (homepage JSON-LD)
+
+Content page /log/how-i-fueled-100km-ultra covers:
+  - Personal Race to the Stones (100km) account — July 2025
+  - Real-world fuelling execution: Maurten gels/bars/drink mix, support crew,
+    10km refuel pattern, watch prompts (15 min drink / ~300 kcal fuel / HR cap)
+  - Heat management: 33°C, 1L/hr hydration, electrolyte pacing
+  - Context: prior events (D2W Canoe Race, 24h hikes, other ultras), DNF history
+  - Origin story for Ultra Fuel Planner
+  - Two internal CTAs → /planner (after intro and at end)
+  SEO: "How I Fueled a 100km Ultra Marathon | Ultra Fuel Planner"
 
 Content page /how-to-fuel-an-ultra covers:
   - Carb targets by race duration (table matching carb-target-engine.ts bands)

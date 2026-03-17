@@ -47,9 +47,17 @@ export default function HomePage() {
               Ultra Fuel Planner
             </span>
           </div>
-          <Link href="/planner">
-            <Button size="sm">Start planning</Button>
-          </Link>
+          <div className="flex items-center gap-5">
+            <Link
+              href="/log"
+              className="text-sm text-stone-400 hover:text-stone-200 transition-colors hidden sm:block"
+            >
+              The Log
+            </Link>
+            <Link href="/planner">
+              <Button size="sm">Start planning</Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
