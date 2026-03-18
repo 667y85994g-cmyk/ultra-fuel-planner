@@ -55,9 +55,43 @@ function EndCTA() {
   );
 }
 
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline:
+    "How I Fueled a 100km Ultra (and Why I Built Ultra Fuel Planner After)",
+  description:
+    "Race to the Stones in 33°C heat, 18 hours, and finished strong. Here's the fuelling approach that made the difference — and why it led to building Ultra Fuel Planner.",
+  url: "https://ultrafuelplanner.com/log/how-i-fueled-100km-ultra",
+  datePublished: "2026-03-18",
+  author: {
+    "@type": "Person",
+    name: "Ben",
+    affiliation: {
+      "@type": "Organization",
+      name: "Trail Hustle",
+      url: "https://trailhustle.com",
+    },
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "Ultra Fuel Planner",
+    url: "https://ultrafuelplanner.com",
+  },
+  isPartOf: {
+    "@type": "Blog",
+    name: "The Log",
+    url: "https://ultrafuelplanner.com/log",
+  },
+};
+
 export default function ArticlePage() {
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       {/* Nav */}
       <nav className="sticky top-0 z-50 w-full border-b border-stone-800/60 bg-stone-950/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
