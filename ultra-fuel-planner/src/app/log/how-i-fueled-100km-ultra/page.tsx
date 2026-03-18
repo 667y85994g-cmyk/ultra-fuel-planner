@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Mountain, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,21 @@ export default function ArticlePage() {
           <p>
             It took me 18 hours to get round — I hadn&apos;t set out for a time and the heat definitely slowed me down. I picked up blisters around 40km and spent most of the following week walking like I&apos;d borrowed someone else&apos;s feet. And yet, somehow, I finished feeling good. Not fresh in any normal sense, but clear, steady, still in control of myself.
           </p>
+
+          <figure className="my-10 -mx-2 sm:mx-0">
+            <Image
+              src="/images/ultra-100km-mid-race-fuelling-control.webp"
+              alt="Ultra runner mid-race during a 100km ultra marathon in extreme heat, fuelling and maintaining control"
+              width={1536}
+              height={2048}
+              className="w-full rounded-xl object-cover"
+              priority={false}
+              sizes="(max-width: 640px) 100vw, 672px"
+            />
+            <figcaption className="mt-3 text-sm text-stone-500 tracking-wide">
+              Mid-race. 33°C. Still fuelling. Still in control.
+            </figcaption>
+          </figure>
 
           <p>
             A few people asked me afterwards how that was possible and on reflection I know it was that I had got my fuelling right. I&apos;ve done plenty of endurance events, including the Devizes to Westminster Canoe Race, 24-hour hikes, and other ultra marathons. I had learned from a lot of experience that without being intentional about fuelling and hydration that I would just bonk. I&apos;ve had my share of DNFs and I was determined this was not going to be another.
