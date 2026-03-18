@@ -7,14 +7,14 @@ import { LegalFooter } from "@/components/LegalFooter";
 export const metadata: Metadata = {
   title: "The Log",
   description:
-    "Notes from the trail. Real-world fuelling, what works, what doesn't, and what's worth knowing when it matters.",
+    "Race reports, fuelling lessons, and first-hand accounts from ultra running. Practical insights for trail and ultra runners preparing for their next event.",
   alternates: {
     canonical: "https://ultrafuelplanner.com/log",
   },
   openGraph: {
     title: "The Log | Ultra Fuel Planner",
     description:
-      "Notes from the trail. Real-world fuelling, what works, what doesn't, and what's worth knowing when it matters.",
+      "Race reports, fuelling lessons, and first-hand accounts from ultra running. Practical insights for trail and ultra runners preparing for their next event.",
     url: "https://ultrafuelplanner.com/log",
     type: "website",
   },

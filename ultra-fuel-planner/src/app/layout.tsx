@@ -61,6 +61,13 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://ultrafuelplanner.com",
   },
+  icons: {
+    icon: [
+      { url: "/icon", type: "image/png", sizes: "192x192" },
+    ],
+    shortcut: "/icon",
+    apple: "/apple-icon",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -78,6 +85,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        {/* WebSite structured data — tells Google to show "Ultra Fuel Planner"
+            as the site name in search results instead of the raw domain. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Ultra Fuel Planner",
+              url: "https://ultrafuelplanner.com",
+            }),
+          }}
+        />
         <PlannerProvider>{children}</PlannerProvider>
 
         {/* ── Google Analytics 4 ── loaded after interaction so it never

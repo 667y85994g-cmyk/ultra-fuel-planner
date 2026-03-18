@@ -7,14 +7,14 @@ import { LegalFooter } from "@/components/LegalFooter";
 export const metadata: Metadata = {
   title: "How I Fueled a 100km Ultra Marathon",
   description:
-    "A real-world look at fuelling strategy for a 100km ultra marathon. Learn what actually works and how to build a plan you can follow on race day.",
+    "Race to the Stones in 33°C heat, 18 hours, and finished strong. Here's the fuelling approach that made the difference — and why it led to building Ultra Fuel Planner.",
   alternates: {
     canonical: "https://ultrafuelplanner.com/log/how-i-fueled-100km-ultra",
   },
   openGraph: {
     title: "How I Fueled a 100km Ultra Marathon | Ultra Fuel Planner",
     description:
-      "A real-world look at fuelling strategy for a 100km ultra marathon. Learn what actually works and how to build a plan you can follow on race day.",
+      "Race to the Stones in 33°C heat, 18 hours, and finished strong. Here's the fuelling approach that made the difference — and why it led to building Ultra Fuel Planner.",
     url: "https://ultrafuelplanner.com/log/how-i-fueled-100km-ultra",
     type: "article",
   },
