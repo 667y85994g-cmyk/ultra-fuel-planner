@@ -50,7 +50,7 @@ export default function HomePage() {
           <div className="flex items-center gap-5">
             <Link
               href="/log"
-              className="text-sm text-stone-400 hover:text-stone-200 transition-colors hidden sm:block"
+              className="text-sm text-stone-400 hover:text-stone-200 transition-colors"
             >
               The Log
             </Link>
