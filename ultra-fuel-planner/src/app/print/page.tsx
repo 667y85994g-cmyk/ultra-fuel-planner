@@ -218,6 +218,7 @@ async function renderOSMMap(
       );
     }
   }
+  await Promise.all(tileJobs);
 
   const inv = output.eventPlan.fuelInventory;
 
@@ -996,7 +997,7 @@ export default function PrintPage() {
 
           {/* Page header */}
           <div style={pageHeaderStyle}>
-            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
+            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>
               {eventPlan.eventName || "Race Plan"} — Execution Plan
             </h2>
             <span style={{ fontSize: "10px", color: "#6b5c4c" }}>
@@ -1179,7 +1180,7 @@ export default function PrintPage() {
 
             {/* Page header */}
             <div style={pageHeaderStyle}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>
                 {eventPlan.eventName || "Race Plan"} — Course Strategy
               </h2>
               <span style={{ fontSize: "10px", color: "#6b5c4c" }}>
