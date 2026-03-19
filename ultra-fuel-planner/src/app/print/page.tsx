@@ -140,7 +140,7 @@ async function loadTile(url: string): Promise<HTMLImageElement> {
  *   7. window.print() is gated on this function resolving — no tile is
  *      missing when the PDF is captured.
  */
-async function renderSatelliteMap(
+async function renderOSMMap(
   output: PlannerOutput,
   canvasW = 880,
   canvasH = 480,
@@ -195,45 +195,28 @@ async function renderSatelliteMap(
   const ctx = canvas.getContext("2d")!;
   ctx.scale(2, 2);
 
-  // Fallback background for tiles that fail
-  ctx.fillStyle = "#1c1917";
+  // Fallback background for tiles that fail — light paper tone matches OSM style
+  ctx.fillStyle = "#e8e0d4";
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  // ── 1. Tiles — drawn with desaturation + darkening filter applied ────────────
-  // Setting ctx.filter BEFORE the Promise.all means every tile's .then() draws
-  // with the muted filter. Filter is safe with async because JS is single-threaded
-  // and the reset only happens after await Promise.all resolves.
-  ctx.filter = "saturate(0.55) brightness(0.72) contrast(0.85)";
+  // ── 1. Tiles — OpenStreetMap standard (OS-style cartographic) ───────────────
   const tileJobs: Promise<void>[] = [];
   for (let ty = ty0; ty <= ty1; ty++) {
     for (let tx = tx0; tx <= tx1; tx++) {
       const px = (tx - tx0) * tileW;
       const py = (ty - ty0) * tileH;
-      const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`;
+      // Round-robin across OSM subdomains (a/b/c) to respect tile server limits
+      const sub = ["a", "b", "c"][(tx + ty) % 3];
+      const url = `https://${sub}.tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`;
       tileJobs.push(
         loadTile(url)
           .then((img) => ctx.drawImage(img, px, py, tileW, tileH))
           .catch(() => {
-            ctx.fillStyle = "#292524";
+            ctx.fillStyle = "#ddd6cc";
             ctx.fillRect(px, py, tileW, tileH);
           }),
       );
     }
-  }
-  await Promise.all(tileJobs);
-  ctx.filter = "none";
-
-  // ── 2. Subtle vignette — very light edge fade only ──────────────────────────
-  // Matches in-app map feel: almost no darkening at edges.
-  {
-    const vig = ctx.createRadialGradient(
-      canvasW / 2, canvasH / 2, Math.min(canvasW, canvasH) * 0.35,
-      canvasW / 2, canvasH / 2, Math.max(canvasW, canvasH) * 0.82,
-    );
-    vig.addColorStop(0,   "rgba(0,0,0,0)");
-    vig.addColorStop(1,   "rgba(0,0,0,0.18)");
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, canvasW, canvasH);
   }
 
   const inv = output.eventPlan.fuelInventory;
@@ -288,16 +271,16 @@ async function renderSatelliteMap(
     const rp = closestRoutePoint(points, c.fromKm);
     const [cx, cy] = project(rp.lat, rp.lon);
     ctx.save();
-    // Outer white ring
+    // Outer dark ring — visible on both light OSM and any basemap
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(255,255,255,0.90)";
+    ctx.strokeStyle = "rgba(30,20,10,0.70)";
     ctx.lineWidth = 2.5;
     ctx.stroke();
     // Tiny inner dot for readability at small sizes
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillStyle = "rgba(30,20,10,0.55)";
     ctx.fill();
     ctx.restore();
   }
@@ -421,7 +404,7 @@ async function renderSatelliteMap(
         ? [{ color: "#3b82f6", label: "Fluid",      shape: "circle" as LShape }] : []),
       ...(hasCapsule
         ? [{ color: "#a78bfa", label: "Capsule",    shape: "circle" as LShape }] : []),
-      { color: "rgba(255,255,255,0.85)", label: "Carry section", shape: "ring" },
+      { color: "rgba(30,20,10,0.65)", label: "Carry section", shape: "ring" },
     ];
 
     const LX = 8;
@@ -431,8 +414,8 @@ async function renderSatelliteMap(
     const r = 4;
 
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,0.68)";
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.fillStyle = "rgba(255,252,248,0.92)";
+    ctx.strokeStyle = "rgba(0,0,0,0.18)";
     ctx.lineWidth = 0.75;
     ctx.beginPath();
     ctx.moveTo(LX + r, LY);
@@ -457,7 +440,7 @@ async function renderSatelliteMap(
         ctx.rotate(Math.PI / 4);
         ctx.fillStyle = item.color;
         ctx.fillRect(-4, -4, 8, 8);
-        ctx.strokeStyle = "rgba(255,255,255,0.45)";
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
         ctx.lineWidth = 0.75;
         ctx.strokeRect(-4, -4, 8, 8);
       } else if (item.shape === "ring") {
@@ -480,7 +463,7 @@ async function renderSatelliteMap(
         ctx.stroke();
       }
       ctx.restore();
-      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      ctx.fillStyle = "rgba(30,20,10,0.82)";
       ctx.font = "9px Arial, sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
@@ -738,7 +721,7 @@ export default function PrintPage() {
       setMapReady(true);
       return;
     }
-    renderSatelliteMap(output)
+    renderOSMMap(output)
       .then((url) => {
         if (url) setMapDataUrl(url);
         else setMapError(true);
