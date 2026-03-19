@@ -1249,7 +1249,7 @@ export default function PrintPage() {
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Distance</th>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Duration</th>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Elevation</th>
-                      <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Terrain</th>
+                      <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Stage</th>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Fuel Strategy</th>
                     </tr>
                   </thead>
