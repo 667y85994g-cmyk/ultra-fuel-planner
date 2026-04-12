@@ -519,6 +519,17 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
   );
   const aidEvents = output.schedule.filter((e) => e.action === "refill_at_aid");
 
+  // Helper: elevation at a given distance km (for positioning dots on the line)
+  const elevAtKm = (km: number): number => {
+    let closest = profile[0];
+    let minDiff = Math.abs(profile[0].distanceKm - km);
+    for (const pt of profile) {
+      const diff = Math.abs(pt.distanceKm - km);
+      if (diff < minDiff) { minDiff = diff; closest = pt; }
+    }
+    return closest.elevationM;
+  };
+
   const yTickVals = [minE, (minE + maxE) / 2, maxE].map((v) => Math.round(v));
   const xTickInterval = totalKm <= 40 ? 10 : totalKm <= 80 ? 20 : totalKm <= 120 ? 25 : 50;
   const xTicks: number[] = [];
@@ -591,19 +602,17 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
           />
         ))}
 
-      {/* Aid station ticks below x-axis */}
+      {/* Aid station dots — on the elevation line */}
       {aidEvents.map((e) => (
         <g key={e.id}>
-          <line
-            x1={xS(e.distanceKm)} y1={PT + CH}
-            x2={xS(e.distanceKm)} y2={PT + CH + 8}
-            stroke="#fb923c" strokeWidth={1.5}
+          <circle
+            cx={xS(e.distanceKm)} cy={yS(elevAtKm(e.distanceKm))}
+            r={4.5} fill="#fb923c" stroke="white" strokeWidth={1}
           />
-          <circle cx={xS(e.distanceKm)} cy={PT + CH + 11} r={2.5} fill="#fb923c" />
         </g>
       ))}
 
-      {/* Discrete fuel ticks below x-axis */}
+      {/* Discrete fuel dots — on the elevation line */}
       {discreteEvents.map((e) => {
         const item = inv.find((f) => f.id === e.fuelItemId);
         const color =
@@ -611,11 +620,10 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
           item?.type === "chew" ? "#10b981" :
           item?.type === "bar"  ? "#a78bfa" : "#9ca3af";
         return (
-          <line
+          <circle
             key={e.id}
-            x1={xS(e.distanceKm)} y1={PT + CH + 1}
-            x2={xS(e.distanceKm)} y2={PT + CH + 6}
-            stroke={color} strokeWidth={1.2} opacity={0.8}
+            cx={xS(e.distanceKm)} cy={yS(elevAtKm(e.distanceKm))}
+            r={3} fill={color} stroke="white" strokeWidth={0.8} opacity={0.9}
           />
         );
       })}
