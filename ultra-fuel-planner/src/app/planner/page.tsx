@@ -12,6 +12,7 @@ import { StepRoute } from "@/components/planner/StepRoute";
 import { StepFuel } from "@/components/planner/StepFuel";
 import { StepAidStations } from "@/components/planner/StepAidStations";
 import { StepGenerate } from "@/components/planner/StepGenerate";
+import { SavedPlansMenu } from "@/components/planner/SavedPlansMenu";
 import Link from "next/link";
 import { LegalFooter } from "@/components/LegalFooter";
 
@@ -59,8 +60,11 @@ export default function PlannerPage() {
 
           <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />
 
-          <div className="flex items-center gap-2 text-sm text-stone-500">
-            <span>Step {currentStep + 1} of {STEPS.length}</span>
+          <div className="flex items-center gap-3">
+            <SavedPlansMenu />
+            <span className="text-sm text-stone-500 hidden md:block">
+              Step {currentStep + 1} of {STEPS.length}
+            </span>
           </div>
         </div>
       </nav>
