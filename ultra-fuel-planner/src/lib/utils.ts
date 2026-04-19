@@ -26,30 +26,38 @@ export function formatPace(minPerKm: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}/km`;
 }
 
+/**
+ * Canonical terrain colours — earthy/muted, trail-register palette.
+ * Mirror values in globals.css (.terrain-bar-*) and tailwind.config.js (terrain.*).
+ * Canvas and SVG callers (print page) need resolved hex; all other callers
+ * can be migrated to CSS vars in Prompt 03d.
+ */
 export function terrainColor(terrain: TerrainType): string {
   const colors: Record<TerrainType, string> = {
-    flat_runnable: "#4a7c59",
-    rolling: "#6b8f4e",
-    sustained_climb: "#c4773a",
-    steep_climb: "#c4463a",
-    runnable_descent: "#5b7fa6",
-    technical_descent: "#8b6bb1",
-    recovery: "#4a7c7c",
+    flat_runnable:     "#cbb68a",
+    rolling:           "#a88a5a",
+    sustained_climb:   "#876a3c",
+    steep_climb:       "#5c4824",
+    runnable_descent:  "#6b5c4c",
+    technical_descent: "#3d3228",
+    recovery:          "#8a8074",
   };
-  return colors[terrain] ?? "#6b7280";
+  return colors[terrain] ?? "#a39a89"; // ink-4 as fallback
 }
 
 export function terrainBgClass(terrain: TerrainType): string {
+  // Light-system earthy palette — bg tint from terrain color, readable ink-2 text.
+  // Static strings so JIT picks them up (terrain.* defined in tailwind.config.js).
   const classes: Record<TerrainType, string> = {
-    flat_runnable: "bg-green-800/20 text-green-300 border-green-700/30",
-    rolling: "bg-lime-800/20 text-lime-300 border-lime-700/30",
-    sustained_climb: "bg-orange-800/20 text-orange-300 border-orange-700/30",
-    steep_climb: "bg-red-800/20 text-red-300 border-red-700/30",
-    runnable_descent: "bg-blue-800/20 text-blue-300 border-blue-700/30",
-    technical_descent: "bg-purple-800/20 text-purple-300 border-purple-700/30",
-    recovery: "bg-teal-800/20 text-teal-300 border-teal-700/30",
+    flat_runnable:     "bg-terrain-flat-runnable/20 text-ink-2 border-terrain-flat-runnable/40",
+    rolling:           "bg-terrain-rolling/20 text-ink-2 border-terrain-rolling/40",
+    sustained_climb:   "bg-terrain-sustained-climb/20 text-ink-2 border-terrain-sustained-climb/40",
+    steep_climb:       "bg-terrain-steep-climb/20 text-ink-2 border-terrain-steep-climb/40",
+    runnable_descent:  "bg-terrain-runnable-descent/20 text-ink-2 border-terrain-runnable-descent/40",
+    technical_descent: "bg-terrain-technical-descent/20 text-ink-2 border-terrain-technical-descent/40",
+    recovery:          "bg-terrain-recovery/20 text-ink-2 border-terrain-recovery/40",
   };
-  return classes[terrain] ?? "bg-stone-700/20 text-stone-300 border-stone-700/30";
+  return classes[terrain] ?? "bg-paper-3 text-ink-2 border-rule";
 }
 
 export function fuelTypeLabel(type: string): string {
@@ -66,16 +74,16 @@ export function fuelTypeLabel(type: string): string {
 }
 
 export function fuelTypeIcon(type: string): string {
-  const icons: Record<string, string> = {
-    gel: "💧",
-    chew: "🍬",
-    drink_mix: "🫙",
-    bar: "🍫",
-    real_food: "🍌",
-    capsule: "💊",
-    other: "📦",
+  const codes: Record<string, string> = {
+    gel: "G",
+    chew: "C",
+    drink_mix: "~",
+    bar: "B",
+    real_food: "F",
+    capsule: "Cap",
+    other: "—",
   };
-  return icons[type] ?? "📦";
+  return codes[type] ?? "—";
 }
 
 export function generateId(): string {

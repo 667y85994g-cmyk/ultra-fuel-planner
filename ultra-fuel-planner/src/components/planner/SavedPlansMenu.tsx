@@ -91,24 +91,24 @@ export function SavedPlansMenu() {
         variant="outline"
         size="sm"
         onClick={() => setOpen((v) => !v)}
-        className="gap-1.5 text-stone-400 border-stone-700 bg-stone-900 hover:bg-stone-800 hover:text-stone-200"
+        className="gap-1.5 text-ink-3 border-rule bg-paper hover:bg-paper-2 hover:text-ink-2"
       >
         <Bookmark className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Saves</span>
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-stone-700 bg-stone-900 shadow-2xl shadow-black/60 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-rule bg-paper shadow-2xl shadow-black/60 z-50 overflow-hidden">
 
           {/* Save current plan */}
-          <div className="p-3 border-b border-stone-800">
-            <p className="text-xs text-stone-500 mb-2">Save current plan</p>
+          <div className="p-3 border-b border-rule">
+            <p className="text-xs text-ink-3 mb-2">Save current plan</p>
             <div className="flex gap-2">
               <Input
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
                 placeholder={state.eventName || "Plan name…"}
-                className="h-8 text-xs bg-stone-800 border-stone-700 text-stone-200 placeholder:text-stone-600 focus-visible:ring-amber-500/40"
+                className="h-8 text-xs bg-paper-2 border-rule text-ink-2 placeholder:text-ink-3 focus-visible:ring-ochre/40"
                 onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               />
               <Button
@@ -129,32 +129,32 @@ export function SavedPlansMenu() {
           <div className="max-h-64 overflow-y-auto">
             {plans.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <FolderOpen className="h-5 w-5 text-stone-700" />
-                <p className="text-xs text-stone-600">No saved plans yet</p>
+                <FolderOpen className="h-5 w-5 text-ink-2" />
+                <p className="text-xs text-ink-3">No saved plans yet</p>
               </div>
             ) : (
               plans.map((plan) => (
                 <div
                   key={plan.id}
-                  className="flex items-center gap-2 px-3 py-2.5 hover:bg-stone-800/60 border-b border-stone-800/40 last:border-0"
+                  className="flex items-center gap-2 px-3 py-2.5 hover:bg-paper-2/60 border-b border-rule/40 last:border-0"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-stone-200 truncate font-medium leading-tight">
+                    <p className="text-sm text-ink-2 truncate font-medium leading-tight">
                       {plan.name}
                     </p>
-                    <p className="text-[10px] text-stone-600 mt-0.5">
+                    <p className="text-[10px] text-ink-3 mt-0.5">
                       {formatDate(plan.savedAt)}
                     </p>
                   </div>
                   <button
                     onClick={() => handleLoad(plan.id)}
-                    className="text-xs text-amber-500 hover:text-amber-400 flex-shrink-0 px-1 py-0.5 rounded hover:bg-amber-900/20 transition-colors"
+                    className="text-xs text-ochre hover:text-ochre flex-shrink-0 px-1 py-0.5 rounded hover:bg-ochre-hover/20 transition-colors"
                   >
                     Load
                   </button>
                   <button
                     onClick={() => handleDelete(plan.id)}
-                    className="text-stone-700 hover:text-red-400 flex-shrink-0 transition-colors"
+                    className="text-ink-2 hover:text-clay flex-shrink-0 transition-colors"
                     aria-label="Delete saved plan"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Mountain, ChevronRight, ArrowLeft } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SiteNav } from "@/components/SiteNav";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata: Metadata = {
@@ -23,8 +24,8 @@ export const metadata: Metadata = {
 
 function InlineCTA() {
   return (
-    <div className="my-10 rounded-xl border border-amber-800/30 bg-amber-900/10 px-6 py-5 flex items-center justify-between gap-4 flex-wrap">
-      <p className="text-sm text-stone-300 leading-relaxed">
+    <div className="my-10 rounded-xl border border-ochre/30 bg-ochre-hover/10 px-6 py-5 flex items-center justify-between gap-4 flex-wrap">
+      <p className="text-sm text-ink-2 leading-relaxed">
         Planning your own race? Build a fuelling plan around your route and your data.
       </p>
       <Link href="/planner" className="flex-shrink-0">
@@ -39,11 +40,11 @@ function InlineCTA() {
 
 function EndCTA() {
   return (
-    <div className="mt-14 rounded-xl border border-amber-800/40 bg-amber-900/15 px-6 py-6">
-      <p className="text-base font-semibold text-stone-100 mb-1">
+    <div className="mt-14 rounded-xl border border-ochre/40 bg-ochre-hover/15 px-6 py-6">
+      <p className="text-base font-semibold text-ink mb-1">
         Build your fuelling plan
       </p>
-      <p className="text-sm text-stone-400 mb-4 leading-relaxed">
+      <p className="text-sm text-ink-3 mb-4 leading-relaxed">
         Upload your GPX route, add your training data, and generate a plan you can actually follow on race day.
       </p>
       <Link href="/planner">
@@ -88,46 +89,19 @@ const articleJsonLd = {
 
 export default function ArticlePage() {
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col">
+    <div className="min-h-screen bg-paper text-ink flex flex-col">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
       />
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 w-full border-b border-stone-800/60 bg-stone-950/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-stone-400 hover:text-stone-200 transition-colors"
-            >
-              <Mountain className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium">Ultra Fuel Planner</span>
-            </Link>
-            <span className="text-stone-700 hidden sm:block">/</span>
-            <Link
-              href="/log"
-              className="hidden sm:flex items-center gap-1 text-sm text-stone-500 hover:text-stone-300 transition-colors"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              The Log
-            </Link>
-          </div>
-          <Link href="/planner">
-            <Button size="sm" className="gap-1.5">
-              Build your plan
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
-        </div>
-      </nav>
+      <SiteNav />
 
       {/* Article */}
       <article className="flex-1 mx-auto w-full max-w-2xl px-6 py-14 md:py-20">
         {/* Header */}
         <header className="mb-12">
-          <div className="mb-5 flex items-center gap-3 text-xs text-stone-500">
-            <Link href="/log" className="hover:text-stone-300 transition-colors">
+          <div className="mb-5 flex items-center gap-3 text-xs text-ink-3">
+            <Link href="/log" className="hover:text-ink-2 transition-colors">
               The Log
             </Link>
             <span>·</span>
@@ -135,16 +109,16 @@ export default function ArticlePage() {
             <span>·</span>
             <span>7 min read</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-stone-50 leading-tight">
+          <h1 className="text-3xl md:text-4xl font-display text-ink leading-tight">
             How I Fueled a 100km Ultra (and Why I Built Ultra Fuel Planner After)
           </h1>
         </header>
 
         {/* Body */}
-        <div className="space-y-6 text-stone-300 text-[17px] leading-[1.8]">
+        <div className="space-y-6 text-ink-2 text-[17px] leading-[1.8]">
 
           <p>
-            At 8:30am on a July morning in 2025, already warmer than it had any right to be (you had to be there!), I set off at Race to the Stones. It&apos;s one of those routes that looks gentle on paper — rolling chalk trails, open fields, wide skies… by the middle of the day it was pushing 33°C, and there wasn&apos;t much shade to hide in and it was bouncing up off the floor!
+            At 8:30am on a July morning in 2025, already warmer than it had any right to be, I set off at Race to the Stones. It&apos;s one of those routes that looks gentle on paper — rolling chalk trails, open fields, wide skies — by the middle of the day it was pushing <span className="font-mono text-ink">33°C</span>, and there wasn&apos;t much shade to hide in.
           </p>
 
           <p>
@@ -161,7 +135,7 @@ export default function ArticlePage() {
               priority={false}
               sizes="(max-width: 640px) 100vw, 672px"
             />
-            <figcaption className="mt-3 text-sm text-stone-500 tracking-wide">
+            <figcaption className="mt-3 text-sm text-ink-3 tracking-wide">
               Mid-race. 33°C. Still fuelling. Still in control.
             </figcaption>
           </figure>
@@ -201,7 +175,7 @@ export default function ArticlePage() {
           </p>
 
           <p>
-            I set three simple prompts on my watch. Every 15 minutes, I drank — aiming for 1L per hour given the heat and half:half with electrolytes. Every time I&apos;d burned roughly 300 calories, I took on fuel. And if my heart rate crept above 145, I eased off to stay around my aerobic threshold. They weren&apos;t there to optimise anything. They were there to stop me drifting. Those prompts kept me honest. They kept me eating early, drinking consistently, and staying within myself even when the day started to bite.
+            I set three simple prompts on my watch. Every <span className="font-mono text-ink">15 min</span>, I drank — aiming for <span className="font-mono text-ink">1 L/hr</span> given the heat, half-and-half with electrolytes. Every time I&apos;d burned roughly <span className="font-mono text-ink">300 kcal</span>, I took on fuel. And if my heart rate crept above <span className="font-mono text-ink">145 bpm</span>, I eased off to stay around my aerobic threshold. They weren&apos;t there to optimise anything. They were there to stop me drifting. Those prompts kept me honest. They kept me eating early, drinking consistently, and staying within myself even when the day started to bite.
           </p>
 
           <p>

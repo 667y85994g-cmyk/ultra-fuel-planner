@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultra Fuel Planner — Brand Visual Review</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a1a;
+      color: #e8e4dc;
+      min-height: 100vh;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #111;
+      border-bottom: 1px solid #333;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #c2691a;
+    }
+
+    header p {
+      font-size: 12px;
+      color: #888;
+    }
+
+    nav {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      background: #2a2a2a;
+      color: #ccc;
+      text-decoration: none;
+      border: 1px solid #333;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    nav a:hover {
+      background: #c2691a;
+      color: #f4efe6;
+      border-color: #c2691a;
+    }
+
+    main {
+      padding: 32px 24px;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+
+    .section {
+      margin-bottom: 64px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2d2d2d;
+    }
+
+    .section-header h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e8e4dc;
+    }
+
+    .section-header .eyebrow {
+      font-size: 10px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #888;
+    }
+
+    .section-header .path {
+      font-size: 11px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      color: #555;
+      margin-left: auto;
+    }
+
+    .frames-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .frame-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .frame-wrap.mobile {
+      flex: 0 0 390px;
+      max-width: 390px;
+    }
+
+    .frame-label {
+      font-size: 11px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .frame-label .badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 2px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .frame-label .badge.desktop { border-color: #444; color: #aaa; }
+    .frame-label .badge.mobile  { border-color: #3a3a3a; color: #888; }
+
+    .frame-container {
+      position: relative;
+      background: #0a0a0a;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #2d2d2d;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    .frame-container iframe {
+      display: block;
+      width: 100%;
+      border: none;
+      background: #f4efe6;
+    }
+
+    /* Desktop: fixed viewport rendered at 1440, scaled to fit column */
+    .frame-container.desktop-frame {
+      /* We render at 1440px wide inside, scaled down */
+    }
+
+    .frame-container.desktop-frame iframe {
+      width: 1440px;
+      height: 900px;
+      transform-origin: top left;
+    }
+
+    .frame-container.mobile-frame iframe {
+      width: 390px;
+      height: 844px;
+    }
+
+    .browser-chrome {
+      background: #222;
+      border-bottom: 1px solid #333;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .browser-dots {
+      display: flex;
+      gap: 5px;
+    }
+
+    .browser-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .browser-dots span:nth-child(1) { background: #ff5f56; }
+    .browser-dots span:nth-child(2) { background: #ffbd2e; }
+    .browser-dots span:nth-child(3) { background: #27c93f; }
+
+    .browser-url {
+      flex: 1;
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      color: #999;
+      border: 1px solid #3a3a3a;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #666;
+      font-style: italic;
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: #1e1e1e;
+      border-left: 3px solid #333;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .checklist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .check-item {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      background: #1e2a1e;
+      border: 1px solid #2a3d2a;
+      color: #6db86d;
+    }
+
+    .divider {
+      margin: 48px 0;
+      border: none;
+      border-top: 1px solid #222;
+    }
+
+    /* Scale helper */
+    .scaler {
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Ultra Fuel Planner — Brand Visual Review</h1>
+    <p>Prompts 04–07 migration · paper/ink/ochre system · 2026-04-19 · dev server at localhost:3000</p>
+  </div>
+  <nav>
+    <a href="#home">Home</a>
+    <a href="#how-to-fuel">How to Fuel</a>
+    <a href="#log">Log</a>
+    <a href="#log-post">Log post</a>
+    <a href="#planner">Planner</a>
+    <a href="#results">Results</a>
+    <a href="#404">404</a>
+    <a href="#brand-preview">Brand preview</a>
+    <a href="#mobile">Mobile</a>
+    <a href="#print">Print</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ── CHECKS SUMMARY ───────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="eyebrow">Automated checks</span>
+      <h2>All 11/11 passing</h2>
+    </div>
+    <div class="checklist">
+      <span class="check-item">✓ Mountain icon refs gone</span>
+      <span class="check-item">✓ Legacy Tailwind palette gone</span>
+      <span class="check-item">✓ Raw hex outside brand files</span>
+      <span class="check-item">✓ No exclamation marks</span>
+      <span class="check-item">✓ No emoji in source</span>
+      <span class="check-item">✓ focus:ring colour violations gone</span>
+      <span class="check-item">✓ Safety-net pages exist</span>
+      <span class="check-item">✓ Brand components exist</span>
+      <span class="check-item">✓ No Lucide Mountain import</span>
+      <span class="check-item">✓ Static favicon files exist</span>
+      <span class="check-item">✓ icon.tsx / apple-icon.tsx gone</span>
+    </div>
+    <p class="note">Visual checks below are the manual complement to these automated checks. Verify: paper/ink/ochre palette, Instrument Serif on headings, Inter on body, JetBrains Mono on data, ochre used sparingly, no emoji, no exclamation marks, UFPMark on signature surfaces.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── HOME PAGE ──────────────────────────────────────────────── -->
+  <div class="section" id="home">
+    <div class="section-header">
+      <span class="eyebrow">01</span>
+      <h2>Landing page</h2>
+      <code class="path">/</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+          Above the fold
+        </div>
+        <div class="frame-container desktop-frame scaler" id="home-desktop">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/</div>
+          </div>
+          <div class="scaler" style="position:relative;">
+            <iframe
+              src="http://localhost:3000/"
+              title="Home page"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Check: Primary lockup, hero headline in Instrument Serif, single solid-ochre CTA, paper background, no emoji.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HOW TO FUEL ─────────────────────────────────────────────── -->
+  <div class="section" id="how-to-fuel">
+    <div class="section-header">
+      <span class="eyebrow">02</span>
+      <h2>How to Fuel an Ultra</h2>
+      <code class="path">/how-to-fuel-an-ultra</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/how-to-fuel-an-ultra</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/how-to-fuel-an-ultra"
+              title="How to fuel an ultra"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Check: H1 in Instrument Serif (font-display), H2s in Instrument Serif, body in Inter 17px ink-2, inline data in JetBrains Mono. No exclamation marks.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOG INDEX ──────────────────────────────────────────────── -->
+  <div class="section" id="log">
+    <div class="section-header">
+      <span class="eyebrow">03</span>
+      <h2>Log index</h2>
+      <code class="path">/log</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/log</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/log"
+              title="Log index"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOG POST ──────────────────────────────────────────────── -->
+  <div class="section" id="log-post">
+    <div class="section-header">
+      <span class="eyebrow">04</span>
+      <h2>Log post</h2>
+      <code class="path">/log/how-i-fueled-100km-ultra</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/log/how-i-fueled-100km-ultra</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/log/how-i-fueled-100km-ultra"
+              title="Log post"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Check: H1 Instrument Serif, inline data (33°C, 15 min, 1 L/hr) in JetBrains Mono, no exclamation marks, editorial voice.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PLANNER ────────────────────────────────────────────────── -->
+  <div class="section" id="planner">
+    <div class="section-header">
+      <span class="eyebrow">05</span>
+      <h2>Planner flow</h2>
+      <code class="path">/planner</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+          Step 1 — Athlete
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/planner</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/planner"
+              title="Planner"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Check: paper/ink palette throughout, ochre accent on active step, UFPMark in nav, ghost-ochre nav CTA, no emoji.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 404 ────────────────────────────────────────────────────── -->
+  <div class="section" id="404">
+    <div class="section-header">
+      <span class="eyebrow">06</span>
+      <h2>404 — Not found</h2>
+      <code class="path">/not-a-real-page</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/not-a-real-page</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/not-a-real-page"
+              title="404 page"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Check: UFPMark at opacity-60, "Off the map." in Instrument Serif, paper background, ochre underline links, editorial trail-register copy. SiteNav present.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRAND PREVIEW ─────────────────────────────────────────── -->
+  <div class="section" id="brand-preview">
+    <div class="section-header">
+      <span class="eyebrow">07</span>
+      <h2>Brand preview (dev only)</h2>
+      <code class="path">/brand-preview</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/brand-preview</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/brand-preview"
+              title="Brand preview"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">All five lockups visible (Primary, Nav, Stacked, Compact, Symbol). Colour swatches correct. Gated in production — returns 404 when NODE_ENV=production.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MOBILE ─────────────────────────────────────────────────── -->
+  <div class="section" id="mobile">
+    <div class="section-header">
+      <span class="eyebrow">08</span>
+      <h2>Mobile viewports (390px)</h2>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap mobile">
+        <div class="frame-label">
+          <span class="badge mobile">390×844 (iPhone 14)</span>
+          Home
+        </div>
+        <div class="frame-container mobile-frame">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">/ — mobile</div>
+          </div>
+          <iframe
+            src="http://localhost:3000/"
+            title="Home mobile"
+            scrolling="yes"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <p class="note">Nav collapses, lockup switches to compact/symbol.</p>
+      </div>
+
+      <div class="frame-wrap mobile">
+        <div class="frame-label">
+          <span class="badge mobile">390×844 (iPhone 14)</span>
+          Planner
+        </div>
+        <div class="frame-container mobile-frame">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">/planner — mobile</div>
+          </div>
+          <iframe
+            src="http://localhost:3000/planner"
+            title="Planner mobile"
+            scrolling="yes"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <p class="note">Step-tabs readable, form inputs full-width, ochre step indicator.</p>
+      </div>
+
+      <div class="frame-wrap mobile">
+        <div class="frame-label">
+          <span class="badge mobile">390×844 (iPhone 14)</span>
+          404
+        </div>
+        <div class="frame-container mobile-frame">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">/not-a-real-page — mobile</div>
+          </div>
+          <iframe
+            src="http://localhost:3000/not-a-real-page"
+            title="404 mobile"
+            scrolling="yes"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <p class="note">Centered layout, UFPMark + headline + links on small screen.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRINT ─────────────────────────────────────────────────── -->
+  <div class="section" id="print">
+    <div class="section-header">
+      <span class="eyebrow">09</span>
+      <h2>Print / Race card</h2>
+      <code class="path">/print</code>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop 1440×900</span>
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/print</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/print"
+              title="Print page"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+        <p class="note">Paper white background, JetBrains Mono data tables, compact lockup, no on-screen chrome. Print styles should hide nav.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LEGAL ──────────────────────────────────────────────────── -->
+  <div class="section" id="legal">
+    <div class="section-header">
+      <span class="eyebrow">10</span>
+      <h2>Legal pages</h2>
+    </div>
+
+    <div class="frames-row">
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop</span>
+          Privacy
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/privacy</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/privacy"
+              title="Privacy policy"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame-wrap">
+        <div class="frame-label">
+          <span class="badge desktop">Desktop</span>
+          Terms
+        </div>
+        <div class="frame-container desktop-frame scaler">
+          <div class="browser-chrome">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">localhost:3000/terms</div>
+          </div>
+          <div class="scaler">
+            <iframe
+              src="http://localhost:3000/terms"
+              title="Terms"
+              scrolling="yes"
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Scale desktop iframes to fit their column width
+  function scaleDesktopFrames() {
+    document.querySelectorAll('.frame-container.desktop-frame').forEach(container => {
+      const iframe = container.querySelector('iframe');
+      if (!iframe) return;
+      const scaler = container.querySelector('.scaler');
+      const available = container.clientWidth;
+      const scale = available / 1440;
+      iframe.style.transform = `scale(${scale})`;
+      iframe.style.height = `${900}px`;
+      if (scaler) {
+        scaler.style.height = `${900 * scale}px`;
+        scaler.style.overflow = 'hidden';
+      }
+    });
+  }
+
+  window.addEventListener('load', scaleDesktopFrames);
+  window.addEventListener('resize', scaleDesktopFrames);
+  // Run immediately
+  scaleDesktopFrames();
+</script>
+
+</body>
+</html>

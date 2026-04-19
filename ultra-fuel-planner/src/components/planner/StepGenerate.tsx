@@ -88,8 +88,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Review and generate plan</h1>
-        <p className="mt-2 text-stone-400">
+        <h1 className="text-2xl font-bold text-ink">Review and generate plan</h1>
+        <p className="mt-2 text-ink-3">
           Check the summary below, then generate your fuelling plan.
         </p>
       </div>
@@ -130,7 +130,7 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
         {/* Athlete targets */}
         <Card>
           <CardContent className="p-5">
-            <h3 className="mb-4 text-sm font-semibold text-stone-300">Your targets</h3>
+            <h3 className="mb-4 text-sm font-semibold text-ink-2">Your targets</h3>
             <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4 text-sm">
               {[
                 { label: "Carbs/hr", value: `${athlete.carbTargetPerHour}g` },
@@ -142,8 +142,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
                 },
               ].map((t) => (
                 <div key={t.label}>
-                  <p className="text-xs text-stone-500">{t.label}</p>
-                  <p className="font-semibold text-stone-100">{t.value}</p>
+                  <p className="text-xs text-ink-3">{t.label}</p>
+                  <p className="font-semibold text-ink">{t.value}</p>
                 </div>
               ))}
             </div>
@@ -153,30 +153,30 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
         {/* Ready checks */}
         <Card>
           <CardContent className="p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-stone-300">Ready checks</h3>
+            <h3 className="text-sm font-semibold text-ink-2">Ready checks</h3>
             {readyChecks.map((check) => (
               <div key={check.label} className="flex items-start gap-3">
                 {check.ok ? (
-                  <CheckCircle className="h-4 w-4 flex-shrink-0 text-green-500 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 flex-shrink-0 text-forest mt-0.5" />
                 ) : check.optional ? (
-                  <Info className="h-4 w-4 flex-shrink-0 text-amber-500 mt-0.5" />
+                  <Info className="h-4 w-4 flex-shrink-0 text-ochre mt-0.5" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-500 mt-0.5" />
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 text-clay mt-0.5" />
                 )}
                 <div>
                   <span
                     className={`text-sm font-medium ${
                       check.ok
-                        ? "text-stone-200"
+                        ? "text-ink-2"
                         : check.optional
-                        ? "text-amber-300"
-                        : "text-red-300"
+                        ? "text-ochre"
+                        : "text-clay"
                     }`}
                   >
                     {check.label}
                   </span>
                   {!check.ok && (
-                    <p className="text-xs text-stone-500 mt-0.5">{check.hint}</p>
+                    <p className="text-xs text-ink-3 mt-0.5">{check.hint}</p>
                   )}
                 </div>
               </div>
@@ -185,8 +185,8 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
         </Card>
 
         {/* Assumptions note */}
-        <div className="rounded-lg border border-stone-800 bg-stone-900/30 p-4 text-xs text-stone-500 leading-relaxed">
-          <span className="font-medium text-stone-400">Assumptions used: </span>
+        <div className="rounded-lg border border-rule bg-paper/30 p-4 text-xs text-ink-3 leading-relaxed">
+          <span className="font-medium text-ink-3">Assumptions used: </span>
           Flat pace {DEFAULT_ASSUMPTIONS.paceFlatMinPerKm}min/km · Climb penalty {DEFAULT_ASSUMPTIONS.paceClimbMinPerKmPer100mGain}min per 100m gain · Fuelling interval {DEFAULT_ASSUMPTIONS.minFuelIntervalMinutes}min · Late race after hour {DEFAULT_ASSUMPTIONS.lateRaceHours}.
           All assumptions are visible in the generated plan.
         </div>
@@ -205,7 +205,7 @@ export function StepGenerate({ onBack, onGenerate, isGenerating }: Props) {
           >
             {isGenerating ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-stone-400 border-t-white" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" />
                 Generating...
               </>
             ) : (
@@ -235,15 +235,15 @@ function SummaryCard({
   ok: boolean;
 }) {
   return (
-    <Card className={ok ? "" : "border-stone-700/50 opacity-60"}>
+    <Card className={ok ? "" : "border-rule/50 opacity-60"}>
       <CardContent className="flex items-center gap-3 p-5">
-        <div className="rounded-lg bg-amber-900/30 p-2.5 flex-shrink-0">
-          <Icon className="h-4 w-4 text-amber-500" />
+        <div className="rounded-lg bg-ochre-hover/30 p-2.5 flex-shrink-0">
+          <Icon className="h-4 w-4 text-ochre" />
         </div>
         <div>
-          <p className="text-xs text-stone-500">{label}</p>
-          <p className="font-semibold text-stone-100">{value}</p>
-          <p className="text-xs text-stone-500 mt-0.5">{sub}</p>
+          <p className="text-xs text-ink-3">{label}</p>
+          <p className="font-semibold text-ink">{value}</p>
+          <p className="text-xs text-ink-3 mt-0.5">{sub}</p>
         </div>
       </CardContent>
     </Card>

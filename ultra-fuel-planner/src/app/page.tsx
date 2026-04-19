@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Mountain,
   Route,
   FlaskConical,
   MapPin,
@@ -10,8 +9,11 @@ import {
   Activity,
   Package,
   Check,
+  TrendingUp,
+  Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SiteNav } from "@/components/SiteNav";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata: Metadata = {
@@ -25,41 +27,20 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100">
+    <div className="min-h-screen bg-paper text-ink">
       {/* Beta notice — sits above the sticky nav, scrolls away */}
-      <div className="border-b border-amber-800/20 bg-amber-900/10">
+      <div className="border-b border-ochre/20 bg-ochre-hover/10">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-6 py-2.5">
-          <span className="flex-shrink-0 rounded bg-amber-800/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+          <span className="flex-shrink-0 rounded bg-ochre-hover/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ochre">
             Beta
           </span>
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-ink-3">
             Ultra Fuel Planner is currently in beta. Plans should be tested in training before race day.
           </p>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 w-full border-b border-stone-800/60 bg-stone-950/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Mountain className="h-5 w-5 text-amber-500" />
-            <span className="font-semibold tracking-tight text-stone-50">
-              Ultra Fuel Planner
-            </span>
-          </div>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/log"
-              className="text-sm text-stone-400 hover:text-stone-200 transition-colors"
-            >
-              The Log
-            </Link>
-            <Link href="/planner">
-              <Button size="sm">Start planning</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -74,18 +55,18 @@ export default function HomePage() {
 
         <div className="mx-auto max-w-6xl px-6 py-24 md:py-36">
           <div className="max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-800/40 bg-amber-900/20 px-4 py-1.5 text-xs font-medium text-amber-400">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-ochre/40 bg-ochre-hover/20 px-4 py-1.5 text-xs font-medium text-ochre">
               <Route className="h-3 w-3" />
               Route-aware fuelling planner
             </div>
 
-            <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-stone-50 sm:text-5xl md:text-6xl lg:text-7xl">
+            <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl md:text-6xl lg:text-7xl">
               Plan your fuelling for
               <br />
-              <span className="text-amber-500">the route you&apos;re actually running.</span>
+              <span className="text-ochre">the route you&apos;re actually running.</span>
             </h1>
 
-            <p className="mb-8 max-w-xl text-lg leading-relaxed text-stone-400">
+            <p className="mb-8 max-w-xl text-lg leading-relaxed text-ink-3">
               Upload your route, use data from your previous runs, and build a
               fuelling plan you can actually follow on race day.
             </p>
@@ -97,7 +78,7 @@ export default function HomePage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <span className="text-sm text-stone-500">
+              <span className="text-sm text-ink-3">
                 Free. No account needed.
               </span>
             </div>
@@ -106,49 +87,49 @@ export default function HomePage() {
       </section>
 
       {/* What the planner helps you figure out */}
-      <section className="border-t border-stone-800/60 bg-stone-950 py-20">
+      <section className="border-t border-rule/60 bg-paper py-20">
         <div className="mx-auto max-w-6xl px-6">
-          <h2 className="mb-2 text-center text-3xl font-bold text-stone-50">
+          <h2 className="mb-2 text-center text-3xl font-bold text-ink">
             What the planner helps you figure out
           </h2>
-          <p className="mb-14 text-center text-stone-400">
+          <p className="mb-14 text-center text-ink-3">
             The planning questions that matter for a long race.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
-            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
-              <div className="mb-4 w-fit rounded-full bg-amber-900/20 p-3">
-                <Zap className="h-6 w-6 text-amber-400" />
+            <div className="rounded-xl border border-rule bg-paper/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-ochre-hover/20 p-3">
+                <Zap className="h-6 w-6 text-ochre" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+              <h3 className="mb-2 text-lg font-semibold text-ink">
                 How much to eat per hour
               </h3>
-              <p className="text-sm text-stone-400 leading-relaxed">
+              <p className="text-sm text-ink-3 leading-relaxed">
                 A recommended range based on your race duration and prior runs —
                 not a number from a generic table. The planner selects a working
                 target within that range to build your schedule around.
               </p>
             </div>
-            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
-              <div className="mb-4 w-fit rounded-full bg-orange-900/20 p-3">
-                <Mountain className="h-6 w-6 text-orange-400" />
+            <div className="rounded-xl border border-rule bg-paper/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-ochre/15 p-3">
+                <TrendingUp className="h-6 w-6 text-ochre" aria-hidden="true" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+              <h3 className="mb-2 text-lg font-semibold text-ink">
                 Where fuelling gets difficult
               </h3>
-              <p className="text-sm text-stone-400 leading-relaxed">
+              <p className="text-sm text-ink-3 leading-relaxed">
                 Steep climbs, long gaps between aid stations, and technical
                 descents change what you can eat and when. The plan works
                 around them.
               </p>
             </div>
-            <div className="rounded-xl border border-stone-800 bg-stone-900/40 p-6">
-              <div className="mb-4 w-fit rounded-full bg-blue-900/20 p-3">
-                <Package className="h-6 w-6 text-blue-400" />
+            <div className="rounded-xl border border-rule bg-paper/40 p-6">
+              <div className="mb-4 w-fit rounded-full bg-ufp-slate/15 p-3">
+                <Package className="h-6 w-6 text-ufp-slate" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-stone-100">
+              <h3 className="mb-2 text-lg font-semibold text-ink">
                 What to carry between each checkpoint
               </h3>
-              <p className="text-sm text-stone-400 leading-relaxed">
+              <p className="text-sm text-ink-3 leading-relaxed">
                 A carry list for each section, using the specific gels, drink
                 mixes and food you plan to use on race day.
               </p>
@@ -158,14 +139,14 @@ export default function HomePage() {
       </section>
 
       {/* See the output — race card preview */}
-      <section className="border-t border-stone-800/60 py-20">
+      <section className="border-t border-rule/60 py-20">
         <div className="mx-auto max-w-6xl px-6">
           <div className="grid gap-12 md:grid-cols-2 items-start">
             <div>
-              <h2 className="mb-4 text-3xl font-bold text-stone-50">
+              <h2 className="mb-4 text-3xl font-bold text-ink">
                 A race plan you can actually follow.
               </h2>
-              <p className="mb-6 text-stone-400 leading-relaxed">
+              <p className="mb-6 text-ink-3 leading-relaxed">
                 The planner produces a race card you can print and carry in
                 your vest. It breaks down what to eat, when to eat it, and
                 what to carry between each aid station.
@@ -178,12 +159,12 @@ export default function HomePage() {
                   { label: "Printable race card", detail: "A simple format you can print, fold and carry on race day." },
                 ].map((item) => (
                   <li key={item.label} className="flex items-start gap-3">
-                    <div className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
+                    <div className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ochre" />
                     <div>
-                      <span className="text-sm font-medium text-stone-200">
+                      <span className="text-sm font-medium text-ink-2">
                         {item.label}:{" "}
                       </span>
-                      <span className="text-sm text-stone-400">{item.detail}</span>
+                      <span className="text-sm text-ink-3">{item.detail}</span>
                     </div>
                   </li>
                 ))}
@@ -196,20 +177,20 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Mock race card — faithful to current v2.28 print Page 1 layout */}
-            <div className="rounded-xl border border-stone-700 bg-white p-5 text-stone-900 shadow-2xl shadow-black/40 text-[11px]">
+            {/* Mock race card — mirrors the print/page.tsx race card layout */}
+            <div className="rounded-xl border border-rule bg-paper p-5 text-ink shadow-2xl shadow-black/40 text-[11px]">
 
               {/* ── Card header ─────────────────────────────────────── */}
-              <div className="flex items-start justify-between pb-3 mb-3 border-b-[3px] border-amber-700">
+              <div className="flex items-start justify-between pb-3 mb-3 border-b-[3px] border-ochre">
                 <div>
-                  <h3 className="text-[18px] font-extrabold leading-tight text-stone-900">
+                  <h3 className="text-[18px] font-extrabold leading-tight text-ink">
                     Lakeland 50
                   </h3>
-                  <p className="text-[10px] text-stone-500 mt-0.5">
+                  <p className="text-[10px] text-ink-3 mt-0.5">
                     Ultra Fuel Planner · Race Day Nutrition Card
                   </p>
                 </div>
-                <div className="text-right text-[10px] text-stone-500 leading-relaxed">
+                <div className="text-right text-[10px] text-ink-3 leading-relaxed">
                   <div className="font-semibold">19 Jul 2025</div>
                   <div>82.0 km</div>
                   <div>↑2,800 m · ↓2,800 m</div>
@@ -219,14 +200,14 @@ export default function HomePage() {
               {/* ── 4-column metrics strip ──────────────────────────── */}
               <div className="grid grid-cols-4 gap-1.5 mb-3">
                 {[
-                  { value: "14h 30m", label: "Est. Duration",  color: "text-amber-800" },
-                  { value: "60 g/hr",  label: "Carbs / hr",    color: "text-amber-800" },
-                  { value: "500–650 ml", label: "Fluid / hr",  color: "text-blue-700"  },
-                  { value: "High",     label: "Electrolytes",  color: "text-green-700" },
+                  { value: "14h 30m", label: "Est. Duration",  color: "text-ochre-hover" },
+                  { value: "60 g/hr",  label: "Carbs / hr",    color: "text-ochre-hover" },
+                  { value: "500–650 ml", label: "Fluid / hr",  color: "text-ufp-slate"  },
+                  { value: "High",     label: "Electrolytes",  color: "text-forest" },
                 ].map(({ value, label, color }) => (
-                  <div key={label} className="text-center bg-amber-50 rounded p-1.5 border border-amber-100">
+                  <div key={label} className="text-center bg-paper-2 rounded p-1.5 border border-ochre">
                     <div className={`text-[11px] font-bold ${color}`}>{value}</div>
-                    <div className="text-[8px] text-stone-500 uppercase tracking-wide mt-0.5">{label}</div>
+                    <div className="text-[8px] text-ink-3 uppercase tracking-wide mt-0.5">{label}</div>
                   </div>
                 ))}
               </div>
@@ -235,45 +216,45 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-2">
 
                 {/* Strategy overview */}
-                <div className="border border-stone-200 rounded p-2.5">
-                  <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wider mb-2 pb-1 border-b border-stone-200">
+                <div className="border border-rule rounded p-2.5">
+                  <div className="text-[8px] font-bold text-ochre uppercase tracking-wider mb-2 pb-1 border-b border-rule">
                     Strategy Overview
                   </div>
                   <table className="w-full text-[10px]">
                     <tbody className="[&>tr>td]:py-0.5">
                       <tr>
-                        <td className="text-stone-500 w-[45%]">Carb target</td>
+                        <td className="text-ink-3 w-[45%]">Carb target</td>
                         <td className="font-semibold">60 g/hr · 522g total</td>
                       </tr>
                       <tr>
-                        <td className="text-stone-500">Primary fuels</td>
+                        <td className="text-ink-3">Primary fuels</td>
                         <td className="font-semibold">Gels + Chews</td>
                       </tr>
                       <tr>
-                        <td className="text-stone-500">Drink mix</td>
-                        <td className="font-semibold text-blue-700">3 sections</td>
+                        <td className="text-ink-3">Drink mix</td>
+                        <td className="font-semibold text-ufp-slate">3 sections</td>
                       </tr>
                       <tr>
-                        <td className="text-stone-500">Fuel events</td>
+                        <td className="text-ink-3">Fuel events</td>
                         <td className="font-semibold">41 scheduled</td>
                       </tr>
                       <tr>
-                        <td className="text-stone-500">Checkpoints</td>
+                        <td className="text-ink-3">Checkpoints</td>
                         <td className="font-semibold">6 aid stations</td>
                       </tr>
                     </tbody>
                   </table>
-                  <div className="mt-2 text-[9px] text-blue-700 bg-blue-50 rounded px-1.5 py-1">
-                    💧 500–650 ml/hr · Warm conditions
+                  <div className="mt-2 text-[9px] text-ufp-slate bg-ufp-slate/10 rounded px-1.5 py-1">
+                    Fluid: 500–650 ml/hr · Warm conditions
                   </div>
-                  <div className="mt-1 text-[9px] text-green-700 bg-green-50 rounded px-1.5 py-1">
-                    ⚡ High sodium — electrolyte tabs recommended
+                  <div className="mt-1 text-[9px] text-forest bg-forest/10 rounded px-1.5 py-1">
+                    High sodium — electrolyte tabs recommended
                   </div>
                 </div>
 
                 {/* Total items required */}
-                <div className="border border-stone-200 rounded p-2.5">
-                  <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wider mb-2 pb-1 border-b border-stone-200">
+                <div className="border border-rule rounded p-2.5">
+                  <div className="text-[8px] font-bold text-ochre uppercase tracking-wider mb-2 pb-1 border-b border-rule">
                     Total Items Required
                   </div>
                   {[
@@ -282,11 +263,11 @@ export default function HomePage() {
                     { type: "Drink Mix", items: [{ name: "Maurten 320", qty: 3, carbs: "243g" }] },
                   ].map(({ type, items }) => (
                     <div key={type} className="mb-1.5">
-                      <div className="text-[8px] font-bold text-amber-700 uppercase tracking-wide mb-0.5">{type}</div>
+                      <div className="text-[8px] font-bold text-ochre uppercase tracking-wide mb-0.5">{type}</div>
                       {items.map((item) => (
                         <div key={item.name} className="flex justify-between text-[10px]">
-                          <span className="text-stone-700">{item.name}</span>
-                          <span className="text-stone-500">×{item.qty} · {item.carbs}</span>
+                          <span className="text-ink-2">{item.name}</span>
+                          <span className="text-ink-3">×{item.qty} · {item.carbs}</span>
                         </div>
                       ))}
                     </div>
@@ -295,8 +276,8 @@ export default function HomePage() {
               </div>
 
               {/* ── Card footer ─────────────────────────────────────── */}
-              <div className="pt-2 mt-2 border-t border-stone-200 flex justify-between text-[9px] text-stone-400">
-                <span>Ultra Fuel Planner v2.31 · ultrafuelplanner.com</span>
+              <div className="pt-2 mt-2 border-t border-rule flex justify-between text-[9px] text-ink-3">
+                <span>Ultra Fuel Planner · ultrafuelplanner.com</span>
                 <span>All times are estimates</span>
               </div>
             </div>
@@ -305,12 +286,12 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="border-t border-stone-800/60 bg-stone-950 py-20">
+      <section className="border-t border-rule/60 bg-paper py-20">
         <div className="mx-auto max-w-6xl px-6">
-          <h2 className="mb-2 text-center text-3xl font-bold text-stone-50">
+          <h2 className="mb-2 text-center text-3xl font-bold text-ink">
             How it works
           </h2>
-          <p className="mb-14 text-center text-stone-400">
+          <p className="mb-14 text-center text-ink-3">
             Four steps. Your data, your route, your plan.
           </p>
 
@@ -343,20 +324,20 @@ export default function HomePage() {
             ].map((item) => (
               <div
                 key={item.step}
-                className="relative rounded-xl border border-stone-800 bg-stone-900/40 p-6"
+                className="relative rounded-xl border border-rule bg-paper/40 p-6"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="rounded-lg bg-amber-900/30 p-2.5">
-                    <item.icon className="h-5 w-5 text-amber-500" />
+                  <div className="rounded-lg bg-ochre-hover/30 p-2.5">
+                    <item.icon className="h-5 w-5 text-ochre" />
                   </div>
-                  <span className="text-3xl font-bold text-stone-800">
+                  <span className="text-3xl font-bold text-ink">
                     {item.step}
                   </span>
                 </div>
-                <h3 className="mb-2 font-semibold text-stone-100">
+                <h3 className="mb-2 font-semibold text-ink">
                   {item.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-stone-400">
+                <p className="text-sm leading-relaxed text-ink-3">
                   {item.desc}
                 </p>
               </div>
@@ -366,12 +347,12 @@ export default function HomePage() {
       </section>
 
       {/* Why it's different */}
-      <section className="border-t border-stone-800/60 py-20">
+      <section className="border-t border-rule/60 py-20">
         <div className="mx-auto max-w-3xl px-6">
-          <h2 className="mb-4 text-center text-3xl font-bold text-stone-50">
+          <h2 className="mb-4 text-center text-3xl font-bold text-ink">
             Not a calorie calculator.
           </h2>
-          <p className="mb-10 text-center text-stone-400 leading-relaxed">
+          <p className="mb-10 text-center text-ink-3 leading-relaxed">
             What makes this different from a spreadsheet or a generic fuelling guide.
           </p>
           <div className="space-y-5">
@@ -398,12 +379,12 @@ export default function HomePage() {
               },
             ].map((item) => (
               <div key={item.title} className="flex items-start gap-4">
-                <div className="mt-1 flex-shrink-0 rounded-full bg-amber-900/30 p-1.5">
-                  <Check className="h-3.5 w-3.5 text-amber-400" />
+                <div className="mt-1 flex-shrink-0 rounded-full bg-ochre-hover/30 p-1.5">
+                  <Check className="h-3.5 w-3.5 text-ochre" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-stone-200">{item.title}</h3>
-                  <p className="mt-0.5 text-sm text-stone-500 leading-relaxed">{item.desc}</p>
+                  <h3 className="text-sm font-semibold text-ink-2">{item.title}</h3>
+                  <p className="mt-0.5 text-sm text-ink-3 leading-relaxed">{item.desc}</p>
                 </div>
               </div>
             ))}
@@ -412,20 +393,20 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-stone-800/60 py-24">
+      <section className="border-t border-rule/60 py-24">
         <div className="mx-auto max-w-2xl px-6 text-center">
-          <Mountain className="mx-auto mb-6 h-10 w-10 text-amber-500 opacity-60" />
-          <h2 className="mb-4 text-4xl font-bold text-stone-50">
+          <Flag className="mx-auto mb-6 h-10 w-10 text-ochre" aria-hidden="true" />
+          <h2 className="mb-4 text-4xl font-bold text-ink">
             Race day is not the time to figure out fuelling.
           </h2>
-          <p className="mb-8 text-stone-400 leading-relaxed">
+          <p className="mb-8 text-ink-3 leading-relaxed">
             Build a practical race strategy from your own data and your actual
             course. Know what to carry, where fuelling gets harder, and what to
             restock at each checkpoint — before you toe the line.
           </p>
           <Link href="/planner">
             <Button size="lg" className="gap-2">
-              Build your plan — it&apos;s free
+              Build your plan
               <ChevronRight className="h-4 w-4" />
             </Button>
           </Link>

@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { SiteNav } from "@/components/SiteNav";
+import { PlannerStepBar } from "@/components/planner/PlannerStepBar";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata: Metadata = {
   title: "Planner",
@@ -14,5 +17,14 @@ export default function PlannerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <SiteNav showPlannerLink={false} />
+      <PlannerStepBar />
+      <main className="min-h-screen bg-paper text-ink">
+        {children}
+      </main>
+      <LegalFooter compact />
+    </>
+  );
 }

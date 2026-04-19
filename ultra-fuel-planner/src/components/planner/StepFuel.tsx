@@ -23,6 +23,7 @@ import {
   Edit2,
   X,
   Check,
+  Package,
 } from "lucide-react";
 import { generateId, fuelTypeIcon, fuelTypeLabel } from "@/lib/utils";
 
@@ -117,8 +118,8 @@ export function StepFuel({ onBack, onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Your fuel preferences</h1>
-        <p className="mt-2 text-stone-400">
+        <h1 className="text-2xl font-bold text-ink">Your fuel preferences</h1>
+        <p className="mt-2 text-ink-3">
           Add the products you want to use. The planner matches them to terrain
           and builds your race-day kit list.
         </p>
@@ -127,9 +128,9 @@ export function StepFuel({ onBack, onNext }: Props) {
       <div className="space-y-4">
         {/* Summary bar */}
         {inventory.length > 0 && (
-          <div className="flex items-center justify-between rounded-lg border border-stone-800 bg-stone-900/40 px-5 py-3">
-            <div className="text-sm text-stone-400">
-              <span className="font-semibold text-stone-200">
+          <div className="flex items-center justify-between rounded-lg border border-rule bg-paper/40 px-5 py-3">
+            <div className="text-sm text-ink-3">
+              <span className="font-semibold text-ink-2">
                 {inventory.length} {inventory.length === 1 ? "product" : "products"} added
               </span>
             </div>
@@ -144,10 +145,10 @@ export function StepFuel({ onBack, onNext }: Props) {
         {inventory.length === 0 && !adding && (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <div className="text-4xl">🍌</div>
+              <Package className="h-10 w-10 text-ink-4 mx-auto" />
               <div>
-                <p className="font-medium text-stone-200">No products added yet</p>
-                <p className="text-sm text-stone-500">
+                <p className="font-medium text-ink-2">No products added yet</p>
+                <p className="text-sm text-ink-3">
                   Add the gels, chews, bars, or drink mixes you want to use.
                 </p>
               </div>
@@ -187,7 +188,7 @@ export function StepFuel({ onBack, onNext }: Props) {
         {inventory.length > 0 && !adding && !editing && (
           <button
             onClick={startAdd}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-stone-700 py-4 text-sm text-stone-500 hover:border-stone-500 hover:text-stone-400 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rule py-4 text-sm text-ink-3 hover:border-rule hover:text-ink-3 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add another item
@@ -226,21 +227,21 @@ function FuelItemCard({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-stone-800 bg-stone-900/40 px-5 py-4">
+    <div className="flex items-center gap-4 rounded-xl border border-rule bg-paper/40 px-5 py-4">
       <div className="text-2xl flex-shrink-0">{fuelTypeIcon(item.type)}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-stone-100">{item.productName}</span>
+          <span className="font-medium text-ink">{item.productName}</span>
           {item.brand && (
-            <span className="text-xs text-stone-500">{item.brand}</span>
+            <span className="text-xs text-ink-3">{item.brand}</span>
           )}
           <Badge variant="secondary" className="text-xs">
             {fuelTypeLabel(item.type)}
           </Badge>
         </div>
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-stone-500">
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-3">
           <span>
-            <span className="text-amber-400 font-medium">{item.carbsPerServing}g</span> carbs/serving
+            <span className="text-ochre font-medium">{item.carbsPerServing}g</span> carbs/serving
           </span>
           <span>{item.sodiumPerServingMg}mg sodium</span>
           {item.caffeinePerServingMg > 0 && (
@@ -251,13 +252,13 @@ function FuelItemCard({
       <div className="flex items-center gap-1 flex-shrink-0">
         <button
           onClick={onEdit}
-          className="rounded-md p-2 text-stone-500 hover:bg-stone-800 hover:text-stone-300 transition-colors"
+          className="rounded-md p-2 text-ink-3 hover:bg-paper-2 hover:text-ink-2 transition-colors"
         >
           <Edit2 className="h-4 w-4" />
         </button>
         <button
           onClick={onDelete}
-          className="rounded-md p-2 text-stone-500 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+          className="rounded-md p-2 text-ink-3 hover:bg-clay/15 hover:text-clay transition-colors"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -296,7 +297,7 @@ function FuelItemForm({
   };
 
   return (
-    <Card className="border-amber-800/40">
+    <Card className="border-ochre/40">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">
@@ -304,7 +305,7 @@ function FuelItemForm({
           </CardTitle>
           <button
             onClick={onCancel}
-            className="text-stone-500 hover:text-stone-300"
+            className="text-ink-3 hover:text-ink-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -476,7 +477,7 @@ function ScoreSelector({
   return (
     <div>
       <Label>{label}</Label>
-      <p className="mb-2 text-xs text-stone-500">{description}</p>
+      <p className="mb-2 text-xs text-ink-3">{description}</p>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -485,8 +486,8 @@ function ScoreSelector({
             onClick={() => onChange(n)}
             className={`flex-1 rounded-md py-1.5 text-xs font-medium transition-colors ${
               n <= value
-                ? "bg-amber-800 text-amber-100"
-                : "bg-stone-800 text-stone-500 hover:bg-stone-700"
+                ? "bg-ochre-hover text-ochre-soft"
+                : "bg-paper-2 text-ink-3 hover:bg-paper-3"
             }`}
           >
             {n}
@@ -514,22 +515,22 @@ function FlagToggle({
       onClick={() => onChange(!checked)}
       className={`flex items-start gap-2 rounded-lg border p-3 text-left text-xs transition-colors ${
         checked
-          ? "border-amber-700/40 bg-amber-900/20"
-          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+          ? "border-ochre/40 bg-ochre-hover/20"
+          : "border-rule bg-paper/20 hover:border-rule"
       }`}
     >
       <div
         className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 rounded border ${
           checked
-            ? "border-amber-600 bg-amber-700"
-            : "border-stone-600 bg-stone-800"
+            ? "border-ochre bg-ochre"
+            : "border-rule bg-paper-2"
         } flex items-center justify-center`}
       >
-        {checked && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+        {checked && <Check className="h-2.5 w-2.5 text-paper" strokeWidth={3} />}
       </div>
       <div>
-        <div className="font-medium text-stone-200">{label}</div>
-        <div className="text-stone-500">{description}</div>
+        <div className="font-medium text-ink-2">{label}</div>
+        <div className="text-ink-3">{description}</div>
       </div>
     </button>
   );

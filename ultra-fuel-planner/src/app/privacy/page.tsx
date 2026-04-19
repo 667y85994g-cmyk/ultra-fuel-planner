@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Mountain } from "lucide-react";
+import { SiteNav } from "@/components/SiteNav";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata = {
@@ -8,29 +7,18 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-stone-950 flex flex-col">
-      {/* Nav */}
-      <nav className="border-b border-stone-800/60 bg-stone-950">
-        <div className="mx-auto flex max-w-3xl items-center px-6 py-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-stone-400 hover:text-stone-200 transition-colors"
-          >
-            <Mountain className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium">Ultra Fuel Planner</span>
-          </Link>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-paper flex flex-col">
+      <SiteNav />
 
       {/* Content */}
       <main className="flex-1 mx-auto w-full max-w-2xl px-6 py-16">
-        <h1 className="text-3xl font-bold text-stone-50 mb-2">Privacy</h1>
-        <p className="text-sm text-stone-500 mb-12">Last updated: March 2026</p>
+        <h1 className="text-3xl font-bold text-ink mb-2">Privacy</h1>
+        <p className="text-sm text-ink-3 mb-12">Last updated: March 2026</p>
 
-        <div className="space-y-10 text-stone-400 leading-relaxed">
+        <div className="space-y-10 text-ink-3 leading-relaxed">
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">What you enter into the planner</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">What you enter into the planner</h2>
             <p>
               The planner collects the following information as you work through
               the planning steps:
@@ -45,17 +33,17 @@ export default function PrivacyPage() {
                 "Planner outputs — the generated fuelling schedule and carry plan",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
-                  <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-amber-500" />
+                  <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-ochre" />
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">How planner data is stored</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">How planner data is stored</h2>
             <p>
               Your planner inputs and outputs are saved to your browser&apos;s
               local storage. This means the data is stored on your device, in your
@@ -68,10 +56,10 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">No accounts, no database</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">No accounts, no database</h2>
             <p>
               Ultra Fuel Planner does not require an account. We do not collect
               your name, email address or any identifying information. There is no
@@ -79,10 +67,10 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">GPX file processing</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">GPX file processing</h2>
             <p>
               When you upload a GPX file, its contents are parsed to extract
               elevation and route data. This processing may involve a server-side
@@ -91,10 +79,10 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Hosting and infrastructure</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Hosting and infrastructure</h2>
             <p>
               Ultra Fuel Planner is hosted via Vercel and managed via GitHub.
               Normal web server logging may occur at the infrastructure level —
@@ -104,15 +92,15 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Analytics</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Analytics</h2>
             <p>
               This site uses Google Analytics 4 to collect anonymised usage data —
               for example, which pages are visited and how the planner is used. This
               data is collected via the{" "}
-              <span className="text-stone-300">gtag.js</span> script and sent to
+              <span className="text-ink-2">gtag.js</span> script and sent to
               Google. No personally identifiable information (name, email, planner
               inputs) is included in these events.
             </p>
@@ -123,7 +111,7 @@ export default function PrivacyPage() {
                 href="https://tools.google.com/dlpage/gaoptout"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-stone-300 hover:text-stone-100 transition-colors"
+                className="text-ink-2 hover:text-ink transition-colors"
               >
                 Google Analytics opt-out browser add-on
               </a>
@@ -134,13 +122,13 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Contact</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Contact</h2>
             <p>
               For privacy questions, contact:{" "}
-              <a href="mailto:ben@trailhustle.com" className="text-stone-300 hover:text-stone-100 transition-colors">ben@trailhustle.com</a>
+              <a href="mailto:ben@trailhustle.com" className="text-ink-2 hover:text-ink transition-colors">ben@trailhustle.com</a>
             </p>
           </section>
 

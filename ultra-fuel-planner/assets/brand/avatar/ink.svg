@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Ultra Fuel Planner avatar — ink">
+  <title>UFP — ink avatar</title>
+  <rect width="400" height="400" fill="#17140f"/>
+  <path d="M 40 298 L 62 290 L 82 298 L 102 280 L 120 286 L 142 258 L 162 232 L 182 250 L 202 210 L 222 176 L 240 154 L 258 166 L 275 134 L 298 150 L 318 182 L 340 214 L 360 246 L 380 274 L 400 290" fill="none" stroke="#f4efe6" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="275" cy="134" r="16" fill="#c2691a"/>
+  <text x="200" y="370" text-anchor="middle" font-family="Instrument Serif, Source Serif Pro, Georgia, serif" font-size="26" fill="#f4efe6" letter-spacing="3">Ultra Fuel Planner</text>
+</svg>

@@ -29,9 +29,9 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
               disabled={step.id > currentStep}
               className={cn(
                 "flex h-7 min-w-[28px] items-center justify-center rounded-full px-2.5 text-xs font-medium transition-all",
-                isDone && "bg-amber-700 text-stone-50 hover:bg-amber-600 cursor-pointer",
-                isActive && "bg-amber-900 text-amber-200 ring-1 ring-amber-700",
-                !isDone && !isActive && "bg-stone-800 text-stone-500 cursor-not-allowed"
+                isDone && "bg-ochre text-ink hover:bg-ochre-hover cursor-pointer",
+                isActive && "bg-ochre-hover text-ochre ring-1 ring-ochre",
+                !isDone && !isActive && "bg-paper-2 text-ink-3 cursor-not-allowed"
               )}
             >
               {isDone ? (
@@ -46,7 +46,7 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
               <div
                 className={cn(
                   "mx-1 h-px w-6 transition-colors",
-                  step.id < currentStep ? "bg-amber-700" : "bg-stone-700"
+                  step.id < currentStep ? "bg-ochre" : "bg-paper-3"
                 )}
               />
             )}

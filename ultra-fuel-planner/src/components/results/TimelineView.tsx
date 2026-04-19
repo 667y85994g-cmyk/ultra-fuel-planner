@@ -3,9 +3,9 @@
 import type { PlannerOutput, FuelScheduleEntry, FuelAction } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatTime, terrainBgClass, fuelTypeIcon } from "@/lib/utils";
+import { formatTime, terrainBgClass } from "@/lib/utils";
 import { terrainLabel } from "@/lib/segmentation";
-import { MapPin, AlertTriangle } from "lucide-react";
+import { MapPin, AlertTriangle, ClipboardList } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
@@ -22,15 +22,16 @@ function toTimeOfDay(raceMinutes: number, startTime: string): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
-const ACTION_ICONS: Record<FuelAction, string> = {
-  consume_gel: "💧",
-  consume_chew: "🍬",
-  consume_bar: "🍫",
-  consume_food: "🍌",
-  drink_fluid: "🫙",
-  take_capsule: "💊",
-  refill_at_aid: "🏁",
-  restock_carry: "🎒",
+// Dot colour class per action type — used for the timeline glyph column
+const ACTION_DOT: Record<FuelAction, string> = {
+  consume_gel:    "bg-ochre",
+  consume_chew:   "bg-ochre",
+  consume_bar:    "bg-ochre",
+  consume_food:   "bg-ochre",
+  drink_fluid:    "bg-ufp-slate",
+  take_capsule:   "bg-ink-3",
+  refill_at_aid:  "bg-ochre-soft",
+  restock_carry:  "bg-paper-3",
 };
 
 function actionLabel(action: FuelAction, fuelName?: string): string {
@@ -64,8 +65,8 @@ export function TimelineView({ output, raceStartTime }: Props) {
   if (schedule.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
-        <div className="text-4xl">📋</div>
-        <p className="text-stone-400">No schedule generated. Check your plan inputs.</p>
+        <ClipboardList className="h-10 w-10 text-ink-4 mx-auto" />
+        <p className="text-ink-3">No schedule generated. Check your plan inputs.</p>
       </div>
     );
   }
@@ -76,11 +77,11 @@ export function TimelineView({ output, raceStartTime }: Props) {
   return (
     <div className="space-y-2">
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-stone-50">Fuelling Timeline</h2>
-        <p className="mt-1 text-sm text-stone-400">
+        <h2 className="text-xl font-bold text-ink">Fuelling Timeline</h2>
+        <p className="mt-1 text-sm text-ink-3">
           {schedule.length} fuelling events across your race. Times are estimates based on terrain and pace.
           {raceStartTime && (
-            <span className="ml-1 text-amber-400">Start: {raceStartTime}</span>
+            <span className="ml-1 text-ochre">Start: {raceStartTime}</span>
           )}
         </p>
       </div>
@@ -95,10 +96,10 @@ export function TimelineView({ output, raceStartTime }: Props) {
         return (
           <div key={hour}>
             <div className="mb-2 flex items-center gap-3">
-              <div className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
+              <div className="text-xs font-semibold text-ink-3 uppercase tracking-wider">
                 {hourLabel}
               </div>
-              <div className="flex-1 h-px bg-stone-800" />
+              <div className="flex-1 h-px bg-paper-2" />
             </div>
 
             <div className="space-y-1.5 mb-4">
@@ -130,19 +131,19 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
   // The band communicates "this bottle supports the section" not "eat this now".
   if (entry.isContinuous) {
     return (
-      <div className="flex items-center gap-2.5 rounded-r-md border-l-[3px] border-blue-800/35 bg-blue-950/8 pl-3 pr-4 py-1">
-        <span className="flex-shrink-0 text-[10px] text-blue-700/50 select-none leading-none">≋</span>
+      <div className="flex items-center gap-2.5 rounded-r-md border-l-[3px] border-ufp-slate/30 bg-ufp-slate/5 pl-3 pr-4 py-1">
+        <span className="flex-shrink-0 text-[10px] text-ufp-slate/50 select-none leading-none">≋</span>
         <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-          <span className="text-[11px] text-blue-400/70 font-medium leading-tight">
+          <span className="text-[11px] text-ufp-slate/70 font-medium leading-tight">
             In bottle:{" "}
             <span className="font-normal">{entry.fuelItemName ?? "Drink mix"}</span>
             {entry.quantity > 1 && (
-              <span className="text-blue-400/50"> ×{entry.quantity}</span>
+              <span className="text-ufp-slate/50"> ×{entry.quantity}</span>
             )}
           </span>
-          <span className="text-[11px] text-stone-600 italic leading-tight">sip steadily through this section</span>
+          <span className="text-[11px] text-ink-3 italic leading-tight">sip steadily through this section</span>
           {entry.carbsG > 0 && (
-            <span className="text-[11px] text-stone-600 leading-tight">~{entry.carbsG}g carbs</span>
+            <span className="text-[11px] text-ink-3 leading-tight">~{entry.carbsG}g carbs</span>
           )}
         </div>
       </div>
@@ -153,27 +154,27 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
     <div
       className={`flex items-start gap-3 rounded-lg px-4 py-3 transition-colors ${
         isAid
-          ? "border border-amber-700/30 bg-amber-900/15"
+          ? "border border-ochre/30 bg-ochre-hover/15"
           : isRequired
-          ? "bg-stone-900/60"
-          : "bg-stone-900/30"
+          ? "bg-paper/60"
+          : "bg-paper/30"
       }`}
     >
       {/* Time */}
-      <div className="flex-shrink-0 font-mono text-xs text-stone-500 pt-0.5">
+      <div className="flex-shrink-0 font-mono text-xs text-ink-3 pt-0.5">
         {raceStartTime ? (
           <div className="flex flex-col">
-            <span className="text-stone-200">{toTimeOfDay(entry.timeMinutes, raceStartTime)}</span>
-            <span className="text-stone-600">{formatTime(entry.timeMinutes)}</span>
+            <span className="text-ink-2">{toTimeOfDay(entry.timeMinutes, raceStartTime)}</span>
+            <span className="text-ink-3">{formatTime(entry.timeMinutes)}</span>
           </div>
         ) : (
           <span className="w-12 block">{formatTime(entry.timeMinutes)}</span>
         )}
       </div>
 
-      {/* Icon */}
-      <div className="flex-shrink-0 text-lg leading-none mt-0.5">
-        {ACTION_ICONS[entry.action] ?? "⚡"}
+      {/* Type dot */}
+      <div className="flex-shrink-0 mt-1.5">
+        <div className={`h-2.5 w-2.5 rounded-full ${ACTION_DOT[entry.action] ?? "bg-ink-4"}`} />
       </div>
 
       {/* Main content */}
@@ -182,12 +183,12 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`text-sm font-medium ${
-                isAid ? "text-amber-300" : "text-stone-200"
+                isAid ? "text-ochre" : "text-ink-2"
               }`}
             >
               {actionLabel(entry.action, entry.fuelItemName)}
               {entry.quantity > 1 && (
-                <span className="text-stone-500"> ×{entry.quantity}</span>
+                <span className="text-ink-3"> ×{entry.quantity}</span>
               )}
             </span>
 
@@ -198,35 +199,35 @@ function TimelineEntry({ entry, raceStartTime }: { entry: FuelScheduleEntry; rac
             )}
 
             {isAid && (
-              <MapPin className="h-3.5 w-3.5 text-amber-500" />
+              <MapPin className="h-3.5 w-3.5 text-ochre" />
             )}
           </div>
 
           {/* Stats — carbs only; fluid guidance lives in the summary */}
-          <div className="flex-shrink-0 flex gap-2 text-xs text-stone-500">
+          <div className="flex-shrink-0 flex gap-2 text-xs text-ink-3">
             {entry.carbsG > 0 && (
-              <span className="text-amber-600 font-medium">{entry.carbsG}g</span>
+              <span className="text-ochre font-medium">{entry.carbsG}g</span>
             )}
           </div>
         </div>
 
         {/* Rationale */}
-        <p className="mt-0.5 text-xs text-stone-500 leading-relaxed line-clamp-1">
+        <p className="mt-0.5 text-xs text-ink-3 leading-relaxed line-clamp-1">
           {entry.rationale}
         </p>
 
         {/* Warnings */}
         {entry.warnings && entry.warnings.length > 0 && (
           <div className="mt-1 flex items-start gap-1.5">
-            <AlertTriangle className="h-3 w-3 text-amber-500 flex-shrink-0 mt-0.5" />
-            <span className="text-xs text-amber-500">
+            <AlertTriangle className="h-3 w-3 text-ochre flex-shrink-0 mt-0.5" />
+            <span className="text-xs text-ochre">
               {entry.warnings[0]}
             </span>
           </div>
         )}
 
         {/* Distance */}
-        <p className="mt-0.5 text-xs text-stone-600">
+        <p className="mt-0.5 text-xs text-ink-3">
           km {entry.distanceKm.toFixed(1)}
         </p>
       </div>

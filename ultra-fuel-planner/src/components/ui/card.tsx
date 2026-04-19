@@ -1,16 +1,28 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Variant controls surface depth within the paper stack.
+ *
+ * - `default`  paper-2 background, rule border — the standard card
+ * - `sunken`   paper-3 background, no border — nested content inside a card
+ * - `ghost`    transparent, border-bottom only — list rows acting as cards
+ */
+export type CardVariant = "default" | "sunken" | "ghost";
+
+const cardVariants: Record<CardVariant, string> = {
+  default: "bg-paper-2 border border-rule",
+  sunken:  "bg-paper-3",
+  ghost:   "bg-transparent border-0 border-b border-rule rounded-none",
+};
+
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { variant?: CardVariant }
+>(({ className, variant = "default", ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      "rounded-xl border border-stone-800 bg-stone-900/60 shadow backdrop-blur-sm",
-      className
-    )}
+    className={cn("rounded", cardVariants[variant], className)}
     {...props}
   />
 ));
@@ -34,7 +46,10 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
-    className={cn("font-semibold leading-none tracking-tight text-stone-50", className)}
+    className={cn(
+      "font-semibold leading-none tracking-tight text-ink",
+      className
+    )}
     {...props}
   />
 ));
@@ -46,7 +61,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-stone-400", className)}
+    className={cn("text-sm text-ink-3", className)}
     {...props}
   />
 ));
@@ -72,4 +87,11 @@ const CardFooter = React.forwardRef<
 ));
 CardFooter.displayName = "CardFooter";
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardDescription,
+  CardContent,
+};

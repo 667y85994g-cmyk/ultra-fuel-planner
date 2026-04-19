@@ -29,15 +29,15 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded-md border border-stone-700 bg-stone-900 px-3 py-2 text-xs shadow-lg">
-      <p className="text-stone-400">
+    <div className="rounded-md border border-rule bg-paper px-3 py-2 text-xs shadow-lg">
+      <p className="text-ink-3">
         km {d.distanceKm.toFixed(1)}
       </p>
-      <p className="font-semibold text-stone-100">
+      <p className="font-semibold text-ink">
         {Math.round(d.elevationM)}m
       </p>
       {d.gradient !== undefined && (
-        <p className={`text-xs ${d.gradient > 10 ? "text-orange-400" : d.gradient < -10 ? "text-blue-400" : "text-stone-400"}`}>
+        <p className={`text-xs ${d.gradient > 10 ? "text-ochre" : d.gradient < -10 ? "text-ufp-slate" : "text-ink-3"}`}>
           {d.gradient > 0 ? "+" : ""}{d.gradient.toFixed(1)}%
         </p>
       )}
@@ -58,8 +58,8 @@ export function ElevationChart({ data, segments = [], height = 200 }: Props) {
         <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="elevGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#92400e" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#92400e" stopOpacity={0.05} />
+              <stop offset="5%" stopColor="var(--ufp-ochre-hover)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--ufp-ochre-hover)" stopOpacity={0.05} />
             </linearGradient>
           </defs>
 
@@ -73,7 +73,7 @@ export function ElevationChart({ data, segments = [], height = 200 }: Props) {
             dataKey="distanceKm"
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#78716c", fontSize: 11 }}
+            tick={{ fill: "var(--ufp-ink-4)", fontSize: 11 }}
             tickFormatter={(v) => `${v}km`}
             interval="preserveStartEnd"
           />
@@ -82,7 +82,7 @@ export function ElevationChart({ data, segments = [], height = 200 }: Props) {
             domain={[minEle - padding, maxEle + padding]}
             tickLine={false}
             axisLine={false}
-            tick={{ fill: "#78716c", fontSize: 11 }}
+            tick={{ fill: "var(--ufp-ink-4)", fontSize: 11 }}
             tickFormatter={(v) => `${Math.round(v)}m`}
             width={50}
           />
@@ -104,11 +104,11 @@ export function ElevationChart({ data, segments = [], height = 200 }: Props) {
           <Area
             type="monotone"
             dataKey="elevationM"
-            stroke="#b45309"
+            stroke="var(--ufp-ochre)"
             strokeWidth={2}
             fill="url(#elevGrad)"
             dot={false}
-            activeDot={{ r: 3, fill: "#f59e0b" }}
+            activeDot={{ r: 3, fill: "var(--ufp-ochre)" }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -122,7 +122,7 @@ export function ElevationChart({ data, segments = [], height = 200 }: Props) {
                 className="h-2 w-3 rounded-sm"
                 style={{ backgroundColor: terrainColor(terrain) }}
               />
-              <span className="text-xs text-stone-500 capitalize">
+              <span className="text-xs text-ink-3 capitalize">
                 {terrain.replace(/_/g, " ")}
               </span>
             </div>

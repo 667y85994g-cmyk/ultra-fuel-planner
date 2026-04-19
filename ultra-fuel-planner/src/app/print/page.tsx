@@ -17,19 +17,54 @@ import { terrainLabel } from "@/lib/segmentation";
 import { trackPlanPrinted } from "@/lib/analytics";
 import { QRCodeSVG } from "qrcode.react";
 
+// ── Brand print tokens ─────────────────────────────────────────────────────────
+// Single source of truth for all hex values on the print page.
+// Canvas 2D ctx.fillStyle/strokeStyle cannot accept CSS custom properties —
+// all brand colours must be resolved to hex literals at the call site.
+const PRINT_TOKENS = {
+  // ── Paper surfaces ────────────────────────────────────────────────────────────
+  paper:       '#f4efe6',  // --paper         : page/card backgrounds, tile fallback bg
+  paper2:      '#ede6d8',  // --paper-2       : table headers, slightly tinted rows
+  paperDim:    '#d8cfbe',  // --paper-dim/rule: borders, grid lines, dividers
+  screenBg:    '#ccc4b8',  // print-only      : outer wrapper bg visible in browser preview
+  ochreWash:   '#fdf4e8',  // ~ochre/6        : aid station row background (warm tint)
+
+  // ── Ink (text) ────────────────────────────────────────────────────────────────
+  ink:         '#17140f',  // --ink   : primary text, QR fg colour
+  ink2:        '#3a342a',  // --ink-2 : secondary text, item lists, recovery body text
+  ink3:        '#6b6356',  // --ink-3 : labels, km/terrain columns, axis tick text
+  ink4:        '#a39a89',  // --ink-4 : muted text, section numbers, disclaimers
+
+  // ── Brand accent ──────────────────────────────────────────────────────────────
+  ochre:       '#c2691a',  // --ochre      : carbs value, food/gel fuel dots, route fallback
+  ochreHover:  '#a85a14',  // --ochre-hover: section headings, time column, brand URLs
+  ochreSoft:   '#e6b787',  // --ochre-soft : aid station markers, axis lines, warm borders
+
+  // ── Semantic status ───────────────────────────────────────────────────────────
+  clay:        '#a83d18',  // --clay     : finish marker, steep climb terrain, error/warning
+  forest:      '#1f5c3a',  // --forest   : start marker, success, rolling terrain, chew dots
+  slate:       '#225668',  // --ufp-slate: fluid, drink-mix sections, technical descent
+
+  // ── Tinted surface fills (brand-derived; used in callout / info boxes) ────────
+  slateLight:  '#e4edf0',  // ~slate/10 : drink-mix row bg, hydration note bg
+  slateRule:   '#c2d4db',  // ~slate/30 : drink-mix row border, sodium note border
+  forestLight: '#e4f0ea',  // ~forest/10: recovery window card bg and border
+} as const;
+
 // ── Print-friendly terrain colours ────────────────────────────────────────────
-// Chosen for contrast on both satellite imagery and greyscale print.
+// Earthy, brand-adjacent palette chosen for legibility on light OSM tiles
+// and greyscale print output. Distinct from the screen terrainColor() palette.
 const TERRAIN_COLOR_PRINT: Record<TerrainType, string> = {
-  flat_runnable:      "#6b7280",
-  rolling:            "#059669",
-  sustained_climb:    "#d97706",
-  steep_climb:        "#dc2626",
-  technical_descent:  "#1d4ed8",
-  runnable_descent:   "#7c3aed",
-  recovery:           "#9ca3af",
+  flat_runnable:      PRINT_TOKENS.ink3,      // #6b6356 — warm neutral gray, undemanding
+  rolling:            PRINT_TOKENS.forest,    // #1f5c3a — green-nature, gentle undulation
+  sustained_climb:    PRINT_TOKENS.ochre,     // #c2691a — ochre, moderate effort
+  steep_climb:        PRINT_TOKENS.clay,      // #a83d18 — clay/red, high effort
+  technical_descent:  PRINT_TOKENS.slate,     // #225668 — slate/blue, technical & cool
+  runnable_descent:   PRINT_TOKENS.ink2,      // #3a342a — dark warm brown, fast descent
+  recovery:           PRINT_TOKENS.ink4,      // #a39a89 — muted neutral, recovery pace
 };
 function terrainColorPrint(t: TerrainType): string {
-  return TERRAIN_COLOR_PRINT[t] ?? "#6b7280";
+  return TERRAIN_COLOR_PRINT[t] ?? PRINT_TOKENS.ink3;
 }
 
 // ── Route helpers ──────────────────────────────────────────────────────────────
@@ -131,8 +166,8 @@ async function loadTile(url: string): Promise<HTMLImageElement> {
  *      any route graphics are rendered.
  *   2. Radial vignette (dark edges, transparent centre) to pull the eye
  *      inward toward the route.
- *   3. Route rendered in two passes: thick white halo (11px) then solid
- *      brand-orange line (5.5px) — route is the dominant visual element.
+ *   3. Route rendered in two passes: thick dark halo (7px) then terrain-
+ *      coloured line (4.5px) — route is the dominant visual element.
  *   4. Markers in strict z-order: carry rings → fuel dots → drink mix
  *      diamonds → aid stations → start / finish.
  *   5. Canvas-embedded legend (bottom-left).
@@ -195,8 +230,8 @@ async function renderOSMMap(
   const ctx = canvas.getContext("2d")!;
   ctx.scale(2, 2);
 
-  // Fallback background for tiles that fail — light paper tone matches OSM style
-  ctx.fillStyle = "#e8e0d4";
+  // Fallback background for tiles that fail — warm paper tone
+  ctx.fillStyle = PRINT_TOKENS.paper;  // was #e8e0d4
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   // ── 1. Tiles — OpenStreetMap standard (OS-style cartographic) ───────────────
@@ -212,7 +247,7 @@ async function renderOSMMap(
         loadTile(url)
           .then((img) => ctx.drawImage(img, px, py, tileW, tileH))
           .catch(() => {
-            ctx.fillStyle = "#ddd6cc";
+            ctx.fillStyle = PRINT_TOKENS.paperDim;  // was #ddd6cc — tile error fallback
             ctx.fillRect(px, py, tileW, tileH);
           }),
       );
@@ -243,8 +278,8 @@ async function renderOSMMap(
   }
 
   // ── 3. Route — terrain-segmented, matching in-app RouteMapView palette ───────
-  // Two passes per segment: dark halo for legibility on satellite, then the
-  // terrain color on top. Same color language as the in-app Leaflet map.
+  // Two passes per segment: dark halo for legibility on light OSM, then the
+  // terrain colour on top. Same colour language as the in-app Leaflet map.
   if (route.segments.length > 0) {
     // Pass A: dark halo across all segments
     for (const seg of route.segments) {
@@ -253,7 +288,7 @@ async function renderOSMMap(
         7, "rgba(0,0,0,0.40)",
       );
     }
-    // Pass B: terrain color per segment
+    // Pass B: terrain colour per segment
     for (const seg of route.segments) {
       strokePath(
         points.filter((p) => p.distanceFromStartKm >= seg.startKm && p.distanceFromStartKm <= seg.endKm),
@@ -261,12 +296,12 @@ async function renderOSMMap(
       );
     }
   } else {
-    // No segments — fallback to amber (matches in-app no-segment fallback)
+    // No segments — fallback to ochre (matches in-app no-segment fallback)
     strokePath(points, 7, "rgba(0,0,0,0.40)");
-    strokePath(points, 4.5, "#f59e0b");
+    strokePath(points, 4.5, PRINT_TOKENS.ochre);  // was #f59e0b
   }
 
-  // ── 4a. Carry section boundaries — white rings ───────────────────────────────
+  // ── 4a. Carry section boundaries — dark rings ────────────────────────────────
   // Thin rings sit just above the route line without obscuring it.
   for (const c of output.carryPlans.filter((cp) => cp.fromKm > 0)) {
     const rp = closestRoutePoint(points, c.fromKm);
@@ -286,17 +321,17 @@ async function renderOSMMap(
     ctx.restore();
   }
 
-  // ── 4b. Fuel events — amber for all food, blue for fluid, violet for capsule ──
-  // Matches in-app RouteMapView marker color language exactly.
+  // ── 4b. Fuel events — ochre for all food, slate for fluid, ink3 for capsule ──
+  // Matches in-app RouteMapView marker colour language.
   for (const e of output.schedule.filter(
     (ev) => !ev.isContinuous && ev.action !== "refill_at_aid" && ev.action !== "restock_carry",
   )) {
     const rp = closestRoutePoint(points, e.distanceKm);
     const [cx, cy] = project(rp.lat, rp.lon);
     const color =
-      e.action === "drink_fluid" ? "#3b82f6" :  // blue — fluid
-      e.action === "take_capsule" ? "#a78bfa" : // violet — capsule
-      "#f59e0b";                                // amber — all food (gel/chew/bar/real_food)
+      e.action === "drink_fluid"  ? PRINT_TOKENS.slate :   // was #3b82f6 — fluid → slate
+      e.action === "take_capsule" ? PRINT_TOKENS.ink3  :   // was #a78bfa — capsule → neutral
+      PRINT_TOKENS.ochre;                                   // was #f59e0b — food (gel/chew/bar)
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
@@ -308,7 +343,7 @@ async function renderOSMMap(
     ctx.restore();
   }
 
-  // ── 4e. Drink mix section starts — purple diamonds ───────────────────────────
+  // ── 4e. Drink mix section starts — slate diamonds ────────────────────────────
   for (const e of output.schedule.filter(
     (ev) => ev.isContinuous && inv.find((f) => f.id === ev.fuelItemId)?.type === "drink_mix",
   )) {
@@ -318,7 +353,7 @@ async function renderOSMMap(
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(Math.PI / 4);
-    ctx.fillStyle = "#a855f7";   // purple-500
+    ctx.fillStyle = PRINT_TOKENS.slate;   // was #a855f7 (purple) — drink mix → slate/fluid
     ctx.fillRect(-S, -S, S * 2, S * 2);
     ctx.strokeStyle = "rgba(255,255,255,0.70)";
     ctx.lineWidth = 1.2;
@@ -326,14 +361,14 @@ async function renderOSMMap(
     ctx.restore();
   }
 
-  // ── 5. Aid stations — solid orange with white border ─────────────────────────
+  // ── 5. Aid stations — ochreSoft fill with white border ───────────────────────
   for (const aid of output.eventPlan.aidStations) {
     const rp = closestRoutePoint(points, aid.distanceKm);
     const [cx, cy] = project(rp.lat, rp.lon);
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.fillStyle = "#fb923c";
+    ctx.fillStyle = PRINT_TOKENS.ochreSoft;  // was #fb923c
     ctx.fill();
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2;
@@ -341,39 +376,39 @@ async function renderOSMMap(
     ctx.restore();
   }
 
-  // ── 6. Start marker — green circle, labelled ────────────────────────────────
+  // ── 6. Start marker — forest circle, labelled ────────────────────────────────
   {
     const [sx, sy] = project(points[0].lat, points[0].lon);
     ctx.save();
     ctx.beginPath();
     ctx.arc(sx, sy, 13, 0, Math.PI * 2);
-    ctx.fillStyle = "#22c55e";
+    ctx.fillStyle = PRINT_TOKENS.forest;   // was #22c55e
     ctx.fill();
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.fillStyle = "white";
-    ctx.font = "bold 11px Arial, sans-serif";
+    ctx.font = 'bold 11px Inter, -apple-system, sans-serif';  // was Arial
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("S", sx, sy);
     ctx.restore();
   }
 
-  // ── 7. Finish marker — red circle, labelled ──────────────────────────────────
+  // ── 7. Finish marker — clay circle, labelled ─────────────────────────────────
   {
     const last = points[points.length - 1];
     const [fx, fy] = project(last.lat, last.lon);
     ctx.save();
     ctx.beginPath();
     ctx.arc(fx, fy, 13, 0, Math.PI * 2);
-    ctx.fillStyle = "#ef4444";
+    ctx.fillStyle = PRINT_TOKENS.clay;    // was #ef4444
     ctx.fill();
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.fillStyle = "white";
-    ctx.font = "bold 11px Arial, sans-serif";
+    ctx.font = 'bold 11px Inter, -apple-system, sans-serif';  // was Arial
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("F", fx, fy);
@@ -393,18 +428,18 @@ async function renderOSMMap(
     );
     type LShape = "circle" | "diamond" | "ring";
     const legendItems: Array<{ color: string; label: string; shape: LShape }> = [
-      { color: "#22c55e", label: "Start",       shape: "circle"  },
-      { color: "#ef4444", label: "Finish",      shape: "circle"  },
+      { color: PRINT_TOKENS.forest,   label: "Start",        shape: "circle"  },  // was #22c55e
+      { color: PRINT_TOKENS.clay,     label: "Finish",       shape: "circle"  },  // was #ef4444
       ...(output.eventPlan.aidStations.length > 0
-        ? [{ color: "#fb923c", label: "Aid station", shape: "circle" as LShape }] : []),
+        ? [{ color: PRINT_TOKENS.ochreSoft, label: "Aid station", shape: "circle" as LShape }] : []),  // was #fb923c
       ...(hasDrinkMix
-        ? [{ color: "#a855f7", label: "Drink mix", shape: "diamond" as LShape }] : []),
+        ? [{ color: PRINT_TOKENS.slate, label: "Drink mix", shape: "diamond" as LShape }] : []),       // was #a855f7
       ...(hasFood
-        ? [{ color: "#f59e0b", label: "Fuel / food", shape: "circle" as LShape }] : []),
+        ? [{ color: PRINT_TOKENS.ochre, label: "Fuel / food", shape: "circle" as LShape }] : []),      // was #f59e0b
       ...(hasFluid
-        ? [{ color: "#3b82f6", label: "Fluid",      shape: "circle" as LShape }] : []),
+        ? [{ color: PRINT_TOKENS.slate, label: "Fluid",      shape: "circle" as LShape }] : []),       // was #3b82f6
       ...(hasCapsule
-        ? [{ color: "#a78bfa", label: "Capsule",    shape: "circle" as LShape }] : []),
+        ? [{ color: PRINT_TOKENS.ink3,  label: "Capsule",    shape: "circle" as LShape }] : []),       // was #a78bfa
       { color: "rgba(30,20,10,0.65)", label: "Carry section", shape: "ring" },
     ];
 
@@ -465,7 +500,7 @@ async function renderOSMMap(
       }
       ctx.restore();
       ctx.fillStyle = "rgba(30,20,10,0.82)";
-      ctx.font = "9px Arial, sans-serif";
+      ctx.font = '9px Inter, -apple-system, sans-serif';  // was Arial
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(item.label, LX + 22, iy);
@@ -560,7 +595,7 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
         );
       })}
 
-      {/* Drink mix spans — blue band just below terrain stripe */}
+      {/* Drink mix spans — slate band just below terrain stripe */}
       {drinkMixEvents.map((e) => {
         const carry = output.carryPlans.find(
           (c) => c.fromKm <= e.distanceKm && c.toKm >= e.distanceKm,
@@ -575,15 +610,15 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
             y={PT + 4}
             width={w}
             height={4}
-            fill="#3b82f6"
+            fill={PRINT_TOKENS.slate}     /* was #3b82f6 — drink mix → slate */
             fillOpacity={0.55}
           />
         );
       })}
 
       {/* Elevation area fill */}
-      <path d={areaD} fill="#b45309" fillOpacity={0.12} />
-      <path d={pathD} fill="none" stroke="#b45309" strokeWidth={1.5} />
+      <path d={areaD} fill={PRINT_TOKENS.ochreHover} fillOpacity={0.12} />  {/* was #b45309 */}
+      <path d={pathD} fill="none" stroke={PRINT_TOKENS.ochreHover} strokeWidth={1.5} />  {/* was #b45309 */}
 
       {/* Carry section boundaries — dashed verticals */}
       {output.carryPlans
@@ -595,7 +630,7 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
             y1={PT}
             x2={xS(c.fromKm)}
             y2={PT + CH}
-            stroke="#92400e"
+            stroke={PRINT_TOKENS.ochreHover}    /* was #92400e */
             strokeWidth={0.8}
             strokeDasharray="3 2"
             opacity={0.5}
@@ -607,7 +642,7 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
         <g key={e.id}>
           <circle
             cx={xS(e.distanceKm)} cy={yS(elevAtKm(e.distanceKm))}
-            r={4.5} fill="#fb923c" stroke="white" strokeWidth={1}
+            r={4.5} fill={PRINT_TOKENS.ochreSoft} stroke="white" strokeWidth={1}  /* was #fb923c */
           />
         </g>
       ))}
@@ -616,9 +651,10 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
       {discreteEvents.map((e) => {
         const item = inv.find((f) => f.id === e.fuelItemId);
         const color =
-          item?.type === "gel"  ? "#f59e0b" :
-          item?.type === "chew" ? "#10b981" :
-          item?.type === "bar"  ? "#a78bfa" : "#9ca3af";
+          item?.type === "gel"  ? PRINT_TOKENS.ochre  :  /* was #f59e0b */
+          item?.type === "chew" ? PRINT_TOKENS.forest :  /* was #10b981 */
+          item?.type === "bar"  ? PRINT_TOKENS.ink3   :  /* was #a78bfa */
+          PRINT_TOKENS.ink4;                              /* was #9ca3af */
         return (
           <circle
             key={e.id}
@@ -633,22 +669,22 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
         <line
           key={i}
           x1={PL} y1={yS(v)} x2={PL + CW} y2={yS(v)}
-          stroke="#e7ddd3" strokeWidth={0.5}
+          stroke={PRINT_TOKENS.paperDim} strokeWidth={0.5}  /* was #e7ddd3 */
         />
       ))}
 
       {/* Y axis */}
-      <line x1={PL} y1={PT} x2={PL} y2={PT + CH} stroke="#d4b896" strokeWidth={0.8} />
+      <line x1={PL} y1={PT} x2={PL} y2={PT + CH} stroke={PRINT_TOKENS.ochreSoft} strokeWidth={0.8} />  {/* was #d4b896 */}
       {yTickVals.map((v, i) => (
-        <text key={i} x={PL - 4} y={yS(v) + 3} textAnchor="end" fontSize={8} fill="#6b5c4c">
+        <text key={i} x={PL - 4} y={yS(v) + 3} textAnchor="end" fontSize={8} fill={PRINT_TOKENS.ink3}>  {/* was #6b5c4c */}
           {v}m
         </text>
       ))}
 
       {/* X axis */}
-      <line x1={PL} y1={PT + CH} x2={PL + CW} y2={PT + CH} stroke="#d4b896" strokeWidth={0.8} />
+      <line x1={PL} y1={PT + CH} x2={PL + CW} y2={PT + CH} stroke={PRINT_TOKENS.ochreSoft} strokeWidth={0.8} />  {/* was #d4b896 */}
       {xTicks.map((km) => (
-        <text key={km} x={xS(km)} y={PT + CH + 16} textAnchor="middle" fontSize={8} fill="#6b5c4c">
+        <text key={km} x={xS(km)} y={PT + CH + 16} textAnchor="middle" fontSize={8} fill={PRINT_TOKENS.ink3}>  {/* was #6b5c4c */}
           {km}km
         </text>
       ))}
@@ -658,6 +694,7 @@ function PrintElevationProfile({ output }: { output: PlannerOutput }) {
 
 // ── Print CSS ──────────────────────────────────────────────────────────────────
 // Injected as a <style> tag so it applies without Tailwind and works in print.
+// Template literal allows referencing PRINT_TOKENS for the screen wrapper bg.
 const PRINT_CSS = `
   @page {
     size: A4 portrait;
@@ -688,7 +725,7 @@ const PRINT_CSS = `
     tfoot { display: table-footer-group; }
   }
   @media screen {
-    html, body { background: #ccc4b8 !important; margin: 0; }
+    html, body { background: ${PRINT_TOKENS.screenBg} !important; margin: 0; }
     .ufp-wrapper { padding: 28px 16px; min-height: 100vh; }
     .ufp-page {
       background: white;
@@ -755,19 +792,19 @@ export default function PrintPage() {
   // ── Loading / error states ─────────────────────────────────────────────────
   if (!output) {
     return (
-      <div style={{ padding: "60px 32px", fontFamily: "system-ui, sans-serif", color: "#6b5c4c", textAlign: "center" }}>
-        <p style={{ fontSize: "14px" }}>No plan found. Generate a plan first, then return to print.</p>
+      <div style={{ padding: "60px 32px", fontFamily: 'Inter, -apple-system, sans-serif', color: PRINT_TOKENS.ink3, textAlign: "center" }}>
+        <p style={{ fontSize: "14px" }}>No plan loaded. Build one in the planner first.</p>
       </div>
     );
   }
 
   if (!mapReady) {
     return (
-      <div style={{ padding: "60px 32px", fontFamily: "system-ui, sans-serif", color: "#6b5c4c", textAlign: "center" }}>
+      <div style={{ padding: "60px 32px", fontFamily: 'Inter, -apple-system, sans-serif', color: PRINT_TOKENS.ink3, textAlign: "center" }}>
         <p style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
           Loading satellite imagery…
         </p>
-        <p style={{ fontSize: "12px", color: "#9b8b7c" }}>
+        <p style={{ fontSize: "12px", color: PRINT_TOKENS.ink4 }}>
           Fetching map tiles for your route. This usually takes 5–15 seconds.
         </p>
       </div>
@@ -817,8 +854,8 @@ export default function PrintPage() {
 
   // ── Shared inline styles ───────────────────────────────────────────────────
   const pageContentStyle: React.CSSProperties = {
-    fontFamily: "system-ui, -apple-system, Arial, sans-serif",
-    color: "#1a1a1a",
+    fontFamily: 'Inter, -apple-system, sans-serif',  // was system-ui/Arial
+    color: PRINT_TOKENS.ink,                          // was #1a1a1a
     fontSize: "12px",
     lineHeight: "1.5",
   };
@@ -826,16 +863,16 @@ export default function PrintPage() {
   const sectionHeadingStyle: React.CSSProperties = {
     fontSize: "10px",
     fontWeight: 700,
-    color: "#92400e",
+    color: PRINT_TOKENS.ochreHover,                                    // was #92400e
     textTransform: "uppercase",
     letterSpacing: "0.07em",
     margin: "0 0 7px 0",
     paddingBottom: "3px",
-    borderBottom: "1px solid #e8d5bb",
+    borderBottom: `1px solid ${PRINT_TOKENS.ochreSoft}`,               // was #e8d5bb
   };
 
   const pageHeaderStyle: React.CSSProperties = {
-    borderBottom: "2px solid #92400e",
+    borderBottom: `2px solid ${PRINT_TOKENS.ochreHover}`,              // was #92400e
     paddingBottom: "8px",
     marginBottom: "14px",
     display: "flex",
@@ -856,17 +893,17 @@ export default function PrintPage() {
         <div className="ufp-page" style={pageContentStyle}>
 
           {/* Race header */}
-          <div style={{ borderBottom: "3px solid #92400e", paddingBottom: "14px", marginBottom: "16px" }}>
+          <div style={{ borderBottom: `3px solid ${PRINT_TOKENS.ochreHover}`, paddingBottom: "14px", marginBottom: "16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: "#1a1a1a", lineHeight: 1.1 }}>
+                <h1 style={{ margin: 0, fontSize: "26px", fontWeight: 800, color: PRINT_TOKENS.ink, lineHeight: 1.1, fontFamily: '"Instrument Serif", Georgia, serif' }}>
                   {eventPlan.eventName || "Race Plan"}
                 </h1>
-                <p style={{ margin: "4px 0 0", color: "#6b5c4c", fontSize: "11px" }}>
-                  Ultra Fuel Planner · {printIntentLabel(eventPlan.eventIntent)} · <span style={{ color: "#92400e", fontWeight: 600 }}>ultrafuelplanner.com</span>
+                <p style={{ margin: "4px 0 0", color: PRINT_TOKENS.ink3, fontSize: "11px" }}>
+                  Ultra Fuel Planner · {printIntentLabel(eventPlan.eventIntent)} · <span style={{ color: PRINT_TOKENS.ochreHover, fontWeight: 600 }}>ultrafuelplanner.com</span>
                 </p>
               </div>
-              <div style={{ textAlign: "right", color: "#6b5c4c", fontSize: "11px", lineHeight: 1.7 }}>
+              <div style={{ textAlign: "right", color: PRINT_TOKENS.ink3, fontSize: "11px", lineHeight: 1.7 }}>
                 <div style={{ fontWeight: 600 }}>
                   {new Date(output.generatedAt).toLocaleDateString("en-GB", {
                     day: "numeric", month: "short", year: "numeric",
@@ -888,14 +925,14 @@ export default function PrintPage() {
             style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "16px" }}
           >
             {[
-              { value: formatDuration(summary.totalRaceDurationMinutes), label: "Est. Duration", color: "#92400e" },
-              { value: `${summary.avgCarbsPerHour} g/hr`, label: "Carbs / hr", color: "#92400e" },
+              { value: formatDuration(summary.totalRaceDurationMinutes), label: "Est. Duration", color: PRINT_TOKENS.ochreHover },  // was #92400e
+              { value: `${summary.avgCarbsPerHour} g/hr`, label: "Carbs / hr", color: PRINT_TOKENS.ochreHover },                    // was #92400e
               {
                 value: summary.hydrationGuidance
                   ? `${summary.hydrationGuidance.rangeMlPerHour[0]}–${summary.hydrationGuidance.rangeMlPerHour[1]} ml`
                   : `~${summary.avgFluidPerHourMl} ml`,
                 label: "Fluid / hr",
-                color: "#1d4ed8",
+                color: PRINT_TOKENS.slate,                                                                                           // was #1d4ed8
               },
               {
                 value: summary.electrolyteGuidance
@@ -904,21 +941,21 @@ export default function PrintPage() {
                   : "Low"
                   : "—",
                 label: "Electrolytes",
-                color: "#15803d",
+                color: PRINT_TOKENS.forest,                                                                                          // was #15803d
               },
             ].map(({ value, label, color }) => (
               <div
                 key={label}
                 style={{
                   textAlign: "center",
-                  background: "#fdf4eb",
+                  background: PRINT_TOKENS.paper,                   // was #fdf4eb
                   borderRadius: "5px",
                   padding: "11px 8px",
-                  border: "1px solid #e8d5bb",
+                  border: `1px solid ${PRINT_TOKENS.ochreSoft}`,    // was #e8d5bb
                 }}
               >
                 <div style={{ fontSize: "17px", fontWeight: 700, color }}>{value}</div>
-                <div style={{ fontSize: "9px", color: "#6b5c4c", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: "2px" }}>
+                <div style={{ fontSize: "9px", color: PRINT_TOKENS.ink3, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: "2px" }}>
                   {label}
                 </div>
               </div>
@@ -929,35 +966,35 @@ export default function PrintPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
 
             {/* Strategy overview */}
-            <div className="ufp-nobreak" style={{ border: "1px solid #d4b896", borderRadius: "6px", padding: "13px" }}>
+            <div className="ufp-nobreak" style={{ border: `1px solid ${PRINT_TOKENS.ochreSoft}`, borderRadius: "6px", padding: "13px" }}>
               <div style={sectionHeadingStyle}>Strategy Overview</div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
                 <tbody>
                   <tr>
-                    <td style={{ padding: "3px 0", color: "#6b5c4c", width: "40%" }}>Carb target</td>
+                    <td style={{ padding: "3px 0", color: PRINT_TOKENS.ink3, width: "40%" }}>Carb target</td>
                     <td style={{ padding: "3px 0", fontWeight: 600 }}>
                       {summary.workingCarbTarget ?? summary.avgCarbsPerHour} g/hr
                       {" · "}{Math.round(summary.totalCarbsG)}g total
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "3px 0", color: "#6b5c4c" }}>Primary fuels</td>
+                    <td style={{ padding: "3px 0", color: PRINT_TOKENS.ink3 }}>Primary fuels</td>
                     <td style={{ padding: "3px 0", fontWeight: 600 }}>{primaryFuelsLabel}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "3px 0", color: "#6b5c4c" }}>Drink mix</td>
-                    <td style={{ padding: "3px 0", fontWeight: 600, color: drinkMixInPlan ? "#1d4ed8" : "#9ca3af" }}>
+                    <td style={{ padding: "3px 0", color: PRINT_TOKENS.ink3 }}>Drink mix</td>
+                    <td style={{ padding: "3px 0", fontWeight: 600, color: drinkMixInPlan ? PRINT_TOKENS.slate : PRINT_TOKENS.ink4 }}>
                       {drinkMixInPlan
                         ? `${drinkMixEvents.length} section${drinkMixEvents.length !== 1 ? "s" : ""}`
                         : "Not used"}
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "3px 0", color: "#6b5c4c" }}>Fuelling events</td>
+                    <td style={{ padding: "3px 0", color: PRINT_TOKENS.ink3 }}>Fuelling events</td>
                     <td style={{ padding: "3px 0", fontWeight: 600 }}>{discreteEvents.length} scheduled</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: "3px 0", color: "#6b5c4c" }}>Checkpoints</td>
+                    <td style={{ padding: "3px 0", color: PRINT_TOKENS.ink3 }}>Checkpoints</td>
                     <td style={{ padding: "3px 0", fontWeight: 600 }}>
                       {aidStations.length > 0 ? `${aidStations.length} aid station${aidStations.length !== 1 ? "s" : ""}` : "None entered"}
                     </td>
@@ -966,29 +1003,29 @@ export default function PrintPage() {
               </table>
 
               {summary.hydrationGuidance && (
-                <div style={{ marginTop: "10px", fontSize: "10px", color: "#1d4ed8", background: "#eff6ff", borderRadius: "4px", padding: "6px 8px" }}>
-                  💧 {summary.hydrationGuidance.rangeMlPerHour[0]}–{summary.hydrationGuidance.rangeMlPerHour[1]} ml/hr · {summary.hydrationGuidance.label}
+                <div style={{ marginTop: "10px", fontSize: "10px", color: PRINT_TOKENS.slate, background: PRINT_TOKENS.slateLight, borderRadius: "4px", padding: "6px 8px" }}>
+                  Fluid: {summary.hydrationGuidance.rangeMlPerHour[0]}–{summary.hydrationGuidance.rangeMlPerHour[1]} ml/hr · {summary.hydrationGuidance.label}
                 </div>
               )}
               {summary.electrolyteGuidance && (
-                <div style={{ marginTop: "6px", fontSize: "10px", color: "#15803d", background: "#f0fdf4", borderRadius: "4px", padding: "6px 8px" }}>
-                  ⚡ {summary.electrolyteGuidance.label}
+                <div style={{ marginTop: "6px", fontSize: "10px", color: PRINT_TOKENS.forest, background: PRINT_TOKENS.forestLight, borderRadius: "4px", padding: "6px 8px" }}>
+                  {summary.electrolyteGuidance.label}
                 </div>
               )}
             </div>
 
             {/* Total items required */}
-            <div className="ufp-nobreak" style={{ border: "1px solid #d4b896", borderRadius: "6px", padding: "13px" }}>
+            <div className="ufp-nobreak" style={{ border: `1px solid ${PRINT_TOKENS.ochreSoft}`, borderRadius: "6px", padding: "13px" }}>
               <div style={sectionHeadingStyle}>Total Items Required</div>
               {TYPE_ORDER.filter((t) => itemGroups[t]).map((type) => (
                 <div key={type} style={{ marginBottom: "8px" }}>
-                  <div style={{ fontSize: "9px", fontWeight: 700, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: 700, color: PRINT_TOKENS.ochreHover, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
                     {TYPE_LABEL[type] ?? type}
                   </div>
                   {itemGroups[type].map((item) => (
                     <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", padding: "1px 0" }}>
                       <span>{item.name}</span>
-                      <span style={{ color: "#6b5c4c" }}>×{item.quantity} · {Math.round(item.carbsG)}g</span>
+                      <span style={{ color: PRINT_TOKENS.ink3 }}>×{item.quantity} · {Math.round(item.carbsG)}g</span>
                     </div>
                   ))}
                 </div>
@@ -1005,10 +1042,10 @@ export default function PrintPage() {
 
           {/* Page header */}
           <div style={pageHeaderStyle}>
-            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>
+            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: PRINT_TOKENS.ink }}>
               {eventPlan.eventName || "Race Plan"} — Execution Plan
             </h2>
-            <span style={{ fontSize: "10px", color: "#6b5c4c" }}>
+            <span style={{ fontSize: "10px", color: PRINT_TOKENS.ink3 }}>
               {formatDuration(summary.totalRaceDurationMinutes)} · {summary.avgCarbsPerHour} g/hr avg
             </span>
           </div>
@@ -1018,7 +1055,7 @@ export default function PrintPage() {
             <div style={sectionHeadingStyle}>Fuelling Schedule</div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
               <thead>
-                <tr style={{ background: "#f5ece3", borderBottom: "2px solid #d4b896" }}>
+                <tr style={{ background: PRINT_TOKENS.paper2, borderBottom: `2px solid ${PRINT_TOKENS.ochreSoft}` }}>
                   <th style={{ padding: "6px 7px", textAlign: "left", fontWeight: 700, width: "52px" }}>Time</th>
                   <th style={{ padding: "6px 7px", textAlign: "left", fontWeight: 700, width: "36px" }}>km</th>
                   <th style={{ padding: "6px 7px", textAlign: "left", fontWeight: 700 }}>Fuel / Action</th>
@@ -1039,22 +1076,22 @@ export default function PrintPage() {
                         <tr
                           key={entry.id}
                           style={{
-                            background: "#eef4ff",
-                            borderBottom: "1px solid #c7d9f5",
-                            borderLeft: "3px solid #3b82f6",
+                            background: PRINT_TOKENS.slateLight,                          // was #eef4ff
+                            borderBottom: `1px solid ${PRINT_TOKENS.slateRule}`,          // was #c7d9f5
+                            borderLeft: `3px solid ${PRINT_TOKENS.slate}`,                // was #3b82f6
                           }}
                         >
-                          <td style={{ padding: "3px 7px", color: "#4b6ea8", fontStyle: "italic", fontSize: "10px" }}>
+                          <td style={{ padding: "3px 7px", color: PRINT_TOKENS.slate, fontStyle: "italic", fontSize: "10px" }}>
                             section
                           </td>
-                          <td style={{ padding: "3px 7px", color: "#4b6ea8", fontSize: "10px" }}>
+                          <td style={{ padding: "3px 7px", color: PRINT_TOKENS.slate, fontSize: "10px" }}>
                             {entry.distanceKm.toFixed(1)}
                           </td>
-                          <td style={{ padding: "3px 7px", color: "#1d4ed8", fontSize: "11px" }} colSpan={2}>
+                          <td style={{ padding: "3px 7px", color: PRINT_TOKENS.slate, fontSize: "11px" }} colSpan={2}>
                             ≋ {entry.fuelItemName ?? "Drink mix"}
                             {entry.quantity > 1 ? ` ×${entry.quantity}` : ""} — sip steadily through section
                           </td>
-                          <td style={{ padding: "3px 7px", textAlign: "right", color: "#4b6ea8", fontSize: "10px" }}>
+                          <td style={{ padding: "3px 7px", textAlign: "right", color: PRINT_TOKENS.slate, fontSize: "10px" }}>
                             {entry.carbsG > 0 ? `~${entry.carbsG}g` : "—"}
                           </td>
                         </tr>
@@ -1065,14 +1102,14 @@ export default function PrintPage() {
                       <tr
                         key={entry.id}
                         style={{
-                          background: isAid ? "#fef3c7" : i % 2 === 0 ? "white" : "#fafaf8",
-                          borderBottom: "1px solid #ede6dd",
+                          background: isAid ? PRINT_TOKENS.ochreWash : i % 2 === 0 ? "white" : PRINT_TOKENS.paper,  // was #fef3c7 / white / #fafaf8
+                          borderBottom: `1px solid ${PRINT_TOKENS.paperDim}`,                                         // was #ede6dd
                         }}
                       >
-                        <td style={{ padding: "4px 7px", fontFamily: "monospace", color: "#92400e", fontWeight: 600, fontSize: "11px" }}>
+                        <td style={{ padding: "4px 7px", fontFamily: '"JetBrains Mono", Consolas, monospace', color: PRINT_TOKENS.ochreHover, fontWeight: 600, fontSize: "11px" }}>
                           {formatTime(entry.timeMinutes)}
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#6b5c4c" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink3 }}>
                           {entry.distanceKm.toFixed(1)}
                         </td>
                         <td style={{ padding: "4px 7px", fontWeight: isAid ? 700 : 400 }}>
@@ -1080,10 +1117,10 @@ export default function PrintPage() {
                             ? `⬤ ${entry.fuelItemName ?? "Aid station"}`
                             : `${fuelTypeIcon(fuelInventory.find((f) => f.id === entry.fuelItemId)?.type ?? "other")} ${entry.fuelItemName ?? entry.action} ×${entry.quantity}`}
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#6b5c4c" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink3 }}>
                           {terrainLabel(entry.terrain)}
                         </td>
-                        <td style={{ padding: "4px 7px", textAlign: "right", fontWeight: entry.carbsG > 0 ? 600 : 400, color: entry.carbsG > 0 ? "#92400e" : "#9ca3af" }}>
+                        <td style={{ padding: "4px 7px", textAlign: "right", fontWeight: entry.carbsG > 0 ? 600 : 400, color: entry.carbsG > 0 ? PRINT_TOKENS.ochreHover : PRINT_TOKENS.ink4 }}>
                           {entry.carbsG > 0 ? `${entry.carbsG}g` : "—"}
                         </td>
                       </tr>
@@ -1111,10 +1148,10 @@ export default function PrintPage() {
                       key={plan.sectionId}
                       className="ufp-nobreak"
                       style={{
-                        border: "1px solid #d4b896",
+                        border: `1px solid ${PRINT_TOKENS.ochreSoft}`,  // was #d4b896
                         borderRadius: "6px",
                         padding: "10px 12px",
-                        background: "#fdf8f2",
+                        background: PRINT_TOKENS.paper,                  // was #fdf8f2
                       }}
                     >
                       {/* Section header */}
@@ -1122,11 +1159,11 @@ export default function PrintPage() {
                         <span style={{ fontWeight: 700, fontSize: "12px" }}>
                           {plan.fromLabel} → {plan.toLabel}
                         </span>
-                        <span style={{ fontSize: "9px", color: "#9ca3af" }}>§{idx + 1}</span>
+                        <span style={{ fontSize: "9px", color: PRINT_TOKENS.ink4 }}>§{idx + 1}</span>
                       </div>
 
                       {/* Section meta */}
-                      <div style={{ fontSize: "10px", color: "#6b5c4c", marginBottom: "6px" }}>
+                      <div style={{ fontSize: "10px", color: PRINT_TOKENS.ink3, marginBottom: "6px" }}>
                         km {plan.fromKm.toFixed(1)}–{plan.toKm.toFixed(1)}
                         {" · "}~{formatDuration(plan.estimatedDurationMinutes)}
                         {plan.ascentM > 20 && <span> · ↑{plan.ascentM}m</span>}
@@ -1136,14 +1173,14 @@ export default function PrintPage() {
 
                       {/* Fluid + carbs */}
                       <div style={{ display: "flex", gap: "14px", marginBottom: "6px", alignItems: "center" }}>
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1d4ed8" }}>
-                          🫙 ~{Math.round(plan.fluidToCarryMl / 500) * 0.5}L
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: PRINT_TOKENS.slate }}>
+                          ~{Math.round(plan.fluidToCarryMl / 500) * 0.5}L fluid
                         </span>
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#92400e" }}>
-                          ⚡ {Math.round(plan.carbsToCarryG)}g
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: PRINT_TOKENS.ochreHover }}>
+                          {Math.round(plan.carbsToCarryG)}g carbs
                         </span>
                         {hasDrinkMix && (
-                          <span style={{ fontSize: "10px", color: "#1d4ed8", fontStyle: "italic" }}>
+                          <span style={{ fontSize: "10px", color: PRINT_TOKENS.slate, fontStyle: "italic" }}>
                             ≋ drink mix
                           </span>
                         )}
@@ -1151,7 +1188,7 @@ export default function PrintPage() {
 
                       {/* Items list */}
                       {plan.itemsToCarry.length > 0 && (
-                        <div style={{ fontSize: "10px", color: "#4a3a2a", borderTop: "1px solid #e7ddd3", paddingTop: "5px" }}>
+                        <div style={{ fontSize: "10px", color: PRINT_TOKENS.ink2, borderTop: `1px solid ${PRINT_TOKENS.paperDim}`, paddingTop: "5px" }}>
                           {plan.itemsToCarry.map((item, j) => (
                             <span key={j} style={{ marginRight: "10px" }}>
                               {item.fuelItemName} ×{item.quantity}
@@ -1162,8 +1199,8 @@ export default function PrintPage() {
 
                       {/* Warning */}
                       {plan.warnings.length > 0 && (
-                        <div style={{ fontSize: "10px", color: "#d97706", marginTop: "4px" }}>
-                          ⚠ {plan.warnings[0]}
+                        <div style={{ fontSize: "10px", color: PRINT_TOKENS.ochre, marginTop: "4px" }}>
+                          Note: {plan.warnings[0]}
                         </div>
                       )}
                     </div>
@@ -1188,10 +1225,10 @@ export default function PrintPage() {
 
             {/* Page header */}
             <div style={pageHeaderStyle}>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: PRINT_TOKENS.ink }}>
                 {eventPlan.eventName || "Race Plan"} — Course Strategy
               </h2>
-              <span style={{ fontSize: "10px", color: "#6b5c4c" }}>
+              <span style={{ fontSize: "10px", color: PRINT_TOKENS.ink3 }}>
                 {route.totalDistanceKm.toFixed(1)} km · ↑{Math.round(route.totalAscentM)} m · ↓{Math.round(route.totalDescentM)} m
               </span>
             </div>
@@ -1210,7 +1247,7 @@ export default function PrintPage() {
                     width: "100%",
                     height: "auto",
                     borderRadius: "4px",
-                    border: "1px solid #d4b896",
+                    border: `1px solid ${PRINT_TOKENS.ochreSoft}`,  // was #d4b896
                   }}
                 />
               ) : mapError ? (
@@ -1219,29 +1256,29 @@ export default function PrintPage() {
               ) : null}
 
               {/* Map legend */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "6px", fontSize: "9px", color: "#6b5c4c" }}>
-                <span style={{ color: "#22c55e", fontWeight: 600 }}>● Start</span>
-                <span style={{ color: "#ef4444", fontWeight: 600 }}>● Finish</span>
-                {aidStations.length > 0 && <span style={{ color: "#fb923c" }}>● Aid station</span>}
-                {drinkMixInPlan && <span style={{ color: "#a855f7" }}>◆ Drink mix section</span>}
-                <span style={{ color: "#f97316" }}>● Gel</span>
-                <span style={{ color: "#60a5fa" }}>● Chew</span>
-                <span style={{ color: "#9b8b7c" }}>◯ Carry section boundary</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "6px", fontSize: "9px", color: PRINT_TOKENS.ink3 }}>
+                <span style={{ color: PRINT_TOKENS.forest, fontWeight: 600 }}>● Start</span>                {/* was #22c55e */}
+                <span style={{ color: PRINT_TOKENS.clay, fontWeight: 600 }}>● Finish</span>                 {/* was #ef4444 */}
+                {aidStations.length > 0 && <span style={{ color: PRINT_TOKENS.ochreSoft }}>● Aid station</span>}  {/* was #fb923c */}
+                {drinkMixInPlan && <span style={{ color: PRINT_TOKENS.slate }}>◆ Drink mix section</span>}   {/* was #a855f7 */}
+                <span style={{ color: PRINT_TOKENS.ochre }}>● Gel</span>                                    {/* was #f97316 */}
+                <span style={{ color: PRINT_TOKENS.slate }}>● Chew</span>                                   {/* was #60a5fa */}
+                <span style={{ color: PRINT_TOKENS.ink4 }}>◯ Carry section boundary</span>                  {/* was #9b8b7c */}
               </div>
             </div>
 
             {/* ── Elevation profile ── */}
             <div className="ufp-nobreak" style={{ marginBottom: "16px" }}>
               <div style={sectionHeadingStyle}>Elevation Profile</div>
-              <div style={{ border: "1px solid #e7ddd3", borderRadius: "4px", padding: "8px 4px 4px 4px", background: "#fdf8f0" }}>
+              <div style={{ border: `1px solid ${PRINT_TOKENS.paperDim}`, borderRadius: "4px", padding: "8px 4px 4px 4px", background: PRINT_TOKENS.paper }}>
                 <PrintElevationProfile output={output} />
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "5px", fontSize: "9px", color: "#6b5c4c" }}>
-                <span style={{ color: "#b45309" }}>— Elevation</span>
-                {drinkMixInPlan && <span style={{ color: "#3b82f6" }}>▬ Drink mix</span>}
-                {aidStations.length > 0 && <span style={{ color: "#fb923c" }}>● Aid station</span>}
-                <span style={{ color: "#f59e0b" }}>| Gel</span>
-                <span style={{ color: "#10b981" }}>| Chew</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "5px", fontSize: "9px", color: PRINT_TOKENS.ink3 }}>
+                <span style={{ color: PRINT_TOKENS.ochreHover }}>— Elevation</span>              {/* was #b45309 */}
+                {drinkMixInPlan && <span style={{ color: PRINT_TOKENS.slate }}>▬ Drink mix</span>}  {/* was #3b82f6 */}
+                {aidStations.length > 0 && <span style={{ color: PRINT_TOKENS.ochreSoft }}>● Aid station</span>}  {/* was #fb923c */}
+                <span style={{ color: PRINT_TOKENS.ochre }}>| Gel</span>                          {/* was #f59e0b */}
+                <span style={{ color: PRINT_TOKENS.forest }}>| Chew</span>                        {/* was #10b981 */}
                 {carryPlans.length > 1 && <span>--- Carry section boundary</span>}
               </div>
             </div>
@@ -1252,7 +1289,7 @@ export default function PrintPage() {
                 <div style={sectionHeadingStyle}>Section Overview</div>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
                   <thead>
-                    <tr style={{ background: "#f5ece3", borderBottom: "1px solid #d4b896" }}>
+                    <tr style={{ background: PRINT_TOKENS.paper2, borderBottom: `1px solid ${PRINT_TOKENS.ochreSoft}` }}>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Section</th>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Distance</th>
                       <th style={{ padding: "5px 7px", textAlign: "left", fontWeight: 700 }}>Duration</th>
@@ -1265,18 +1302,18 @@ export default function PrintPage() {
                     {carryPlans.map((plan, idx) => (
                       <tr
                         key={plan.sectionId}
-                        style={{ background: idx % 2 === 0 ? "white" : "#fafaf8", borderBottom: "1px solid #ede6dd" }}
+                        style={{ background: idx % 2 === 0 ? "white" : PRINT_TOKENS.paper, borderBottom: `1px solid ${PRINT_TOKENS.paperDim}` }}
                       >
                         <td style={{ padding: "4px 7px", fontWeight: 600 }}>
                           {plan.fromLabel} → {plan.toLabel}
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#6b5c4c" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink3 }}>
                           {plan.fromKm.toFixed(0)}–{plan.toKm.toFixed(0)} km
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#6b5c4c" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink3 }}>
                           ~{formatDuration(plan.estimatedDurationMinutes)}
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#6b5c4c" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink3 }}>
                           {plan.ascentM > 10 ? `↑${plan.ascentM}m` : ""}
                           {plan.descentM > 10 ? ` ↓${plan.descentM}m` : ""}
                           {plan.ascentM <= 10 && plan.descentM <= 10 ? "—" : ""}
@@ -1284,7 +1321,7 @@ export default function PrintPage() {
                         <td style={{ padding: "4px 7px", color: terrainColorPrint(plan.dominantTerrain), fontWeight: 600 }}>
                           {plan.sectionCharacter}
                         </td>
-                        <td style={{ padding: "4px 7px", color: "#4a3a2a" }}>
+                        <td style={{ padding: "4px 7px", color: PRINT_TOKENS.ink2 }}>
                           {sectionStrategyLabel(plan.fromKm, plan.toKm, schedule, fuelInventory)}
                         </td>
                       </tr>
@@ -1319,7 +1356,7 @@ function RaceCardFooter() {
       style={{
         marginTop: "20px",
         paddingTop: "10px",
-        borderTop: "2px solid #e8d5bb",
+        borderTop: `2px solid ${PRINT_TOKENS.ochreSoft}`,  // was #e8d5bb
         display: "flex",
         alignItems: "center",
         gap: "12px",
@@ -1331,17 +1368,17 @@ function RaceCardFooter() {
           value="https://ultrafuelplanner.com"
           size={56}
           bgColor="#ffffff"
-          fgColor="#1a1a1a"
+          fgColor={PRINT_TOKENS.ink}  // was #1a1a1a
           level="M"
         />
       </div>
 
       {/* Branding text */}
-      <div style={{ flex: 1, fontSize: "8px", lineHeight: "1.6", color: "#9b8b7c" }}>
-        <div style={{ fontWeight: 700, fontSize: "9px", color: "#6b5c4c", letterSpacing: "0.02em" }}>
+      <div style={{ flex: 1, fontSize: "8px", lineHeight: "1.6", color: PRINT_TOKENS.ink4 }}>  {/* was #9b8b7c */}
+        <div style={{ fontWeight: 700, fontSize: "9px", color: PRINT_TOKENS.ink3, letterSpacing: "0.02em" }}>  {/* was #6b5c4c */}
           Ultra Fuel Planner
         </div>
-        <div style={{ color: "#92400e", fontWeight: 600, fontSize: "9px" }}>
+        <div style={{ color: PRINT_TOKENS.ochreHover, fontWeight: 600, fontSize: "9px" }}>  {/* was #92400e */}
           ultrafuelplanner.com
         </div>
         <div style={{ marginTop: "2px" }}>
@@ -1355,7 +1392,7 @@ function RaceCardFooter() {
           flexShrink: 0,
           maxWidth: "200px",
           fontSize: "8px",
-          color: "#b8a898",
+          color: PRINT_TOKENS.ink4,  // was #b8a898
           lineHeight: "1.5",
           textAlign: "right",
         }}
@@ -1411,10 +1448,10 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
       width={SVG_W}
       height={SVG_H}
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      style={{ display: "block", border: "1px solid #e7ddd3", borderRadius: "4px" }}
+      style={{ display: "block", border: `1px solid ${PRINT_TOKENS.paperDim}`, borderRadius: "4px" }}
     >
-      <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#f0ede8" />
-      <text x={SVG_W / 2} y={14} textAnchor="middle" fontSize={8} fill="#9b8b7c">
+      <rect x={0} y={0} width={SVG_W} height={SVG_H} fill={PRINT_TOKENS.paper} />  {/* was #f0ede8 */}
+      <text x={SVG_W / 2} y={14} textAnchor="middle" fontSize={8} fill={PRINT_TOKENS.ink4}>  {/* was #9b8b7c */}
         Satellite imagery unavailable — vector route shown
       </text>
 
@@ -1442,7 +1479,7 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
       {route.segments.length === 0 && (
         <polyline
           points={pts.map((p) => proj(p.lat, p.lon).join(",")).join(" ")}
-          fill="none" stroke="#d97706" strokeWidth={2.5}
+          fill="none" stroke={PRINT_TOKENS.ochre} strokeWidth={2.5}  /* was #d97706 */
         />
       )}
 
@@ -1453,7 +1490,7 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
           <polygon
             key={c.sectionId}
             points={`${cx},${cy - 6} ${cx + 5},${cy} ${cx},${cy + 6} ${cx - 5},${cy}`}
-            fill="#92400e" stroke="white" strokeWidth={0.8} fillOpacity={0.8}
+            fill={PRINT_TOKENS.ochreHover} stroke="white" strokeWidth={0.8} fillOpacity={0.8}  /* was #92400e */
           />
         );
       })}
@@ -1463,7 +1500,7 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
         .map((e) => {
           const rp = closestRoutePoint(fullPts, e.distanceKm);
           const [cx, cy] = proj(rp.lat, rp.lon);
-          return <circle key={e.id} cx={cx} cy={cy} r={5} fill="#3b82f6" stroke="white" strokeWidth={1} fillOpacity={0.9} />;
+          return <circle key={e.id} cx={cx} cy={cy} r={5} fill={PRINT_TOKENS.slate} stroke="white" strokeWidth={1} fillOpacity={0.9} />;  /* was #3b82f6 */
         })}
 
       {output.schedule
@@ -1473,23 +1510,24 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
           const [cx, cy] = proj(rp.lat, rp.lon);
           const item = inv.find((f) => f.id === e.fuelItemId);
           const color =
-            item?.type === "gel"  ? "#f59e0b" :
-            item?.type === "chew" ? "#10b981" :
-            item?.type === "bar"  ? "#a78bfa" : "#9ca3af";
+            item?.type === "gel"  ? PRINT_TOKENS.ochre  :  /* was #f59e0b */
+            item?.type === "chew" ? PRINT_TOKENS.forest :  /* was #10b981 */
+            item?.type === "bar"  ? PRINT_TOKENS.ink3   :  /* was #a78bfa */
+            PRINT_TOKENS.ink4;                              /* was #9ca3af */
           return <circle key={e.id} cx={cx} cy={cy} r={2.5} fill={color} fillOpacity={0.85} />;
         })}
 
       {output.eventPlan.aidStations.map((aid) => {
         const rp = closestRoutePoint(fullPts, aid.distanceKm);
         const [cx, cy] = proj(rp.lat, rp.lon);
-        return <circle key={aid.name} cx={cx} cy={cy} r={5} fill="#fb923c" stroke="#c2410c" strokeWidth={1.5} />;
+        return <circle key={aid.name} cx={cx} cy={cy} r={5} fill={PRINT_TOKENS.ochreSoft} stroke={PRINT_TOKENS.clay} strokeWidth={1.5} />;  /* was #fb923c / #c2410c */
       })}
 
       {(() => {
         const [sx, sy] = proj(route.points[0].lat, route.points[0].lon);
         return (
           <g>
-            <circle cx={sx} cy={sy} r={8} fill="#22c55e" stroke="#15803d" strokeWidth={1.5} />
+            <circle cx={sx} cy={sy} r={8} fill={PRINT_TOKENS.forest} stroke={PRINT_TOKENS.forest} strokeWidth={1.5} />  {/* was #22c55e / #15803d */}
             <text x={sx} y={sy + 3.5} textAnchor="middle" fontSize={8} fill="white" fontWeight="700">S</text>
           </g>
         );
@@ -1499,7 +1537,7 @@ function SvgRouteFallback({ output }: { output: PlannerOutput }) {
         const [fx, fy] = proj(last.lat, last.lon);
         return (
           <g>
-            <circle cx={fx} cy={fy} r={8} fill="#ef4444" stroke="#b91c1c" strokeWidth={1.5} />
+            <circle cx={fx} cy={fy} r={8} fill={PRINT_TOKENS.clay} stroke={PRINT_TOKENS.clay} strokeWidth={1.5} />  {/* was #ef4444 / #b91c1c */}
             <text x={fx} y={fy + 3.5} textAnchor="middle" fontSize={8} fill="white" fontWeight="700">F</text>
           </g>
         );
@@ -1541,24 +1579,24 @@ function PrintRecoveryGuidance({
           <div
             key={label}
             style={{
-              border: "1px solid #bbf7d0",
+              border: `1px solid ${PRINT_TOKENS.forestLight}`,  // was #bbf7d0
               borderRadius: "6px",
               padding: "8px 10px",
-              background: "#f0fdf4",
+              background: PRINT_TOKENS.forestLight,              // was #f0fdf4
             }}
           >
-            <div style={{ fontSize: "9px", fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>
+            <div style={{ fontSize: "9px", fontWeight: 700, color: PRINT_TOKENS.forest, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>
               {label}
             </div>
-            <div style={{ fontSize: "10px", color: "#374151", lineHeight: 1.5 }}>
+            <div style={{ fontSize: "10px", color: PRINT_TOKENS.ink2, lineHeight: 1.5 }}>
               {text}
             </div>
           </div>
         ))}
       </div>
       {guidance.sodiumNote && (
-        <div style={{ marginTop: "6px", fontSize: "10px", color: "#1e40af", background: "#eff6ff", borderRadius: "4px", padding: "5px 8px", border: "1px solid #bfdbfe" }}>
-          💧 <strong>Electrolytes:</strong> {guidance.sodiumNote}
+        <div style={{ marginTop: "6px", fontSize: "10px", color: PRINT_TOKENS.slate, background: PRINT_TOKENS.slateLight, borderRadius: "4px", padding: "5px 8px", border: `1px solid ${PRINT_TOKENS.slateRule}` }}>
+          <strong>Electrolytes:</strong> {guidance.sodiumNote}
         </div>
       )}
     </div>

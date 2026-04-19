@@ -1,5 +1,5 @@
 ULTRA FUEL PLANNER — FULL APP DOCUMENTATION
-Version 2.35 | March 2026
+Version 3.0 | April 2026
 
 ================================================================================
 1. WHAT IT IS
@@ -3454,6 +3454,159 @@ CHANGED: src/components/LegalFooter.tsx — version → v2.35
 CHANGED: APP-DOCUMENTATION.txt — header → v2.35, file structure, SEO
   reference, this entry added
 UNCHANGED: homepage layout, planner, results, all core functionality
+
+
+v3.0 — Brand System & Design Overhaul
+────────────────────────────────────────────────────────────────────────────────
+
+Goal: replace the pre-2026 design system (stone/amber Tailwind defaults, Lucide
+Mountain icon mark, unsystematic typography) with a coherent paper/ink/ochre
+token system anchored on trail-register editorial voice. Every user-facing
+surface touched. No changes to fuelling engine, data model, or core algorithms.
+
+Design system changes (Prompts 04–07):
+
+  Token system:
+    paper/paper-2/paper-3/paper-dim — base surface scale
+    ink/ink-2/ink-3/ink-4 — text hierarchy
+    ochre/#c2691a — the single accent; rule of one ochre per viewport
+    clay/forest/slate — semantic: warning / success / info
+    All raw hex removed from app code; tokens live in tokens.css and
+    tailwind.tokens.js. Raw hex retained only in brand SVG files, globals.css
+    (inline comments after HSL definitions), opengraph-image.tsx (Satori
+    doesn't support CSS custom props), layout.tsx (themeColor metadata API
+    requires literal hex), manifest.ts (PWA spec requires literal hex),
+    and src/lib/utils.ts terrainColor() map (canonical terrain token source).
+
+  Typography:
+    Instrument Serif — display headings (h1/h2), 20px minimum
+    Inter — interface text, buttons, forms, body copy
+    JetBrains Mono — data values, numbers, km/kcal/g, axis labels, eyebrows
+    Eyebrows: 11px mono, uppercase, letter-spacing 0.16em, ink-3
+
+  Brand mark:
+    Lucide Mountain icon retired across all 12 files.
+    SVG lockup system: Primary, Nav (320×56 single-line), Stacked, Compact,
+    Symbol, Symbol-inverse, Wordmark.
+    All wordmark text is outlined path data (scripts/generate-wordmark-paths.ts)
+    — font-independent, renders offline and in edge runtimes.
+    Nav lockup carries stroke-width="0.4" optical correction for small sizes.
+    Signature-vs-accent rule: brand mark appears at most twice per screen
+    (nav + footer). Not used on feature cards or section dividers.
+
+  Ghost ochre CTA rule:
+    Solid ochre fill: reserved for the single most important CTA per page (hero
+    "Build your plan" button). At most once per screen.
+    Ghost ochre (ochre text, 1.5px ochre border, paper fill): all other CTAs
+    including SiteNav "Start planning" button.
+
+  Favicon / PWA:
+    Edge-runtime icon generators (icon.tsx, apple-icon.tsx) removed.
+    Sharp-based build script written; static PNG/ICO files committed to public/.
+    PWA manifest updated; OG image rewritten (no font buffer fetch).
+
+  Safety-net pages:
+    /not-found, error.tsx, loading.tsx created with brand tokens + UFPMark.
+    Empty states use UFPMark + trail-register copy (no emoji).
+
+  Editorial pages:
+    /how-to-fuel-an-ultra and /log/* styled in Instrument Serif + Inter +
+    JetBrains Mono. Voice sweep: zero exclamation marks, zero emoji on launch.
+
+Navigation changes (Refinement 01 — Consistency sweep):
+
+  SiteNav rewritten as single source of truth:
+    Built-in "How to fuel" → /how-to-fuel-an-ultra and "The Log" → /log always
+    shown on desktop (no props required for editorial links).
+    showPlannerLink prop defaults true; plannerLabel prop defaults "Start planning".
+    Mobile hamburger sheet added (Menu/X icons; paper-background right-side sheet;
+    no backdrop-blur per brand).
+    All per-page nav overrides removed.
+
+  Planner layout:
+    PlannerStepBar extracted as standalone client component reading from
+    usePlanner() context. Renders as sub-nav below SiteNav.
+    planner/layout.tsx updated to wrap with SiteNav (showPlannerLink=false) +
+    PlannerStepBar + main + LegalFooter compact.
+    planner/page.tsx stripped to content only — no bespoke nav, no footer.
+
+  Results page:
+    Bespoke nav replaced with <SiteNav /> (no-print wrapped).
+    Plan sub-header added: plan name + Edit / Export buttons.
+
+  Version badges removed:
+    LegalFooter version string (v2.35) removed.
+    All version numbers removed from rendered page chrome.
+
+Voice changes (Refinement 02 — Voice sweep):
+
+  Button copy:
+    "Build your plan — it's free" → "Build your plan"
+    "Start planning — it's free" → "Start planning"
+    All em-dash addenda removed.
+
+  Trust tags:
+    Duplicate "No account needed" instances removed (appeared on homepage
+    and in planner CTA context; retained at most once where most relevant).
+
+  Tick marks:
+    ✓ / ✅ tick characters in StepCalibration replaced with Lucide Check/X
+    icons in flex rows (text-forest / text-clay coloured).
+
+  Emoji (all removed from source):
+    fuelTypeIcon() converted from emoji to JetBrains Mono text codes:
+      gel → G, chew → C, drink_mix → ~, bar → B,
+      real_food → F, capsule → Cap, other → —
+    Empty states: emoji (📋/🎒/🗺️/🍌) → Lucide icons sized h-10 w-10 text-ink-4
+      (ClipboardList, Package, Map, Package)
+    ACTION_ICONS emoji map → ACTION_DOT CSS-class map (coloured dots):
+      consume_*: bg-ochre  |  drink_fluid: bg-ufp-slate
+      take_capsule: bg-ink-3  |  refill_at_aid: bg-ochre-soft
+      restock_carry: bg-paper-3
+    print/page.tsx: 💧/⚡/🫙/⚠ replaced with text prefixes
+      ("Fluid:", "Electrolytes:", "~{fluid}L fluid", "Note:")
+
+Automated checks (all PASS at v3.0):
+  1.  Mountain icon references         PASS
+  2.  Legacy Tailwind palette          PASS
+  3.  Raw hex outside brand files      PASS
+  4.  Exclamation marks                PASS
+  5.  Emoji in source                  PASS
+  6.  focus:ring-amber/blue/stone      PASS
+  7.  Safety-net pages exist           PASS
+  8.  Brand components exist           PASS
+  9.  No Lucide Mountain import        PASS
+  10. Static favicon files exist       PASS
+  11. icon.tsx / apple-icon.tsx gone   PASS
+  12. SiteNav single source of truth   PASS
+  13. Version badges in chrome         PASS
+  14. Em-dash button addenda           PASS
+  15. Duplicate trust tags             PASS
+  16. Tick marks (✓/✅) in source      PASS
+  17. TypeScript (tsc --noEmit)        PASS  (src/ errors only; .next/ excluded)
+
+CHANGED: src/components/SiteNav.tsx — rewritten; single nav source of truth
+ADDED:   src/components/planner/PlannerStepBar.tsx — step bar as client component
+CHANGED: src/app/planner/layout.tsx — SiteNav + PlannerStepBar + LegalFooter
+CHANGED: src/app/planner/page.tsx — stripped to content only
+CHANGED: src/app/results/page.tsx — SiteNav + plan sub-header
+CHANGED: src/components/LegalFooter.tsx — version badge removed
+CHANGED: src/lib/utils.ts — fuelTypeIcon() → text codes
+CHANGED: src/components/results/TimelineView.tsx — ACTION_DOT map; Lucide empty state
+CHANGED: src/components/results/CarryView.tsx — Lucide empty state; text fuel badges
+CHANGED: src/components/results/SummaryView.tsx — text fuel badges
+CHANGED: src/components/results/SegmentView.tsx — Lucide empty state; emoji removed
+CHANGED: src/components/planner/StepFuel.tsx — Lucide empty state
+CHANGED: src/components/planner/StepCalibration.tsx — Lucide Check/X for tick marks
+CHANGED: src/app/print/page.tsx — emoji replaced with text
+CHANGED: src/app/page.tsx — em-dash copy removed; version comment cleaned
+CHANGED: src/app/how-to-fuel-an-ultra/page.tsx — em-dash copy removed; trust tag removed
+CHANGED: src/app/log/how-i-fueled-100km-ultra/page.tsx — SiteNav updated
+CHANGED: package.json — version → 3.0.0
+CHANGED: APP-DOCUMENTATION.txt — header → v3.0, this entry added
+UNCHANGED: all fuelling engine logic, data models, algorithms, planner steps,
+  results calculations, GPX parsing, segmentation, energy model, aid station
+  logic, save/load, print layout structure, SEO metadata, sitemap
 
 
 ================================================================================

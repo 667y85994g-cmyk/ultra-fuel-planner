@@ -2,11 +2,13 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import type { PlannerOutput } from "@/types";
 import type { RoutePoint } from "@/types";
 import { terrainColor } from "@/lib/utils";
 import { ElevationChart } from "@/components/planner/ElevationChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UFPMark } from "@/components/brand/UFPMark";
 import { MapPin } from "lucide-react";
 
 // Leaflet is browser-only; we import dynamically inside useEffect
@@ -31,15 +33,18 @@ function getLatLonAtKm(points: RoutePoint[], km: number): [number, number] {
   return [closest.lat, closest.lon];
 }
 
+// Semantic map colours — these represent action types, not brand surfaces.
+// Fluid = slate (water-adjacent); capsule = muted purple (supplement-adjacent).
+// These don't have brand token equivalents; they're intentional semantic choices.
 const FUEL_MARKER_COLOR: Record<string, string> = {
-  consume_gel: "#f59e0b",
-  consume_chew: "#f59e0b",
-  consume_bar: "#f59e0b",
-  consume_food: "#f59e0b",
-  drink_fluid: "#3b82f6",
-  take_capsule: "#a78bfa",
-  refill_at_aid: "#fb923c",
-  restock_carry: "#fb923c",
+  consume_gel:    "var(--ufp-ochre)",
+  consume_chew:   "var(--ufp-ochre)",
+  consume_bar:    "var(--ufp-ochre)",
+  consume_food:   "var(--ufp-ochre)",
+  drink_fluid:    "var(--ufp-slate)",    // water/info
+  take_capsule:   "var(--ufp-ink-3)",   // neutral supplement
+  refill_at_aid:  "var(--ufp-ochre-soft)",
+  restock_carry:  "var(--ufp-ochre-soft)",
 };
 
 export function RouteMapView({ output }: Props) {
@@ -100,28 +105,28 @@ export function RouteMapView({ output }: Props) {
       if (route.segments.length === 0) {
         L.polyline(
           points.map((p) => [p.lat, p.lon] as [number, number]),
-          { color: "#f59e0b", weight: 4, opacity: 0.8 }
+          { color: "var(--ufp-ochre)", weight: 4, opacity: 0.8 }
         ).addTo(map);
       }
 
-      // Start marker
+      // Start marker — forest green (success / trail token)
       const startPt = points[0];
       L.circleMarker([startPt.lat, startPt.lon], {
         radius: 8,
-        fillColor: "#22c55e",
-        color: "#15803d",
+        fillColor: "var(--ufp-forest)",
+        color: "var(--ufp-forest)",
         weight: 2,
         fillOpacity: 1,
       })
         .bindTooltip("Start", { permanent: false, direction: "top" })
         .addTo(map);
 
-      // Finish marker
+      // Finish marker — clay (warning / hard section token)
       const endPt = points[points.length - 1];
       L.circleMarker([endPt.lat, endPt.lon], {
         radius: 8,
-        fillColor: "#ef4444",
-        color: "#b91c1c",
+        fillColor: "var(--ufp-clay)",
+        color: "var(--ufp-clay)",
         weight: 2,
         fillOpacity: 1,
       })
@@ -133,7 +138,7 @@ export function RouteMapView({ output }: Props) {
         const [lat, lon] = getLatLonAtKm(points, aid.distanceKm);
         const icon = L.divIcon({
           className: "",
-          html: `<div style="background:#fb923c;border:2px solid #c2410c;border-radius:50%;width:14px;height:14px;"></div>`,
+          html: `<div style="background:var(--ufp-ochre-soft);border:2px solid var(--ufp-ochre);border-radius:50%;width:14px;height:14px;"></div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7],
         });
@@ -148,11 +153,11 @@ export function RouteMapView({ output }: Props) {
       );
       for (const entry of fuelEntries) {
         const [lat, lon] = getLatLonAtKm(points, entry.distanceKm);
-        const color = FUEL_MARKER_COLOR[entry.action] ?? "#f59e0b";
+        const color = FUEL_MARKER_COLOR[entry.action] ?? "var(--ufp-ochre)";
         L.circleMarker([lat, lon], {
           radius: 5,
           fillColor: color,
-          color: "#000",
+          color: "var(--ufp-ink)",
           weight: 0.5,
           fillOpacity: 0.85,
         })
@@ -173,10 +178,17 @@ export function RouteMapView({ output }: Props) {
   if (!route || route.points.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
-        <div className="text-4xl">🗺️</div>
-        <p className="text-stone-400">
-          No route data. Upload a GPX file to see the map.
+        <UFPMark className="w-16 h-10 mx-auto opacity-40" />
+        <p className="text-ink-2">No route data.</p>
+        <p className="text-sm text-ink-3">
+          Upload a GPX file in the planner to see your route on the map.
         </p>
+        <Link
+          href="/planner"
+          className="mt-1 text-sm text-ochre underline underline-offset-2 hover:text-ochre-hover transition-colors"
+        >
+          Go to planner
+        </Link>
       </div>
     );
   }
@@ -184,32 +196,32 @@ export function RouteMapView({ output }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-stone-50">Route Map</h2>
-        <p className="mt-1 text-sm text-stone-400">
+        <h2 className="text-xl font-bold text-ink">Route Map</h2>
+        <p className="mt-1 text-sm text-ink-3">
           Track coloured by terrain type. Dots show fuelling events — hover for details.
         </p>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-stone-400">
+      <div className="flex flex-wrap gap-4 text-xs text-ink-3">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-forest" />
           Start
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-clay" />
           Finish
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-400" />
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-ochre" />
           Aid station
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-ochre-soft" />
           Fuel / food
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" />
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-ufp-slate" />
           Fluid
         </span>
       </div>
@@ -224,7 +236,7 @@ export function RouteMapView({ output }: Props) {
       {/* Elevation chart below map */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+          <CardTitle className="text-sm text-ink-2 flex items-center gap-2">
             <MapPin className="h-4 w-4" />
             Elevation Profile
           </CardTitle>

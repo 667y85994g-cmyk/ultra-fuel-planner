@@ -11,28 +11,60 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: "#f5f0eb",
-          100: "#e8ddd4",
-          200: "#d1bba9",
-          300: "#b9987e",
-          400: "#a07b5a",
-          500: "#8a6442",
-          600: "#6e4f33",
-          700: "#553c26",
-          800: "#3d2a1a",
-          900: "#261a10",
+        // ── Brand tokens (canonical) ─────────────────────────────────────
+        paper: {
+          DEFAULT: '#f4efe6',
+          2: '#ede6d8',
+          3: '#e5dcc8',
+          dim: '#d8cfbe',
         },
+        ink: {
+          DEFAULT: '#17140f',
+          2: '#3a342a',
+          3: '#6b6356',
+          4: '#a39a89',
+        },
+        ochre: {
+          DEFAULT: '#c2691a',
+          hover: '#a85a14',
+          soft: '#e6b787',
+        },
+        clay: '#a83d18',
+        forest: '#1f5c3a',
+        'ufp-slate': '#225668',
+        rule: '#d8cfbe',
+        // ── Terrain (categorical, earthy) — mirror globals.css and utils.ts ──
         terrain: {
-          flat: "#4a7c59",
-          climb: "#c4773a",
-          descent: "#5b7fa6",
-          technical: "#8b6bb1",
+          'flat-runnable':     '#cbb68a',
+          rolling:             '#a88a5a',
+          'sustained-climb':   '#876a3c',
+          'steep-climb':       '#5c4824',
+          'runnable-descent':  '#6b5c4c',
+          'technical-descent': '#3d3228',
+          recovery:            '#8a8074',
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "monospace"],
+        display: ["var(--font-display)", '"Instrument Serif"', '"Source Serif Pro"', 'Georgia', 'serif'],
+        sans:    ["var(--font-inter)", 'Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        mono:    ["var(--font-mono)", '"JetBrains Mono"', 'ui-monospace', 'Menlo', 'Consolas', 'monospace'],
+      },
+      fontSize: {
+        eyebrow:       ['11px', { letterSpacing: '0.16em', lineHeight: '1.2' }],
+        'data-sm':     ['11px', { letterSpacing: '0.04em' }],
+        data:          ['13px', { letterSpacing: '0.02em' }],
+        body:          ['15px', { lineHeight: '1.55' }],
+        lede:          ['19px', { lineHeight: '1.55' }],
+        h4:            ['20px', { lineHeight: '1.3' }],
+        h3:            ['26px', { lineHeight: '1.2' }],
+        h2:            ['38px', { lineHeight: '1.1' }],
+        display:       ['56px', { lineHeight: '1.05', letterSpacing: '-0.01em' }],
+        'display-hero':['96px', { lineHeight: '0.98', letterSpacing: '-0.02em' }],
+      },
+      borderRadius: {
+        sm: '2px',
+        DEFAULT: '4px',
+        lg: '8px',
       },
       animation: {
         "fade-in": "fadeIn 0.3s ease-in-out",

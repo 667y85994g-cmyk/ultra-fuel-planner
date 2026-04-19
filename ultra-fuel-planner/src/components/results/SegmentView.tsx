@@ -3,8 +3,8 @@
 import type { PlannerOutput, SegmentRecommendation } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { terrainBgClass, terrainColor, formatDuration, fuelTypeLabel, fuelTypeIcon } from "@/lib/utils";
-import { TrendingUp, Clock, Route, ThumbsDown } from "lucide-react";
+import { terrainBgClass, terrainColor, formatDuration, fuelTypeLabel } from "@/lib/utils";
+import { TrendingUp, Clock, Route, ThumbsDown, Map } from "lucide-react";
 
 interface Props {
   output: PlannerOutput;
@@ -17,8 +17,8 @@ export function SegmentView({ output }: Props) {
   if (segments.length === 0 || segmentRecommendations.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
-        <div className="text-4xl">🗺️</div>
-        <p className="text-stone-400">
+        <Map className="h-10 w-10 text-ink-4 mx-auto" />
+        <p className="text-ink-3">
           No route data. Upload a GPX file for terrain-aware recommendations.
         </p>
       </div>
@@ -28,8 +28,8 @@ export function SegmentView({ output }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-stone-50">Segment Recommendations</h2>
-        <p className="mt-1 text-sm text-stone-400">
+        <h2 className="text-xl font-bold text-ink">Segment Recommendations</h2>
+        <p className="mt-1 text-sm text-ink-3">
           Terrain-aware fuelling strategy for each section of your route.
         </p>
       </div>
@@ -57,14 +57,14 @@ export function SegmentView({ output }: Props) {
                       <Badge className={terrainBgClass(seg.terrain)}>
                         {rec.terrainLabel}
                       </Badge>
-                      <span className="text-xs text-stone-500">
+                      <span className="text-xs text-ink-3">
                         km {seg.startKm.toFixed(1)}–{seg.endKm.toFixed(1)}
                       </span>
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <div className="flex gap-4 text-xs text-stone-500">
+                  <div className="flex gap-4 text-xs text-ink-3">
                     <div className="flex items-center gap-1">
                       <Route className="h-3.5 w-3.5" />
                       {seg.distanceKm.toFixed(1)}km
@@ -81,13 +81,13 @@ export function SegmentView({ output }: Props) {
                 </div>
 
                 {/* Rationale */}
-                <p className="mt-3 text-sm text-stone-400 leading-relaxed">
+                <p className="mt-3 text-sm text-ink-3 leading-relaxed">
                   {rec.rationale}
                 </p>
 
                 {rec.timingNote && (
-                  <p className="mt-2 text-xs text-amber-400 italic">
-                    💡 {rec.timingNote}
+                  <p className="mt-2 text-xs text-ochre italic">
+                    {rec.timingNote}
                   </p>
                 )}
 
@@ -95,12 +95,12 @@ export function SegmentView({ output }: Props) {
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {/* Preferred */}
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">
                       Prefer
                     </p>
                     {rec.primaryFuelType === "fluid_only" ? (
-                      <div className="flex items-center gap-2 rounded-md bg-stone-800/60 px-3 py-2 text-sm text-stone-300">
-                        🫙 Fluids only — no solids here
+                      <div className="flex items-center gap-2 rounded-md bg-paper-2/60 px-3 py-2 text-sm text-ink-2">
+                        Fluids only — no solids here
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
@@ -111,9 +111,9 @@ export function SegmentView({ output }: Props) {
                         ].slice(0, 3).map((type) => (
                           <span
                             key={type}
-                            className="flex items-center gap-1.5 rounded-md border border-green-700/30 bg-green-900/20 px-2.5 py-1.5 text-xs text-green-300"
+                            className="flex items-center gap-1.5 rounded-md border border-forest/30 bg-forest/15 px-2.5 py-1.5 text-xs text-forest"
                           >
-                            {fuelTypeIcon(type)} {fuelTypeLabel(type)}
+                            {fuelTypeLabel(type)}
                           </span>
                         ))}
                       </div>
@@ -123,14 +123,14 @@ export function SegmentView({ output }: Props) {
                   {/* Avoid */}
                   {rec.avoid.length > 0 && (
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">
                         Avoid
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {Array.from(new Set(rec.avoid)).map((type) => (
                           <span
                             key={type}
-                            className="flex items-center gap-1.5 rounded-md border border-red-800/30 bg-red-900/15 px-2.5 py-1.5 text-xs text-red-400"
+                            className="flex items-center gap-1.5 rounded-md border border-clay/30 bg-clay/10 px-2.5 py-1.5 text-xs text-clay"
                           >
                             <ThumbsDown className="h-3 w-3" />
                             {fuelTypeLabel(type)}
@@ -143,7 +143,7 @@ export function SegmentView({ output }: Props) {
 
                 {/* Effort bar */}
                 <div className="mt-4 flex items-center gap-3">
-                  <span className="text-xs text-stone-600">Effort</span>
+                  <span className="text-xs text-ink-3">Effort</span>
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map((n) => (
                       <div
@@ -151,19 +151,19 @@ export function SegmentView({ output }: Props) {
                         className={`h-1.5 w-4 rounded-sm ${
                           n <= seg.effortLevel
                             ? seg.effortLevel >= 4
-                              ? "bg-red-600"
+                              ? "bg-clay"
                               : seg.effortLevel >= 3
-                              ? "bg-amber-600"
-                              : "bg-green-600"
-                            : "bg-stone-800"
+                              ? "bg-ochre-hover"
+                              : "bg-forest"
+                            : "bg-paper-2"
                         }`}
                       />
                     ))}
                   </div>
-                  <span className="text-xs text-stone-600">
+                  <span className="text-xs text-ink-3">
                     {seg.effortLevel}/5
                   </span>
-                  <span className="ml-auto text-xs text-stone-600">
+                  <span className="ml-auto text-xs text-ink-3">
                     {seg.avgGradientPct > 0 ? "+" : ""}{seg.avgGradientPct}% avg gradient
                   </span>
                 </div>

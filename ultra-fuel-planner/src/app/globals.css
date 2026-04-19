@@ -1,46 +1,51 @@
+@import '../../assets/brand/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Radix UI generic tokens — updated to match the light paper/ink system.
+     The three rebuilt wrappers (card, progress, select) use explicit brand
+     classes directly, but these vars remain for any future Radix primitives. */
   :root {
-    --background: 220 14% 6%;
-    --foreground: 40 20% 90%;
-    --muted: 220 10% 14%;
-    --muted-foreground: 220 8% 55%;
-    --border: 220 10% 18%;
-    --input: 220 10% 12%;
-    --ring: 30 60% 45%;
-    --primary: 30 60% 45%;
-    --primary-foreground: 40 20% 95%;
-    --secondary: 220 10% 14%;
-    --secondary-foreground: 40 20% 90%;
-    --accent: 30 50% 30%;
-    --accent-foreground: 40 20% 90%;
-    --destructive: 0 60% 45%;
-    --destructive-foreground: 0 0% 98%;
-    --card: 220 12% 8%;
-    --card-foreground: 40 20% 90%;
-    --radius: 0.5rem;
+    --background:         38 50% 93%;   /* paper      #f4efe6 */
+    --foreground:         37 21%  7%;   /* ink        #17140f */
+    --muted:              37 35% 89%;   /* paper-2    #ede6d8 */
+    --muted-foreground:   37 11% 38%;   /* ink-3      #6b6356 */
+    --border:             37 22% 80%;   /* rule       #d8cfbe */
+    --input:              37 35% 89%;   /* paper-2    #ede6d8 */
+    --ring:               29 77% 43%;   /* ochre      #c2691a */
+    --primary:            29 77% 43%;   /* ochre      #c2691a */
+    --primary-foreground: 38 50% 93%;   /* paper      #f4efe6 */
+    --secondary:          38 35% 84%;   /* paper-3    #e5dcc8 */
+    --secondary-foreground: 37 21% 7%; /* ink        #17140f */
+    --accent:             29 77% 43%;   /* ochre      #c2691a */
+    --accent-foreground:  38 50% 93%;   /* paper      #f4efe6 */
+    --destructive:        16 75% 38%;   /* clay       #a83d18 */
+    --destructive-foreground: 38 50% 93%; /* paper   #f4efe6 */
+    --card:               37 35% 89%;   /* paper-2   #ede6d8 */
+    --card-foreground:    37 21%  7%;   /* ink       #17140f */
+    --radius:             0.25rem;       /* 4px — system is square-ish */
   }
 }
 
 @layer base {
   * {
-    @apply border-stone-800;
+    @apply border-rule;
   }
 
   body {
-    @apply bg-stone-950 text-stone-100 antialiased;
+    @apply bg-paper text-ink antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
   h1, h2, h3, h4, h5 {
-    @apply text-stone-50 font-semibold tracking-tight;
+    @apply text-ink font-semibold tracking-tight;
   }
 
   input, textarea, select {
-    @apply bg-stone-900 border-stone-700 text-stone-100 placeholder:text-stone-500;
+    @apply bg-paper border-rule text-ink placeholder:text-ink-3;
   }
 }
 
@@ -53,21 +58,22 @@
 /* Elevation chart custom styles */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: rgba(255, 255, 255, 0.04) !important;
+  stroke: rgba(23, 20, 15, 0.06) !important;
 }
 
 .recharts-tooltip-wrapper {
   outline: none !important;
 }
 
-/* Terrain segment bars in chart */
-.terrain-bar-flat_runnable { fill: #4a7c59; }
-.terrain-bar-rolling { fill: #6b8f4e; }
-.terrain-bar-sustained_climb { fill: #c4773a; }
-.terrain-bar-steep_climb { fill: #c4463a; }
-.terrain-bar-runnable_descent { fill: #5b7fa6; }
-.terrain-bar-technical_descent { fill: #8b6bb1; }
-.terrain-bar-recovery { fill: #4a7c7c; }
+/* Terrain segment bars in chart — single source of truth for terrain colours.
+   terrainColor() in utils.ts and tailwind.config.js terrain.* mirror these values. */
+.terrain-bar-flat_runnable    { fill: #cbb68a; }
+.terrain-bar-rolling          { fill: #a88a5a; }
+.terrain-bar-sustained_climb  { fill: #876a3c; }
+.terrain-bar-steep_climb      { fill: #5c4824; }
+.terrain-bar-runnable_descent { fill: #6b5c4c; }
+.terrain-bar-technical_descent{ fill: #3d3228; }
+.terrain-bar-recovery         { fill: #8a8074; }
 
 /* Print styles */
 @media print {

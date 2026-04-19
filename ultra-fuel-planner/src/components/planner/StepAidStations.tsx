@@ -71,8 +71,8 @@ export function StepAidStations({ onBack, onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Aid stations</h1>
-        <p className="mt-2 text-stone-400">
+        <h1 className="text-2xl font-bold text-ink">Aid stations</h1>
+        <p className="mt-2 text-ink-3">
           Mark where you can refill and restock. The planner calculates what
           you need to carry between each one.
         </p>
@@ -83,10 +83,10 @@ export function StepAidStations({ onBack, onNext }: Props) {
         {sorted.length === 0 && !adding && (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <MapPin className="h-8 w-8 text-stone-600" />
+              <MapPin className="h-8 w-8 text-ink-3" />
               <div>
-                <p className="font-medium text-stone-200">No aid stations added</p>
-                <p className="mt-1 text-sm text-stone-500">
+                <p className="font-medium text-ink-2">No aid stations added</p>
+                <p className="mt-1 text-sm text-ink-3">
                   Optional, but strongly recommended for accurate carry plans.
                   Skip if it&apos;s a self-supported effort.
                 </p>
@@ -102,21 +102,21 @@ export function StepAidStations({ onBack, onNext }: Props) {
         {sorted.map((station) => (
           <div
             key={station.id}
-            className="flex items-center gap-4 rounded-xl border border-stone-800 bg-stone-900/40 px-5 py-4"
+            className="flex items-center gap-4 rounded-xl border border-rule bg-paper/40 px-5 py-4"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-900/40">
-              <MapPin className="h-4 w-4 text-amber-500" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-ochre-hover/40">
+              <MapPin className="h-4 w-4 text-ochre" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-stone-100">{station.name}</span>
+                <span className="font-medium text-ink">{station.name}</span>
                 {station.fullRefillPossible && (
-                  <span className="rounded-full bg-green-900/30 px-2 py-0.5 text-xs text-green-400">
+                  <span className="rounded-full bg-forest/15 px-2 py-0.5 text-xs text-forest">
                     Full refill
                   </span>
                 )}
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-500">
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-ink-3">
                 <span>km {station.distanceKm.toFixed(1)}</span>
                 {station.available.water && <span>Water</span>}
                 {station.available.sportsDrink && <span>Sports drink</span>}
@@ -126,7 +126,7 @@ export function StepAidStations({ onBack, onNext }: Props) {
             </div>
             <button
               onClick={() => remove(station.id)}
-              className="rounded-md p-2 text-stone-500 hover:bg-red-900/30 hover:text-red-400 transition-colors flex-shrink-0"
+              className="rounded-md p-2 text-ink-3 hover:bg-clay/15 hover:text-clay transition-colors flex-shrink-0"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -135,7 +135,7 @@ export function StepAidStations({ onBack, onNext }: Props) {
 
         {/* Add form */}
         {adding && (
-          <Card className="border-amber-800/40">
+          <Card className="border-ochre/40">
             <CardHeader className="pb-4">
               <CardTitle className="text-base">New aid station</CardTitle>
             </CardHeader>
@@ -156,7 +156,7 @@ export function StepAidStations({ onBack, onNext }: Props) {
                   <Label>
                     Distance km{" "}
                     {routeKm && (
-                      <span className="text-stone-500 font-normal">
+                      <span className="text-ink-3 font-normal">
                         (route is {routeKm.toFixed(1)}km)
                       </span>
                     )}
@@ -217,15 +217,15 @@ export function StepAidStations({ onBack, onNext }: Props) {
                     }
                     className={`h-5 w-5 flex-shrink-0 rounded border transition-colors flex items-center justify-center cursor-pointer ${
                       draft.fullRefillPossible
-                        ? "border-amber-600 bg-amber-700"
-                        : "border-stone-600 bg-stone-800"
+                        ? "border-ochre bg-ochre"
+                        : "border-rule bg-paper-2"
                     }`}
                   >
                     {draft.fullRefillPossible && (
-                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      <Check className="h-3 w-3 text-paper" strokeWidth={3} />
                     )}
                   </div>
-                  <span className="text-sm text-stone-300">
+                  <span className="text-sm text-ink-2">
                     Full fluid refill possible here
                   </span>
                 </label>
@@ -267,7 +267,7 @@ export function StepAidStations({ onBack, onNext }: Props) {
         {stations.length > 0 && !adding && (
           <button
             onClick={startAdd}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-stone-700 py-4 text-sm text-stone-500 hover:border-stone-500 hover:text-stone-400 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rule py-4 text-sm text-ink-3 hover:border-rule hover:text-ink-3 transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add another aid station
@@ -305,11 +305,11 @@ function SupplyToggle({
       onClick={() => onChange(!checked)}
       className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
         checked
-          ? "border-amber-700/50 bg-amber-900/30 text-amber-300"
-          : "border-stone-700 bg-stone-800 text-stone-500 hover:border-stone-600"
+          ? "border-ochre/50 bg-ochre-hover/30 text-ochre"
+          : "border-rule bg-paper-2 text-ink-3 hover:border-rule"
       }`}
     >
-      {checked ? "✓ " : ""}{label}
+      {label}
     </button>
   );
 }

@@ -14,10 +14,12 @@ import {
   Trash2,
   Activity,
   Clock,
-  Mountain,
+  TrendingUp,
   Heart,
   Flame,
   Info,
+  Check,
+  X,
 } from "lucide-react";
 import { generateId } from "@/lib/utils";
 import { calibrateFromPriorEfforts } from "@/lib/calibration-engine";
@@ -74,10 +76,10 @@ export function StepCalibration({ onBack, onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">
+        <h1 className="text-2xl font-bold text-ink">
           Prior effort data
         </h1>
-        <p className="mt-2 text-stone-400">
+        <p className="mt-2 text-ink-3">
           Add data from your past races or long training runs. The planner
           uses this to estimate your personal burn rate and set carb targets —
           more data means better accuracy.
@@ -100,46 +102,46 @@ export function StepCalibration({ onBack, onNext }: Props) {
 
         {/* Calibration preview */}
         {calibration && (
-          <Card className="border-amber-800/30 bg-amber-950/10">
+          <Card className="border-ochre/30 bg-ochre-hover/10">
             <CardContent className="p-5">
               <div className="flex items-start gap-3">
-                <Activity className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <Activity className="h-5 w-5 text-ochre flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-semibold text-amber-400 mb-2">
+                  <h3 className="text-sm font-semibold text-ochre mb-2">
                     Calibration preview
                   </h3>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-sm mb-3">
                     <div>
-                      <p className="text-xs text-stone-500">Estimated burn rate</p>
-                      <p className="font-semibold text-stone-100">
+                      <p className="text-xs text-ink-3">Estimated burn rate</p>
+                      <p className="font-semibold text-ink">
                         ~{calibration.estimatedKcalPerHour} kcal/hr
                       </p>
-                      <p className="text-xs text-stone-600 mt-0.5">
+                      <p className="text-xs text-ink-3 mt-0.5">
                         range: {calibration.kcalPerHourRange[0]}–{calibration.kcalPerHourRange[1]}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Suggested carb range</p>
-                      <p className="font-semibold text-stone-100">
+                      <p className="text-xs text-ink-3">Suggested carb range</p>
+                      <p className="font-semibold text-ink">
                         {calibration.suggestedCarbRangeGPerHour[0]}–{calibration.suggestedCarbRangeGPerHour[1]} g/hr
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Working target</p>
-                      <p className="font-semibold text-amber-400">
+                      <p className="text-xs text-ink-3">Working target</p>
+                      <p className="font-semibold text-ochre">
                         {calibration.workingCarbTargetGPerHour} g/hr
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">Confidence</p>
+                      <p className="text-xs text-ink-3">Confidence</p>
                       <p className={`font-semibold ${
-                        calibration.confidenceLevel === "high" ? "text-green-400"
-                        : calibration.confidenceLevel === "moderate" ? "text-blue-400"
-                        : "text-amber-400"
+                        calibration.confidenceLevel === "high" ? "text-forest"
+                        : calibration.confidenceLevel === "moderate" ? "text-ufp-slate"
+                        : "text-ochre"
                       }`}>
                         {calibration.confidenceLevel}
                       </p>
-                      <p className="text-xs text-stone-600 mt-0.5">
+                      <p className="text-xs text-ink-3 mt-0.5">
                         {calibration.priorEffortsUsed} effort{calibration.priorEffortsUsed !== 1 ? "s" : ""} used
                       </p>
                     </div>
@@ -147,8 +149,8 @@ export function StepCalibration({ onBack, onNext }: Props) {
                   {calibration.confidenceNotes.length > 0 && (
                     <div className="space-y-1">
                       {calibration.confidenceNotes.map((note, i) => (
-                        <p key={i} className="text-xs text-stone-500 flex items-start gap-1.5">
-                          <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+                        <p key={i} className="text-xs text-ink-3 flex items-start gap-1.5">
+                          <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-ink-3" />
                           {note}
                         </p>
                       ))}
@@ -162,13 +164,13 @@ export function StepCalibration({ onBack, onNext }: Props) {
 
         {/* No data hint */}
         {efforts.length === 0 && !showForm && (
-          <Card className="border-stone-700/50 border-dashed">
+          <Card className="border-rule/50 border-dashed">
             <CardContent className="p-8 text-center">
-              <Activity className="h-8 w-8 mx-auto text-stone-600 mb-3" />
-              <h3 className="text-sm font-medium text-stone-300 mb-1">
+              <Activity className="h-8 w-8 mx-auto text-ink-3 mb-3" />
+              <h3 className="text-sm font-medium text-ink-2 mb-1">
                 No prior efforts added
               </h3>
-              <p className="text-xs text-stone-500 mb-4 max-w-md mx-auto">
+              <p className="text-xs text-ink-3 mb-4 max-w-md mx-auto">
                 Add data from your Garmin, Strava, Whoop or any past race/training
                 effort. The more data, the more personalised your plan.
               </p>
@@ -220,8 +222,8 @@ export function StepCalibration({ onBack, onNext }: Props) {
 
         {/* Skip note */}
         {efforts.length === 0 && (
-          <div className="rounded-lg border border-stone-800 bg-stone-900/30 p-4 text-xs text-stone-500 leading-relaxed">
-            <span className="font-medium text-stone-400">No data? </span>
+          <div className="rounded-lg border border-rule bg-paper/30 p-4 text-xs text-ink-3 leading-relaxed">
+            <span className="font-medium text-ink-3">No data? </span>
             That&apos;s fine — the planner will use your bodyweight, experience
             level and event type to estimate targets. You can always add calibration
             data later.
@@ -261,10 +263,10 @@ function EffortCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-semibold text-stone-200 truncate">
+            <h4 className="text-sm font-semibold text-ink-2 truncate">
               {effort.label || "Unnamed effort"}
             </h4>
-            <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-stone-400">
+            <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-ink-3">
               <span className="flex items-center gap-1">
                 <Activity className="h-3 w-3" />
                 {effort.distanceKm}km
@@ -274,7 +276,7 @@ function EffortCard({
                 {durationHrs}h{durationMins > 0 ? ` ${durationMins}m` : ""}
               </span>
               <span className="flex items-center gap-1">
-                <Mountain className="h-3 w-3" />
+                <TrendingUp className="h-3 w-3" />
                 ↑{effort.elevationGainM}m
               </span>
               {effort.avgHeartRate && (
@@ -290,19 +292,21 @@ function EffortCard({
                 </span>
               )}
               {effort.weather && (
-                <span className="text-stone-500">{effort.weather}</span>
+                <span className="text-ink-3">{effort.weather}</span>
               )}
             </div>
             {(effort.whatWorked || effort.whatDidntWork) && (
               <div className="mt-2 space-y-1 text-xs">
                 {effort.whatWorked && (
-                  <p className="text-green-500/80">
-                    ✓ {effort.whatWorked}
+                  <p className="flex items-start gap-1 text-forest">
+                    <Check className="h-3 w-3 shrink-0 mt-0.5" />
+                    {effort.whatWorked}
                   </p>
                 )}
                 {effort.whatDidntWork && (
-                  <p className="text-red-400/80">
-                    ✗ {effort.whatDidntWork}
+                  <p className="flex items-start gap-1 text-clay">
+                    <X className="h-3 w-3 shrink-0 mt-0.5" />
+                    {effort.whatDidntWork}
                   </p>
                 )}
               </div>
@@ -312,7 +316,7 @@ function EffortCard({
             variant="ghost"
             size="sm"
             onClick={onRemove}
-            className="text-stone-500 hover:text-red-400 flex-shrink-0"
+            className="text-ink-3 hover:text-clay flex-shrink-0"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -365,7 +369,7 @@ function EffortForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Label htmlFor="effortLabel">
-              Effort name <span className="text-amber-500">*</span>
+              Effort name <span className="text-ochre">*</span>
             </Label>
             <Input
               id="effortLabel"
@@ -377,7 +381,7 @@ function EffortForm({
           </div>
           <div>
             <Label htmlFor="effortDistance">
-              Distance (km) <span className="text-amber-500">*</span>
+              Distance (km) <span className="text-ochre">*</span>
             </Label>
             <Input
               id="effortDistance"
@@ -392,7 +396,7 @@ function EffortForm({
           </div>
           <div>
             <Label>
-              Duration <span className="text-amber-500">*</span>
+              Duration <span className="text-ochre">*</span>
             </Label>
             <div className="mt-1.5 flex gap-2">
               <Input
@@ -417,7 +421,7 @@ function EffortForm({
           </div>
           <div>
             <Label htmlFor="effortElevation">
-              Elevation gain (m) <span className="text-amber-500">*</span>
+              Elevation gain (m) <span className="text-ochre">*</span>
             </Label>
             <Input
               id="effortElevation"
@@ -433,7 +437,7 @@ function EffortForm({
 
         {/* Optional — device data */}
         <div>
-          <p className="text-xs text-stone-500 mb-3 font-medium uppercase tracking-wide">
+          <p className="text-xs text-ink-3 mb-3 font-medium uppercase tracking-wide">
             Device data (optional — improves accuracy)
           </p>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -465,7 +469,7 @@ function EffortForm({
                 placeholder="e.g. 4500"
                 className="mt-1.5"
               />
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-ink-3">
                 From your watch — most accurate calibration source
               </p>
             </div>
@@ -490,7 +494,7 @@ function EffortForm({
 
         {/* Optional — race notes */}
         <div>
-          <p className="text-xs text-stone-500 mb-3 font-medium uppercase tracking-wide">
+          <p className="text-xs text-ink-3 mb-3 font-medium uppercase tracking-wide">
             Notes (optional)
           </p>
           <div className="grid gap-4 sm:grid-cols-2">

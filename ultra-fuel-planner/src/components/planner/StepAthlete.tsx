@@ -33,7 +33,7 @@ const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
   { value: "ultra_50m",      label: "Ultra 50 Miles" },
   { value: "ultra_100k",     label: "Ultra 100K" },
   { value: "ultra_100m",     label: "Ultra 100 Miles" },
-  { value: "mountain_ultra", label: "Mountain Ultra" },
+  { value: "mountain_ultra", label: "Alpine Ultra" },
   { value: "other",          label: "Other" },
 ];
 
@@ -109,8 +109,8 @@ export function StepAthlete({ onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Your event</h1>
-        <p className="mt-2 text-stone-400">
+        <h1 className="text-2xl font-bold text-ink">Your event</h1>
+        <p className="mt-2 text-ink-3">
           Tell us about your race and yourself — the planner handles the rest.
         </p>
       </div>
@@ -136,7 +136,7 @@ export function StepAthlete({ onNext }: Props) {
 
             {/* ── Session type / intent ──────────────────────────────── */}
             <div className="sm:col-span-2">
-              <p className="mb-2 text-sm font-medium text-stone-200">Session type</p>
+              <p className="mb-2 text-sm font-medium text-ink-2">Session type</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {EVENT_INTENT_OPTIONS.map(({ value, label, desc }) => {
                   const selected = eventIntent === value;
@@ -147,12 +147,12 @@ export function StepAthlete({ onNext }: Props) {
                       onClick={() => setEventIntent(value)}
                       className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
                         selected
-                          ? "border-amber-700/60 bg-amber-900/20"
-                          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                          ? "border-ochre/60 bg-ochre-hover/20"
+                          : "border-rule bg-paper/20 hover:border-rule"
                       }`}
                     >
-                      <span className="text-sm font-medium text-stone-200">{label}</span>
-                      <span className="text-xs text-stone-500">{desc}</span>
+                      <span className="text-sm font-medium text-ink-2">{label}</span>
+                      <span className="text-xs text-ink-3">{desc}</span>
                     </button>
                   );
                 })}
@@ -192,7 +192,7 @@ export function StepAthlete({ onNext }: Props) {
                 </SelectContent>
               </Select>
               {racePriority && (
-                <p className="mt-1 text-xs text-stone-500">
+                <p className="mt-1 text-xs text-ink-3">
                   {RACE_PRIORITY_OPTIONS.find((o) => o.value === racePriority)?.desc}
                 </p>
               )}
@@ -210,7 +210,7 @@ export function StepAthlete({ onNext }: Props) {
                 placeholder="e.g. 100"
                 className="mt-1.5"
               />
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-ink-3">
                 If unsure, leave blank — uses GPX distance
               </p>
             </div>
@@ -247,7 +247,7 @@ export function StepAthlete({ onNext }: Props) {
                   />
                 </div>
               </div>
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-ink-3">
                 If unsure, leave blank — estimated from your prior runs
               </p>
             </div>
@@ -261,7 +261,7 @@ export function StepAthlete({ onNext }: Props) {
                 defaultValue={state.raceStartTime ?? ""}
                 className="mt-1.5"
               />
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-ink-3">
                 Shows real clock times in your schedule
               </p>
             </div>
@@ -292,13 +292,13 @@ export function StepAthlete({ onNext }: Props) {
                   onChange={(e) => updateAthlete({ bodyweightKg: Number(e.target.value) })}
                   className="mt-1.5"
                 />
-                <p className="mt-1 text-xs text-stone-500">Used to estimate energy expenditure</p>
+                <p className="mt-1 text-xs text-ink-3">Used to estimate energy expenditure</p>
               </div>
             </div>
 
             {/* Experience */}
             <div>
-              <p className="mb-2 text-sm font-medium text-stone-200">
+              <p className="mb-2 text-sm font-medium text-ink-2">
                 Ultra running experience
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -311,12 +311,12 @@ export function StepAthlete({ onNext }: Props) {
                       onClick={() => updateProfile({ guidedExperience: value })}
                       className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
                         selected
-                          ? "border-amber-700/60 bg-amber-900/20"
-                          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                          ? "border-ochre/60 bg-ochre-hover/20"
+                          : "border-rule bg-paper/20 hover:border-rule"
                       }`}
                     >
-                      <span className="text-sm font-medium text-stone-200">{label}</span>
-                      <span className="text-xs text-stone-500">{description}</span>
+                      <span className="text-sm font-medium text-ink-2">{label}</span>
+                      <span className="text-xs text-ink-3">{description}</span>
                     </button>
                   );
                 })}
@@ -325,10 +325,10 @@ export function StepAthlete({ onNext }: Props) {
 
             {/* Fuelling level */}
             <div>
-              <p className="mb-1 text-sm font-medium text-stone-200">
+              <p className="mb-1 text-sm font-medium text-ink-2">
                 How much do you typically fuel?
               </p>
-              <p className="mb-2 text-xs text-stone-500">
+              <p className="mb-2 text-xs text-ink-3">
                 If unsure, choose &ldquo;Not sure&rdquo; — the planner will estimate
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -342,12 +342,12 @@ export function StepAthlete({ onNext }: Props) {
                       onClick={() => updateProfile({ fuellingLevel: value })}
                       className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
                         selected
-                          ? "border-amber-700/60 bg-amber-900/20"
-                          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                          ? "border-ochre/60 bg-ochre-hover/20"
+                          : "border-rule bg-paper/20 hover:border-rule"
                       }`}
                     >
-                      <span className="text-sm font-medium text-stone-200">{label}</span>
-                      <span className="text-xs text-stone-500">{description}</span>
+                      <span className="text-sm font-medium text-ink-2">{label}</span>
+                      <span className="text-xs text-ink-3">{description}</span>
                     </button>
                   );
                 })}
@@ -356,10 +356,10 @@ export function StepAthlete({ onNext }: Props) {
 
             {/* Expected conditions */}
             <div>
-              <p className="mb-1 text-sm font-medium text-stone-200">
+              <p className="mb-1 text-sm font-medium text-ink-2">
                 Expected conditions
               </p>
-              <p className="mb-2 text-xs text-stone-500">
+              <p className="mb-2 text-xs text-ink-3">
                 Affects hydration guidance and fluid targets
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -372,12 +372,12 @@ export function StepAthlete({ onNext }: Props) {
                       onClick={() => updateProfile({ expectedConditions: value })}
                       className={`flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${
                         selected
-                          ? "border-amber-700/60 bg-amber-900/20"
-                          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                          ? "border-ochre/60 bg-ochre-hover/20"
+                          : "border-rule bg-paper/20 hover:border-rule"
                       }`}
                     >
-                      <span className="text-sm font-medium text-stone-200">{label}</span>
-                      <span className="text-xs text-stone-500">{description}</span>
+                      <span className="text-sm font-medium text-ink-2">{label}</span>
+                      <span className="text-xs text-ink-3">{description}</span>
                     </button>
                   );
                 })}
@@ -394,17 +394,17 @@ export function StepAthlete({ onNext }: Props) {
             onClick={() => updateProfile({ useAdvancedInputs: !profile.useAdvancedInputs })}
             className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
               profile.useAdvancedInputs
-                ? "border-amber-700/60 bg-amber-900/15"
-                : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+                ? "border-ochre/60 bg-ochre-hover/15"
+                : "border-rule bg-paper/20 hover:border-rule"
             }`}
           >
             <div className="flex items-center gap-3">
-              <Settings2 className={`h-4 w-4 flex-shrink-0 ${profile.useAdvancedInputs ? "text-amber-500" : "text-stone-500"}`} />
+              <Settings2 className={`h-4 w-4 flex-shrink-0 ${profile.useAdvancedInputs ? "text-ochre" : "text-ink-3"}`} />
               <div>
-                <p className="text-sm font-medium text-stone-200">
+                <p className="text-sm font-medium text-ink-2">
                   Use my own fuelling targets
                 </p>
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-ink-3">
                   {profile.useAdvancedInputs
                     ? "Entering your own numbers — guided estimates are overridden"
                     : "Enable to enter exact carb, fluid and sodium targets"}
@@ -414,12 +414,12 @@ export function StepAthlete({ onNext }: Props) {
             <div
               className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border ${
                 profile.useAdvancedInputs
-                  ? "border-amber-600 bg-amber-700"
-                  : "border-stone-600 bg-stone-800"
+                  ? "border-ochre bg-ochre"
+                  : "border-rule bg-paper-2"
               }`}
             >
               {profile.useAdvancedInputs && (
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-3 w-3 text-paper" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               )}
@@ -427,7 +427,7 @@ export function StepAthlete({ onNext }: Props) {
           </button>
 
           {profile.useAdvancedInputs && (
-            <Card className="mt-3 border-amber-800/30">
+            <Card className="mt-3 border-ochre/30">
               <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <Label htmlFor="carbTarget">Carb target (g/hr)</Label>
@@ -441,7 +441,7 @@ export function StepAthlete({ onNext }: Props) {
                     onChange={(e) => updateAthlete({ carbTargetPerHour: Number(e.target.value) })}
                     className="mt-1.5"
                   />
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     Your starting carb target — refined by calibration data
                   </p>
                 </div>
@@ -457,7 +457,7 @@ export function StepAthlete({ onNext }: Props) {
                     onChange={(e) => updateAthlete({ maxCarbsPerHour: Number(e.target.value) })}
                     className="mt-1.5"
                   />
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     60g single-source, 90g+ with glucose + fructose
                   </p>
                 </div>
@@ -473,7 +473,7 @@ export function StepAthlete({ onNext }: Props) {
                     onChange={(e) => updateAthlete({ fluidTargetPerHourMl: Number(e.target.value) })}
                     className="mt-1.5"
                   />
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     Plan will show a practical range around this baseline
                   </p>
                 </div>
@@ -489,7 +489,7 @@ export function StepAthlete({ onNext }: Props) {
                     onChange={(e) => updateAthlete({ sodiumTargetPerHourMg: Number(e.target.value) })}
                     className="mt-1.5"
                   />
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     Guides electrolyte tier recommendation
                   </p>
                 </div>
@@ -540,7 +540,7 @@ export function StepAthlete({ onNext }: Props) {
                     placeholder="e.g. 18"
                     className="mt-1.5"
                   />
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-1 text-xs text-ink-3">
                     Overrides the conditions selector above
                   </p>
                 </div>
@@ -605,7 +605,7 @@ export function StepAthlete({ onNext }: Props) {
                 placeholder="e.g. 7"
                 className="mt-1.5"
               />
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-ink-3">
                 Planner avoids high-sweetness items after this point
               </p>
             </div>
@@ -642,24 +642,24 @@ function ToggleOption({
       onClick={() => onChange(!checked)}
       className={`flex items-start gap-3 rounded-lg border p-4 text-left transition-colors ${
         checked
-          ? "border-amber-700/60 bg-amber-900/20"
-          : "border-stone-700 bg-stone-900/20 hover:border-stone-600"
+          ? "border-ochre/60 bg-ochre-hover/20"
+          : "border-rule bg-paper/20 hover:border-rule"
       }`}
     >
       <div
         className={`mt-0.5 h-4 w-4 flex-shrink-0 rounded border ${
-          checked ? "border-amber-600 bg-amber-700" : "border-stone-600 bg-stone-800"
+          checked ? "border-ochre bg-ochre" : "border-rule bg-paper-2"
         } flex items-center justify-center`}
       >
         {checked && (
-          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-2.5 w-2.5 text-paper" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         )}
       </div>
       <div>
-        <div className="text-sm font-medium text-stone-200">{label}</div>
-        <div className="text-xs text-stone-500">{description}</div>
+        <div className="text-sm font-medium text-ink-2">{label}</div>
+        <div className="text-xs text-ink-3">{description}</div>
       </div>
     </button>
   );

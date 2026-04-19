@@ -1,0 +1,38 @@
+/**
+ * UFPMark — the bare symbol (elevation line + ochre apex dot).
+ * Use at any size via className: `className="h-8 w-auto"` etc.
+ * Colours are hardcoded brand tokens; not affected by dark-mode until
+ * the Prompt 03 palette sweep introduces CSS-variable fills.
+ */
+interface Props {
+  className?: string;
+}
+
+export function UFPMark({ className }: Props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 200 120"
+      role="img"
+      aria-label="Ultra Fuel Planner symbol"
+      className={className}
+    >
+      <title>Ultra Fuel Planner — symbol</title>
+      <line x1="20" y1="90" x2="180" y2="90" stroke="#6b6356" strokeWidth="0.6" />
+      <path
+        d="M 20 87 L 34 73 L 41 79 L 49 66 L 66 63 L 84 34 L 93 40 L 102 20 L 110 12 L 119 21 L 135 33 L 153 42 L 162 66 L 180 84 L 180 90 L 20 90 Z"
+        fill="#17140f"
+        opacity="0.06"
+      />
+      <path
+        d="M 20 87 L 34 73 L 41 79 L 49 66 L 66 63 L 84 34 L 93 40 L 102 20 L 110 12 L 119 21 L 135 33 L 153 42 L 162 66 L 180 84"
+        fill="none"
+        stroke="#17140f"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <circle cx="110" cy="12" r="4" fill="#c2691a" />
+    </svg>
+  );
+}

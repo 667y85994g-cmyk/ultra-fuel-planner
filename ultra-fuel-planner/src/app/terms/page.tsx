@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Mountain } from "lucide-react";
+import { SiteNav } from "@/components/SiteNav";
 import { LegalFooter } from "@/components/LegalFooter";
 
 export const metadata = {
@@ -8,29 +7,18 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-stone-950 flex flex-col">
-      {/* Nav */}
-      <nav className="border-b border-stone-800/60 bg-stone-950">
-        <div className="mx-auto flex max-w-3xl items-center px-6 py-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-stone-400 hover:text-stone-200 transition-colors"
-          >
-            <Mountain className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium">Ultra Fuel Planner</span>
-          </Link>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-paper flex flex-col">
+      <SiteNav />
 
       {/* Content */}
       <main className="flex-1 mx-auto w-full max-w-2xl px-6 py-16">
-        <h1 className="text-3xl font-bold text-stone-50 mb-2">Terms of Use</h1>
-        <p className="text-sm text-stone-500 mb-12">Last updated: March 2026</p>
+        <h1 className="text-3xl font-bold text-ink mb-2">Terms of Use</h1>
+        <p className="text-sm text-ink-3 mb-12">Last updated: March 2026</p>
 
-        <div className="space-y-10 text-stone-400 leading-relaxed">
+        <div className="space-y-10 text-ink-3 leading-relaxed">
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">What this service is</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">What this service is</h2>
             <p>
               Ultra Fuel Planner is a free online tool that helps trail and ultra
               runners plan fuelling strategies for their races and long runs. It
@@ -43,10 +31,10 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">No professional advice</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">No professional advice</h2>
             <p>
               Nothing in Ultra Fuel Planner constitutes medical, nutritional,
               dietary, coaching or other professional advice. The plans and
@@ -61,10 +49,10 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Use at your own risk</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Use at your own risk</h2>
             <p>
               Fuelling plans produced by this tool are estimates. They are based
               on your inputs, assumed pace models and route data. Actual race
@@ -78,10 +66,10 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">No guarantees</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">No guarantees</h2>
             <p>
               Ultra Fuel Planner is provided as-is. We make no guarantees about
               the accuracy, completeness or reliability of any plan it produces.
@@ -91,10 +79,10 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Limitation of liability</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Limitation of liability</h2>
             <p>
               To the fullest extent permitted by law, the providers of Ultra Fuel
               Planner are not liable for any injury, illness, loss, damage or
@@ -103,10 +91,10 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Changes and availability</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Changes and availability</h2>
             <p>
               Ultra Fuel Planner may be updated, changed, suspended or
               discontinued at any time without notice. The terms on this page may
@@ -115,13 +103,13 @@ export default function TermsPage() {
             </p>
           </section>
 
-          <div className="border-t border-stone-800" />
+          <div className="border-t border-rule" />
 
           <section>
-            <h2 className="text-lg font-semibold text-stone-200 mb-3">Contact</h2>
+            <h2 className="text-lg font-semibold text-ink-2 mb-3">Contact</h2>
             <p>
               For questions about these terms, contact:{" "}
-              <a href="mailto:ben@trailhustle.com" className="text-stone-300 hover:text-stone-100 transition-colors">ben@trailhustle.com</a>
+              <a href="mailto:ben@trailhustle.com" className="text-ink-2 hover:text-ink transition-colors">ben@trailhustle.com</a>
             </p>
           </section>
 

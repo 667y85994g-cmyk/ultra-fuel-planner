@@ -8,14 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight,
   ChevronLeft,
-  Upload,
-  Mountain,
+  ChevronsUp,
   TrendingUp,
   TrendingDown,
   Route,
   CheckCircle,
   RefreshCw,
 } from "lucide-react";
+import { UFPMark } from "@/components/brand/UFPMark";
 import type { ParsedRoute } from "@/types";
 import { ElevationChart } from "./ElevationChart";
 import { terrainBgClass } from "@/lib/utils";
@@ -110,8 +110,8 @@ export function StepRoute({ onBack, onNext }: Props) {
   return (
     <div className="animate-slide-up">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-50">Upload your GPX route</h1>
-        <p className="mt-2 text-stone-400">
+        <h1 className="text-2xl font-bold text-ink">Upload your GPX route</h1>
+        <p className="mt-2 text-ink-3">
           The planner uses elevation and gradient to classify terrain and adapt
           your fuelling recommendations.
         </p>
@@ -130,8 +130,8 @@ export function StepRoute({ onBack, onNext }: Props) {
               onDrop={onDrop}
               className={`relative flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all ${
                 isDragging
-                  ? "border-amber-600 bg-amber-900/10"
-                  : "border-stone-700 bg-stone-900/30 hover:border-stone-600 hover:bg-stone-900/50"
+                  ? "border-ochre bg-ochre-hover/10"
+                  : "border-rule bg-paper/30 hover:border-rule hover:bg-paper/50"
               }`}
             >
               <input
@@ -144,28 +144,29 @@ export function StepRoute({ onBack, onNext }: Props) {
               />
               {isLoading ? (
                 <div className="flex flex-col items-center gap-3">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-600 border-t-amber-500" />
-                  <p className="text-sm text-stone-400">Parsing route...</p>
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-rule border-t-ochre" />
+                  <p className="text-sm text-ink-3">Parsing route...</p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 text-center px-6">
-                  <div className="rounded-full bg-stone-800 p-3">
-                    <Upload className="h-6 w-6 text-amber-500" />
-                  </div>
+                  <UFPMark className="w-16 h-10 opacity-40" />
                   <div>
-                    <p className="font-medium text-stone-200">
+                    <p className="font-medium text-ink-2">
                       Drop your GPX file here
                     </p>
-                    <p className="mt-1 text-sm text-stone-500">
-                      or click to browse — exported from Komoot, Strava, Garmin
+                    <p className="mt-1 text-sm text-ink-3">
+                      Exported from Komoot, Strava, or Garmin
                     </p>
                   </div>
+                  <span className="mt-1 inline-flex items-center px-4 py-1.5 text-sm font-medium text-ochre border border-ochre/60 rounded bg-paper hover:bg-ochre/8 transition-colors pointer-events-none">
+                    Browse files
+                  </span>
                 </div>
               )}
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-800/40 bg-red-900/20 p-4 text-sm text-red-300">
+              <div className="rounded-lg border border-clay/40 bg-clay/10 p-4 text-sm text-clay">
                 {error}
               </div>
             )}
@@ -176,14 +177,14 @@ export function StepRoute({ onBack, onNext }: Props) {
         {route && (
           <div className="space-y-4 animate-slide-up">
             {/* Loaded banner */}
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-green-800/40 bg-green-900/15 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-forest/40 bg-forest/10 px-4 py-3">
               <div className="flex items-center gap-3">
-                <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-forest flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-green-300">
+                  <p className="text-sm font-medium text-forest">
                     {route.fileName ?? "Route loaded"}
                   </p>
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-ink-3">
                     {route.totalDistanceKm.toFixed(1)} km · ↑
                     {Math.round(route.totalAscentM).toLocaleString()}m ascent
                   </p>
@@ -210,7 +211,7 @@ export function StepRoute({ onBack, onNext }: Props) {
             </div>
 
             {error && (
-              <div className="rounded-lg border border-red-800/40 bg-red-900/20 p-4 text-sm text-red-300">
+              <div className="rounded-lg border border-clay/40 bg-clay/10 p-4 text-sm text-clay">
                 {error}
               </div>
             )}
@@ -234,17 +235,17 @@ export function StepRoute({ onBack, onNext }: Props) {
                   value: `${Math.round(route.totalDescentM).toLocaleString()}m`,
                 },
                 {
-                  icon: Mountain,
+                  icon: ChevronsUp,
                   label: "Max elevation",
                   value: `${Math.round(route.maxElevationM)}m`,
                 },
               ].map((stat) => (
                 <Card key={stat.label}>
                   <CardContent className="flex items-center gap-3 p-4">
-                    <stat.icon className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <stat.icon className="h-4 w-4 text-ochre flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-stone-500">{stat.label}</p>
-                      <p className="font-semibold text-stone-100">{stat.value}</p>
+                      <p className="text-xs text-ink-3">{stat.label}</p>
+                      <p className="font-semibold text-ink">{stat.value}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -254,7 +255,7 @@ export function StepRoute({ onBack, onNext }: Props) {
             {/* Elevation chart */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-stone-300">
+                <CardTitle className="text-sm text-ink-2">
                   Elevation Profile
                 </CardTitle>
               </CardHeader>
@@ -270,7 +271,7 @@ export function StepRoute({ onBack, onNext }: Props) {
             {route.segments.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-stone-300">
+                  <CardTitle className="text-sm text-ink-2">
                     Terrain Segments ({route.segments.length})
                   </CardTitle>
                 </CardHeader>
@@ -279,19 +280,19 @@ export function StepRoute({ onBack, onNext }: Props) {
                     {route.segments.map((seg) => (
                       <div
                         key={seg.id}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-stone-900/60 px-4 py-3"
+                        className="flex items-center justify-between gap-3 rounded-lg bg-paper/60 px-4 py-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <Badge className={terrainBgClass(seg.terrain)}>
                             {terrainLabel(seg.terrain)}
                           </Badge>
                           <div className="min-w-0">
-                            <p className="text-xs text-stone-400 truncate">
+                            <p className="text-xs text-ink-3 truncate">
                               km {seg.startKm.toFixed(1)}–{seg.endKm.toFixed(1)}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 flex-shrink-0 text-xs text-stone-500">
+                        <div className="flex items-center gap-4 flex-shrink-0 text-xs text-ink-3">
                           <span>{seg.distanceKm.toFixed(1)}km</span>
                           <span>↑{seg.ascentM}m</span>
                           <span>~{seg.estimatedDurationMinutes}min</span>
@@ -323,7 +324,7 @@ export function StepRoute({ onBack, onNext }: Props) {
             <button
               type="button"
               onClick={onNext}
-              className="text-xs text-stone-500 underline underline-offset-2 hover:text-stone-400"
+              className="text-xs text-ink-3 underline underline-offset-2 hover:text-ink-3"
             >
               Skip for now — generate a time-based plan without route data
             </button>

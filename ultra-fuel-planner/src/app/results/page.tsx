@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mountain, ChevronLeft, Download, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ChevronLeft, Download, ThumbsUp, ThumbsDown } from "lucide-react";
+import { SiteNav } from "@/components/SiteNav";
 import { usePlanner } from "@/lib/planner-store";
 import { Button } from "@/components/ui/button";
 import { SummaryView } from "@/components/results/SummaryView";
@@ -18,7 +19,7 @@ import { trackPlanFeedback } from "@/lib/analytics";
 const RouteMapView = dynamic(
   () => import("@/components/results/RouteMapView").then((m) => ({ default: m.RouteMapView })),
   { ssr: false, loading: () => (
-    <div className="flex items-center justify-center h-64 text-stone-500 text-sm">Loading map…</div>
+    <div className="flex items-center justify-center h-64 text-ink-3 text-sm">Loading map…</div>
   )}
 );
 
@@ -51,8 +52,8 @@ export default function ResultsPage() {
 
   if (!output) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-950">
-        <div className="text-stone-400">Redirecting to planner...</div>
+      <div className="flex min-h-screen items-center justify-center bg-paper">
+        <div className="text-ink-3">Redirecting to planner...</div>
       </div>
     );
   }
@@ -62,23 +63,19 @@ export default function ResultsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 flex flex-col">
+    <div className="min-h-screen bg-paper flex flex-col">
       {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b border-stone-800/60 bg-stone-950/90 backdrop-blur-sm no-print">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 text-stone-400 hover:text-stone-200">
-              <Mountain className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium hidden sm:inline">Ultra Fuel Planner</span>
-              <span className="text-[10px] text-stone-600 hidden sm:inline">v2.31</span>
-            </Link>
-            <span className="text-stone-700">/</span>
-            <span className="text-sm text-stone-300 font-medium">
-              {output.eventPlan.eventName || "Race Plan"}
-            </span>
-          </div>
+      <div className="no-print">
+        <SiteNav />
+      </div>
 
-          <div className="flex items-center gap-2">
+      {/* Plan sub-header — plan name + controls */}
+      <div className="border-b border-rule/60 bg-paper no-print">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+          <span className="text-sm text-ink-2 font-medium truncate">
+            {output.eventPlan.eventName || "Race Plan"}
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
             <Link href="/planner">
               <Button variant="outline" size="sm">
                 <ChevronLeft className="h-4 w-4" />
@@ -91,25 +88,25 @@ export default function ResultsPage() {
             </Button>
           </div>
         </div>
-      </nav>
+      </div>
 
       {/* Feedback prompt — shown as a slim bar below the nav */}
-      <div className="border-b border-stone-800/50 bg-stone-900/30 no-print">
+      <div className="border-b border-rule/50 bg-paper/30 no-print">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-2">
           {feedback === "pending" ? (
             <>
-              <p className="text-xs text-stone-500">Was this fuelling plan helpful?</p>
+              <p className="text-xs text-ink-3">Was this fuelling plan helpful?</p>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleFeedback(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-stone-700 px-2.5 py-1 text-xs text-stone-400 transition-colors hover:border-green-700/50 hover:bg-green-900/15 hover:text-green-400"
+                  className="flex items-center gap-1.5 rounded-md border border-rule px-2.5 py-1 text-xs text-ink-3 transition-colors hover:border-forest/50 hover:bg-forest/10 hover:text-forest"
                 >
                   <ThumbsUp className="h-3 w-3" />
                   Yes
                 </button>
                 <button
                   onClick={() => handleFeedback(false)}
-                  className="flex items-center gap-1.5 rounded-md border border-stone-700 px-2.5 py-1 text-xs text-stone-400 transition-colors hover:border-stone-600 hover:text-stone-300"
+                  className="flex items-center gap-1.5 rounded-md border border-rule px-2.5 py-1 text-xs text-ink-3 transition-colors hover:border-rule hover:text-ink-2"
                 >
                   <ThumbsDown className="h-3 w-3" />
                   Not really
@@ -117,7 +114,7 @@ export default function ResultsPage() {
               </div>
             </>
           ) : (
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-ink-3">
               {feedback === "positive"
                 ? "Thanks — glad it was useful."
                 : "Thanks for the feedback — we'll keep improving."}
@@ -156,17 +153,17 @@ export default function ResultsPage() {
         if (shownInfo.length === 0 && groupedErrors.length === 0) return null;
 
         return (
-          <div className={`border-b ${groupedErrors.length > 0 ? "border-stone-800 bg-amber-950/20" : "border-stone-800/50"}`}>
+          <div className={`border-b ${groupedErrors.length > 0 ? "border-rule bg-ochre-hover/20" : "border-rule/50"}`}>
             <div className="mx-auto max-w-6xl px-6 py-2.5">
               <div className="flex flex-wrap gap-2">
                 {shownInfo.map((w, i) => (
-                  <div key={`info-${i}`} className="flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs bg-stone-800/40 text-stone-400">
+                  <div key={`info-${i}`} className="flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs bg-paper-2/40 text-ink-3">
                     <span className="shrink-0 mt-px">ℹ️</span>
                     <span>{w.message}</span>
                   </div>
                 ))}
                 {groupedErrors.map((w, i) => (
-                  <div key={`err-${i}`} className="flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs bg-red-900/30 text-red-300">
+                  <div key={`err-${i}`} className="flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs bg-clay/15 text-clay">
                     <span className="shrink-0 mt-px">⛔</span>
                     <span>{w.message}</span>
                   </div>
@@ -178,7 +175,7 @@ export default function ResultsPage() {
       })()}
 
       {/* Tab nav */}
-      <div className="border-b border-stone-800 bg-stone-950 no-print">
+      <div className="border-b border-rule bg-paper no-print">
         <div className="mx-auto max-w-6xl px-6">
           <div className="flex gap-0.5">
             {TABS.map((tab) => (
@@ -188,8 +185,8 @@ export default function ResultsPage() {
                 className={cn(
                   "px-4 py-3.5 text-sm font-medium transition-colors border-b-2",
                   activeTab === tab.id
-                    ? "border-amber-600 text-amber-400"
-                    : "border-transparent text-stone-500 hover:text-stone-300"
+                    ? "border-ochre text-ochre"
+                    : "border-transparent text-ink-3 hover:text-ink-2"
                 )}
               >
                 {tab.label}

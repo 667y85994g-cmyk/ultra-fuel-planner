@@ -22,26 +22,26 @@ export function SummaryView({ output }: Props) {
       {/* ── Race overview ──────────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center flex-wrap gap-2">
-          <h2 className="text-xl font-bold text-stone-50">
+          <h2 className="text-xl font-bold text-ink">
             {eventPlan.eventName || "Race"} — {intentPlanLabel(eventPlan.eventIntent)}
           </h2>
           {eventPlan.eventIntent && eventPlan.eventIntent !== "race_day" && (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               eventPlan.eventIntent === "training_run"
-                ? "bg-blue-900/30 text-blue-400"
-                : "bg-purple-900/30 text-purple-400"
+                ? "bg-ufp-slate/15 text-ufp-slate"
+                : "bg-ochre/15 text-ochre"
             }`}>
               {eventPlan.eventIntent === "training_run" ? "Training run" : "Fuelling practice"}
             </span>
           )}
         </div>
-        <p className="mt-1 text-sm text-stone-400">
+        <p className="mt-1 text-sm text-ink-3">
           Estimated {eventPlan.eventIntent === "race_day" ? "race" : "session"} duration:{" "}
-          <span className="font-medium text-stone-200">
+          <span className="font-medium text-ink-2">
             {formatDuration(summary.totalRaceDurationMinutes)}
           </span>
           {summary.finishTimeEstimation && (
-            <span className="ml-2 text-xs text-stone-600">
+            <span className="ml-2 text-xs text-ink-3">
               estimated from your prior efforts
             </span>
           )}
@@ -49,39 +49,39 @@ export function SummaryView({ output }: Props) {
       </div>
 
       {/* ── Your fuelling plan ─────────────────────────────────────────────── */}
-      <Card className="border-amber-800/30 bg-amber-950/10">
+      <Card className="border-ochre/30 bg-ochre-hover/10">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-amber-400">Your fuelling plan</CardTitle>
+          <CardTitle className="text-sm text-ochre">Your fuelling plan</CardTitle>
         </CardHeader>
         <CardContent>
           <div className={`grid grid-cols-1 gap-6 ${carbRange ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {carbRange && (
               <div>
-                <p className="text-xs text-stone-500">Recommended range</p>
-                <p className="text-2xl font-bold text-amber-400">
+                <p className="text-xs text-ink-3">Recommended range</p>
+                <p className="text-2xl font-bold text-ochre">
                   {carbRange[0]}–{carbRange[1]}{" "}
-                  <span className="text-base font-normal text-stone-400">g/hr</span>
+                  <span className="text-base font-normal text-ink-3">g/hr</span>
                 </p>
               </div>
             )}
             <div>
-              <p className="text-xs text-stone-500">Working target</p>
-              <p className="text-2xl font-bold text-stone-100">
+              <p className="text-xs text-ink-3">Working target</p>
+              <p className="text-2xl font-bold text-ink">
                 {workingTarget}{" "}
-                <span className="text-base font-normal text-stone-400">g/hr</span>
+                <span className="text-base font-normal text-ink-3">g/hr</span>
               </p>
             </div>
             <div>
-              <p className="text-xs text-stone-500">Planned average</p>
-              <p className="text-2xl font-bold text-stone-300">
+              <p className="text-xs text-ink-3">Planned average</p>
+              <p className="text-2xl font-bold text-ink-2">
                 {summary.avgCarbsPerHour}{" "}
-                <span className="text-base font-normal text-stone-500">g/hr</span>
+                <span className="text-base font-normal text-ink-3">g/hr</span>
               </p>
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-stone-800">
-            <p className="text-xs text-stone-500 leading-relaxed">
+          <div className="mt-4 pt-4 border-t border-rule">
+            <p className="text-xs text-ink-3 leading-relaxed">
               {buildCarbTargetExplanation(
                 workingTarget,
                 summary.totalRaceDurationMinutes / 60,
@@ -90,7 +90,7 @@ export function SummaryView({ output }: Props) {
               )}
             </p>
             {summary.estimatedTotalKcal !== undefined && (
-              <p className="mt-1.5 text-xs text-stone-600">
+              <p className="mt-1.5 text-xs text-ink-3">
                 Estimated energy expenditure: ~{summary.avgKcalPerHour?.toLocaleString()} kcal/hr
                 {" · "}~{summary.estimatedTotalKcal.toLocaleString()} kcal total (context only — does not determine your carb target)
               </p>
@@ -117,9 +117,9 @@ export function SummaryView({ output }: Props) {
 
       {/* ── On the route ───────────────────────────────────────────────────── */}
       {summary.fuelFormatNotes && summary.fuelFormatNotes.length > 0 && (
-        <Card className="border-stone-700/30">
+        <Card className="border-rule/30">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+            <CardTitle className="text-sm text-ink-2 flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               On the route
             </CardTitle>
@@ -127,8 +127,8 @@ export function SummaryView({ output }: Props) {
           <CardContent>
             <ul className="space-y-2">
               {summary.fuelFormatNotes.map((note, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-stone-400 leading-relaxed">
-                  <span className="text-stone-600 flex-shrink-0 mt-0.5">•</span>
+                <li key={i} className="flex items-start gap-2 text-xs text-ink-3 leading-relaxed">
+                  <span className="text-ink-3 flex-shrink-0 mt-0.5">•</span>
                   {note}
                 </li>
               ))}
@@ -143,7 +143,7 @@ export function SummaryView({ output }: Props) {
       {/* ── Race totals ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-stone-300">Race totals</CardTitle>
+          <CardTitle className="text-sm text-ink-2">Race totals</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -154,8 +154,8 @@ export function SummaryView({ output }: Props) {
               { label: "Race duration", value: formatDuration(summary.totalRaceDurationMinutes) },
             ].map((item) => (
               <div key={item.label}>
-                <p className="text-xs text-stone-500">{item.label}</p>
-                <p className="mt-1 text-xl font-bold text-stone-100">{item.value}</p>
+                <p className="text-xs text-ink-3">{item.label}</p>
+                <p className="mt-1 text-xl font-bold text-ink">{item.value}</p>
               </div>
             ))}
           </div>
@@ -167,36 +167,36 @@ export function SummaryView({ output }: Props) {
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-semibold text-stone-200">Plan delivery</h3>
-              <p className="text-xs text-stone-500">
+              <h3 className="text-sm font-semibold text-ink-2">Plan delivery</h3>
+              <p className="text-xs text-ink-3">
                 How closely the schedule hits your carb target
               </p>
             </div>
             <span
               className={`text-2xl font-bold ${
                 summary.coverageScore >= 90
-                  ? "text-green-400"
+                  ? "text-forest"
                   : summary.coverageScore >= 70
-                  ? "text-amber-400"
-                  : "text-red-400"
+                  ? "text-ochre"
+                  : "text-clay"
               }`}
             >
               {summary.coverageScore}%
             </span>
           </div>
-          <div className="h-2 w-full rounded-full bg-stone-800">
+          <div className="h-2 w-full rounded-full bg-paper-2">
             <div
               className={`h-full rounded-full transition-all ${
                 summary.coverageScore >= 90
-                  ? "bg-green-600"
+                  ? "bg-forest"
                   : summary.coverageScore >= 70
-                  ? "bg-amber-600"
-                  : "bg-red-600"
+                  ? "bg-ochre-hover"
+                  : "bg-clay"
               }`}
               style={{ width: `${summary.coverageScore}%` }}
             />
           </div>
-          <p className="mt-2 text-xs text-stone-500">
+          <p className="mt-2 text-xs text-ink-3">
             {summary.coverageScore >= 90
               ? "Schedule is on track with your carb target."
               : summary.coverageScore >= 70
@@ -209,7 +209,7 @@ export function SummaryView({ output }: Props) {
       {/* ── What to pack ────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+          <CardTitle className="text-sm text-ink-2 flex items-center gap-2">
             <Package className="h-4 w-4" />
             What to pack
           </CardTitle>
@@ -223,22 +223,22 @@ export function SummaryView({ output }: Props) {
                 return (
                   <div
                     key={id}
-                    className="flex items-center gap-3 rounded-lg bg-stone-900/60 px-4 py-3"
+                    className="flex items-center gap-3 rounded-lg bg-paper/60 px-4 py-3"
                   >
-                    <span className="text-xl flex-shrink-0">
-                      {fuelItem ? fuelTypeIcon(fuelItem.type) : "📦"}
+                    <span className="inline-flex items-center justify-center w-8 h-6 rounded text-[10px] font-mono text-ink-3 bg-paper-2 shrink-0">
+                      {fuelItem ? fuelTypeIcon(fuelItem.type) : "—"}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-200 truncate">{item.name}</p>
-                      <p className="text-xs text-stone-500">
+                      <p className="text-sm font-medium text-ink-2 truncate">{item.name}</p>
+                      <p className="text-xs text-ink-3">
                         {Math.round(item.carbsG)}g carbs total
                       </p>
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      <div className="text-xl font-bold text-stone-100">
+                      <div className="text-xl font-bold text-ink">
                         ×{item.quantity}
                       </div>
-                      <div className="text-xs text-stone-500">
+                      <div className="text-xs text-ink-3">
                         {item.quantity === 1 ? "serving" : "servings"}
                       </div>
                     </div>
@@ -247,7 +247,7 @@ export function SummaryView({ output }: Props) {
               })}
 
             {Object.keys(summary.itemTotals).length === 0 && (
-              <p className="text-sm text-stone-500 text-center py-4">
+              <p className="text-sm text-ink-3 text-center py-4">
                 No fuel items scheduled.
               </p>
             )}
@@ -332,8 +332,8 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
   const isHigh = confidence.overall === "high";
   const isLow  = confidence.overall === "low";
   const Icon   = isLow ? ShieldAlert : ShieldCheck;
-  const color  = isHigh ? "text-green-400" : isLow ? "text-amber-400" : "text-blue-400";
-  const border = isHigh ? "border-green-800/30" : isLow ? "border-amber-800/30" : "border-blue-800/30";
+  const color  = isHigh ? "text-forest" : isLow ? "text-ochre" : "text-ufp-slate";
+  const border = isHigh ? "border-forest/30" : isLow ? "border-ochre/30" : "border-ufp-slate/30";
 
   const calibrationLabel =
     confidence.calibrationQuality === "none"    ? "Using general guidelines"
@@ -348,14 +348,14 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
           <Icon className={`h-5 w-5 flex-shrink-0 mt-0.5 ${color}`} />
           <div className="flex-1">
             <div className="flex items-center flex-wrap gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-stone-200">
+              <h3 className="text-sm font-semibold text-ink-2">
                 Plan reliability: {confidence.overall}
               </h3>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full ${
-                  isHigh ? "bg-green-900/30 text-green-400"
-                  : isLow ? "bg-amber-900/30 text-amber-400"
-                  : "bg-blue-900/30 text-blue-400"
+                  isHigh ? "bg-forest/15 text-forest"
+                  : isLow ? "bg-ochre-hover/30 text-ochre"
+                  : "bg-ufp-slate/15 text-ufp-slate"
                 }`}
               >
                 {calibrationLabel}
@@ -363,8 +363,8 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
             </div>
             <ul className="space-y-1">
               {confidence.notes.map((note, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
-                  <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+                <li key={i} className="flex items-start gap-2 text-xs text-ink-3">
+                  <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-ink-3" />
                   {note}
                 </li>
               ))}
@@ -380,22 +380,22 @@ function ConfidenceCard({ confidence }: { confidence: PlanConfidence }) {
 
 function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
   const confColor =
-    estimation.confidence === "high"     ? "text-green-400"
-    : estimation.confidence === "moderate" ? "text-blue-400"
-    : "text-amber-400";
+    estimation.confidence === "high"     ? "text-forest"
+    : estimation.confidence === "moderate" ? "text-ufp-slate"
+    : "text-ochre";
   const confBg =
-    estimation.confidence === "high"     ? "bg-green-900/30 text-green-400"
-    : estimation.confidence === "moderate" ? "bg-blue-900/30 text-blue-400"
-    : "bg-amber-900/30 text-amber-400";
+    estimation.confidence === "high"     ? "bg-forest/15 text-forest"
+    : estimation.confidence === "moderate" ? "bg-ufp-slate/15 text-ufp-slate"
+    : "bg-ochre-hover/30 text-ochre";
   const methodLabel =
     estimation.method === "prior_effort_anchor" ? "Based on your prior efforts"
     : estimation.method === "pace_based"         ? "Pace-based estimate"
     : "General estimate";
 
   return (
-    <Card className="border-stone-700/30">
+    <Card className="border-rule/30">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm text-stone-300 flex items-center gap-2">
+        <CardTitle className="text-sm text-ink-2 flex items-center gap-2">
           <Clock className="h-4 w-4" />
           Finish time estimate
           <span className={`text-xs px-2 py-0.5 rounded-full ${confBg}`}>
@@ -406,26 +406,26 @@ function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
       <CardContent>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
-            <p className="text-xs text-stone-500">Planning time</p>
+            <p className="text-xs text-ink-3">Planning time</p>
             <p className={`mt-1 text-xl font-bold ${confColor}`}>
               {formatDuration(estimation.estimatedMinutes)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-stone-500">Likely range</p>
-            <p className="mt-1 text-xl font-bold text-stone-100">
+            <p className="text-xs text-ink-3">Likely range</p>
+            <p className="mt-1 text-xl font-bold text-ink">
               {formatDuration(estimation.rangeMinutes[0])} – {formatDuration(estimation.rangeMinutes[1])}
             </p>
           </div>
           <div>
-            <p className="text-xs text-stone-500">How we estimated</p>
-            <p className="mt-1 text-sm font-medium text-stone-300">{methodLabel}</p>
+            <p className="text-xs text-ink-3">How we estimated</p>
+            <p className="mt-1 text-sm font-medium text-ink-2">{methodLabel}</p>
           </div>
         </div>
         <ul className="mt-3 space-y-1">
           {estimation.explanation.map((note, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs text-stone-500">
-              <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-stone-600" />
+            <li key={i} className="flex items-start gap-2 text-xs text-ink-3">
+              <Info className="h-3 w-3 flex-shrink-0 mt-0.5 text-ink-3" />
               {note}
             </li>
           ))}
@@ -439,18 +439,18 @@ function FinishTimeCard({ estimation }: { estimation: FinishTimeEstimation }) {
 
 function HydrationCard({ guidance }: { guidance: HydrationGuidance }) {
   return (
-    <Card className={guidance.isWarmConditions ? "border-blue-800/40" : "border-stone-700/30"}>
+    <Card className={guidance.isWarmConditions ? "border-ufp-slate/40" : "border-rule/30"}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-stone-500 font-medium">Hydration</span>
-          <Droplets className="h-4 w-4 text-blue-400" />
+          <span className="text-xs text-ink-3 font-medium">Hydration</span>
+          <Droplets className="h-4 w-4 text-ufp-slate" />
         </div>
-        <p className="text-2xl font-bold text-blue-400">
+        <p className="text-2xl font-bold text-ufp-slate">
           {guidance.rangeMlPerHour[0]}–{guidance.rangeMlPerHour[1]}{" "}
-          <span className="text-base font-normal text-stone-400">ml/hr</span>
+          <span className="text-base font-normal text-ink-3">ml/hr</span>
         </p>
-        <p className="text-xs text-stone-400 mt-1 font-medium">{guidance.label}</p>
-        <p className="text-xs text-stone-500 mt-2 leading-relaxed">{guidance.note}</p>
+        <p className="text-xs text-ink-3 mt-1 font-medium">{guidance.label}</p>
+        <p className="text-xs text-ink-3 mt-2 leading-relaxed">{guidance.note}</p>
       </CardContent>
     </Card>
   );
@@ -460,23 +460,23 @@ function HydrationCard({ guidance }: { guidance: HydrationGuidance }) {
 
 function ElectrolyteCard({ guidance }: { guidance: ElectrolyteGuidance }) {
   const tierColor =
-    guidance.tier === "high"     ? "text-amber-400"
-    : guidance.tier === "moderate" ? "text-green-400"
-    : "text-stone-300";
+    guidance.tier === "high"     ? "text-ochre"
+    : guidance.tier === "moderate" ? "text-forest"
+    : "text-ink-2";
   const tierBg =
-    guidance.tier === "high"     ? "bg-amber-900/20 border-amber-800/40"
-    : guidance.tier === "moderate" ? "bg-green-900/10 border-green-800/30"
-    : "border-stone-700/30";
+    guidance.tier === "high"     ? "bg-ochre-hover/20 border-ochre/40"
+    : guidance.tier === "moderate" ? "bg-forest/10 border-forest/30"
+    : "border-rule/30";
 
   return (
     <Card className={tierBg}>
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-stone-500 font-medium">Electrolytes</span>
-          <FlaskConical className="h-4 w-4 text-green-400" />
+          <span className="text-xs text-ink-3 font-medium">Electrolytes</span>
+          <FlaskConical className="h-4 w-4 text-forest" />
         </div>
         <p className={`text-sm font-bold ${tierColor}`}>{guidance.label}</p>
-        <p className="text-xs text-stone-500 mt-2 leading-relaxed">{guidance.note}</p>
+        <p className="text-xs text-ink-3 mt-2 leading-relaxed">{guidance.note}</p>
       </CardContent>
     </Card>
   );
@@ -487,28 +487,28 @@ function ElectrolyteCard({ guidance }: { guidance: ElectrolyteGuidance }) {
 function CaffeineCard({ totalMg, limitMg }: { totalMg: number; limitMg?: number }) {
   const pct = limitMg ? Math.min(100, Math.round((totalMg / limitMg) * 100)) : null;
   return (
-    <Card className="border-stone-700/30">
+    <Card className="border-rule/30">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-stone-500 font-medium">Caffeine</span>
-          <Coffee className="h-4 w-4 text-purple-400" />
+          <span className="text-xs text-ink-3 font-medium">Caffeine</span>
+          <Coffee className="h-4 w-4 text-ink-2" />
         </div>
-        <p className="text-2xl font-bold text-purple-400">
+        <p className="text-2xl font-bold text-ink-2">
           {totalMg}
-          <span className="text-base font-normal text-stone-400"> mg</span>
+          <span className="text-base font-normal text-ink-3"> mg</span>
         </p>
-        <p className="text-xs text-stone-500 mt-1">
+        <p className="text-xs text-ink-3 mt-1">
           {limitMg ? `Limit: ${limitMg}mg` : "No limit set"}
         </p>
         {pct !== null && (
           <div className="mt-3">
-            <div className="h-1.5 w-full rounded-full bg-stone-800">
+            <div className="h-1.5 w-full rounded-full bg-paper-2">
               <div
-                className="h-full rounded-full bg-purple-600 transition-all"
+                className="h-full rounded-full bg-ink-3 transition-all"
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="text-xs text-stone-600 mt-1">{pct}% of limit</p>
+            <p className="text-xs text-ink-3 mt-1">{pct}% of limit</p>
           </div>
         )}
       </CardContent>
@@ -526,9 +526,9 @@ function RecoveryCard({ guidance }: { guidance: RecoveryGuidance }) {
   ];
 
   return (
-    <Card className="border-green-800/30 bg-green-950/10">
+    <Card className="border-forest/30 bg-forest/10">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm text-green-400 flex items-center gap-2">
+        <CardTitle className="text-sm text-forest flex items-center gap-2">
           <Zap className="h-4 w-4" />
           Post-session recovery
         </CardTitle>
@@ -536,13 +536,13 @@ function RecoveryCard({ guidance }: { guidance: RecoveryGuidance }) {
       <CardContent className="space-y-4">
         {windows.map(({ label, text }) => (
           <div key={label}>
-            <p className="text-xs font-semibold text-stone-300 mb-0.5">{label}</p>
-            <p className="text-xs text-stone-400 leading-relaxed">{text}</p>
+            <p className="text-xs font-semibold text-ink-2 mb-0.5">{label}</p>
+            <p className="text-xs text-ink-3 leading-relaxed">{text}</p>
           </div>
         ))}
         {guidance.sodiumNote && (
-          <div className="rounded-lg border border-blue-800/30 bg-blue-950/10 px-3 py-2">
-            <p className="text-xs text-blue-300 leading-relaxed">
+          <div className="rounded-lg border border-ufp-slate/30 bg-ufp-slate/10 px-3 py-2">
+            <p className="text-xs text-ufp-slate leading-relaxed">
               <span className="font-semibold">Electrolytes: </span>
               {guidance.sodiumNote}
             </p>

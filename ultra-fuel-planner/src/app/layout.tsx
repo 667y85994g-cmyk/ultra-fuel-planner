@@ -1,16 +1,33 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { PlannerProvider } from "@/lib/planner-store";
 
 const inter = Inter({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const viewport: Viewport = {
-  themeColor: "#0c0c0c",
+  themeColor: "#f4efe6", // paper — chrome should recede
 };
 
 export const metadata: Metadata = {
@@ -63,16 +80,17 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", type: "image/x-icon", sizes: "48x48" },
-      { url: "/icon", type: "image/png", sizes: "192x192" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
     ],
-    shortcut: "/favicon.ico",
-    apple: "/apple-icon",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Ultra Fuel Planner",
+    statusBarStyle: "default",
+    title: "UFP",
   },
 };
 
@@ -84,7 +102,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}>
       <body>
         {/* WebSite structured data — tells Google to show "Ultra Fuel Planner"
             as the site name in search results instead of the raw domain. */}

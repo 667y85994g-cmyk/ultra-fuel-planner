@@ -4,25 +4,28 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-700 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ochre focus-visible:ring-offset-2 focus-visible:ring-offset-paper disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-amber-800 text-stone-50 shadow hover:bg-amber-700",
+          "bg-ochre text-paper hover:bg-ochre-hover",
         destructive:
-          "bg-red-900 text-stone-50 shadow-sm hover:bg-red-800",
+          "bg-clay text-paper hover:bg-clay/80",
         outline:
-          "border border-stone-700 bg-transparent shadow-sm hover:bg-stone-800 hover:text-stone-50",
+          "border border-rule bg-transparent hover:bg-paper-3 hover:text-ink",
         secondary:
-          "bg-stone-800 text-stone-100 shadow-sm hover:bg-stone-700",
-        ghost: "hover:bg-stone-800 hover:text-stone-50",
-        link: "text-amber-500 underline-offset-4 hover:underline",
+          "bg-paper-3 text-ink-2 hover:bg-paper-dim",
+        ghost: "hover:bg-paper-2 hover:text-ink",
+        link: "text-ochre underline-offset-4 hover:underline",
+        /** Ghost ochre — for nav CTAs and brand-surface secondary actions.
+         *  Solid ochre (default) is reserved for the primary CTA in hero. */
+        nav: "text-ochre font-medium border-[1.5px] border-ochre bg-paper hover:bg-ochre/8 active:bg-ochre/15",
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-md px-8 text-base",
+        sm: "h-8 rounded px-3 text-xs",
+        lg: "h-11 rounded-lg px-8 text-base",
         xl: "h-13 rounded-lg px-10 text-base font-semibold",
         icon: "h-9 w-9",
       },
