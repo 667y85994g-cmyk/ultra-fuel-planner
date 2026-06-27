@@ -123,3 +123,18 @@ export function trackPlanPrinted(): void {
 export function trackPlanFeedback(helpful: boolean): void {
   track(helpful ? "plan_feedback_positive" : "plan_feedback_negative");
 }
+
+// ── survey ────────────────────────────────────────────────────────────────────
+// Willingness-to-pay survey shown after plan generation.
+
+export function trackSurveyShown(): void {
+  track("survey_shown");
+}
+
+export function trackSurveyCompleted(likelihood: number, price: string): void {
+  track("survey_completed", { likelihood, price_selected: price });
+}
+
+export function trackSurveyDismissed(): void {
+  track("survey_dismissed");
+}

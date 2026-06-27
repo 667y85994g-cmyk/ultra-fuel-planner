@@ -14,7 +14,8 @@ import { SegmentView } from "@/components/results/SegmentView";
 import { CarryView } from "@/components/results/CarryView";
 import { cn } from "@/lib/utils";
 import { LegalFooter } from "@/components/LegalFooter";
-import { trackPlanFeedback } from "@/lib/analytics";
+import { trackPlanFeedback, trackSurveyShown } from "@/lib/analytics";
+import { SurveyModal, SURVEY_STORAGE_KEY } from "@/components/SurveyModal";
 
 const RouteMapView = dynamic(
   () => import("@/components/results/RouteMapView").then((m) => ({ default: m.RouteMapView })),
@@ -36,6 +37,7 @@ export default function ResultsPage() {
   const { state } = usePlanner();
   const [activeTab, setActiveTab] = useState("summary");
   const [feedback, setFeedback] = useState<"pending" | "positive" | "negative">("pending");
+  const [showSurvey, setShowSurvey] = useState(false);
 
   const handleFeedback = (helpful: boolean) => {
     trackPlanFeedback(helpful);
@@ -49,6 +51,17 @@ export default function ResultsPage() {
       router.push("/planner");
     }
   }, [output, router]);
+
+  useEffect(() => {
+    if (!output) return;
+    const already = localStorage.getItem(SURVEY_STORAGE_KEY);
+    if (already) return;
+    const t = setTimeout(() => {
+      setShowSurvey(true);
+      trackSurveyShown();
+    }, 25000);
+    return () => clearTimeout(t);
+  }, [output]);
 
   if (!output) {
     return (
@@ -210,6 +223,8 @@ export default function ResultsPage() {
       <div className="no-print">
         <LegalFooter compact />
       </div>
+
+      {showSurvey && <SurveyModal onClose={() => setShowSurvey(false)} />}
     </div>
   );
 }
